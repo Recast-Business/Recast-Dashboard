@@ -73,6 +73,7 @@ class handler(BaseHTTPRequestHandler):
                 elif platform.lower() == "kick":
                     set_col("Kick Handle", handle)
                     set_col("Kick CCV", ccv)
+                    set_col("Tier Size_2", tier_val)
 
                 set_col("Twitter Link", twitter)
                 set_col("Instagram Link", instagram)

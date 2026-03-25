@@ -7,7 +7,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             raw = gsheet_all_records()
-            if not raw:
+            if raw is None:
                 json_response(self, 500, {"error": "Could not read Google Sheets"})
                 return
             records = process_records(raw)

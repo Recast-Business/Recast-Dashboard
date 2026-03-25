@@ -2270,7 +2270,7 @@ function exportExcel(){
   const rows=filtered.map(r=>({name:r.name,platforms:r.platforms,tier:r.tier,ccv:r.bestCCV||0,country:r.country,contentType:r.contentType,twitter:r.twitter||'',instagram:r.instagram||'',outreachStatus:r.outreachStatus||''}));
   if(!rows.length){showToast('No rows to export');return;}
   showToast('Generating Excel...');
-  fetch('/export-excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})})
+  fetch('/api/export_excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})})
   .then(r=>{if(!r.ok)throw new Error('Export failed');return r.blob();})
   .then(blob=>{
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -2951,7 +2951,7 @@ function getScoutCategory() {
   return active.dataset.val;
 }
 
-const SCOUT_SERVER = '';  // Relative paths — Vercel serves /api/* as serverless functions
+
 
 
 const SUPABASE_URL = 'https://meobtbqoklldvloqichy.supabase.co';
@@ -3825,7 +3825,7 @@ function handleLogin(e){
         const u=data.user;const meta=u.user_metadata||{};
         return {ok:true,token:data.session.access_token,username:u.email,name:meta.name||u.email.split('@')[0],initials:(meta.name||u.email.split('@')[0]).slice(0,2).toUpperCase(),color:meta.color||'#2563eb',role:meta.role||'viewer'};
       })
-    : fetch('/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})}).then(r=>r.json())
+    : Promise.resolve({ok:false,error:'Authentication service unavailable — please refresh the page'})
   ).then(d=>{
     if(d.ok){
       sessionStorage.setItem('recast_auth',JSON.stringify({token:d.token,username:d.username,name:d.name,initials:d.initials,color:d.color,role:d.role}));
@@ -3862,7 +3862,7 @@ function handleLogin(e){
       btn.disabled=false;btn.textContent='Sign In';
     }
   }).catch(()=>{
-    showLoginError('Connection failed — is the server running?');
+    showLoginError('Connection failed — please try again.');
     btn.disabled=false;btn.textContent='Sign In';
   });
 }
@@ -4016,19 +4016,9 @@ let _serverPresence={};
 const ACTIVE_TIMEOUT=2*60;   // 2 min = online
 const AWAY_TIMEOUT=10*60;    // 10 min = away, after = offline
 
-async function heartbeat(){
-  if(!currentUserId)return;
-  const auth=JSON.parse(sessionStorage.getItem('recast_auth')||'{}');
-  if(!auth.token)return;
-  const tab=document.querySelector('.tab-btn.active')?.textContent?.trim()||'Roster';
-  // heartbeat removed — no more presence tracking
-}
+function heartbeat(){}
 
-async function fetchPresence(){
-  if(!currentUserId)return;
-  // presence removed — no more presence tracking
-    _serverPresence={};
-}
+function fetchPresence(){}
 
 function getPresenceStatus(userId){
   const entry=_serverPresence[userId];
@@ -4062,24 +4052,11 @@ function renderTeamPresence(){
   }).join('');
 }
 
-// Heartbeat every 30s, presence poll every 30s, activity resets heartbeat
-setInterval(()=>{heartbeat();fetchPresence();},30000);
-document.addEventListener('click',()=>{heartbeat();});
-document.addEventListener('keydown',()=>{heartbeat();});
 
-function logTeamActivity(action){
-  heartbeat();
-  const me=TEAM_ROSTER.find(m=>m.id===currentUserId);
-  if(!me)return;
-  const feed=document.getElementById('activityFeed');
-  if(!feed)return;
-  const item=document.createElement('div');
-  item.className='activity-item';
-  item.innerHTML='<div class="activity-item-avatar" style="background:'+me.color+'">'+me.initials+'</div><div><strong>'+me.name+'</strong> '+action+'</div>';
-  feed.appendChild(item);
-  setTimeout(()=>{if(item.parentNode)item.parentNode.removeChild(item);},5000);
-  while(feed.children.length>3)feed.removeChild(feed.firstChild);
-}
+
+
+
+
 
 // ─── Loading Screen ─────────────────────────────────────────────────────────
 function showLoading(){
@@ -4311,7 +4288,7 @@ async function handleImportExcel(input){
   const auth=JSON.parse(sessionStorage.getItem('recast_auth')||'{}');
   if(!auth.token){showToast('Not authenticated');return;}
   try{
-    const r=await fetch('/import-excel',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch('/api/import_excel',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({file_b64:b64,username:auth.username,token:auth.token})});
     const d=await r.json();
     if(d.ok){showToast('✓ Imported '+d.added+' creators'+(d.skipped?' ('+d.skipped+' skipped — already exist)':''));

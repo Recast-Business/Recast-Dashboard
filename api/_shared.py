@@ -13,6 +13,7 @@ def _get_gsheet(force_reconnect=False):
     global _gspread_sheet
     if _gspread_sheet is not None and not force_reconnect:
         return _gspread_sheet
+    tmp_path = None
     try:
         import gspread
         creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON", "")
@@ -24,27 +25,31 @@ def _get_gsheet(force_reconnect=False):
         tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
         json.dump(creds_dict, tmp)
         tmp.close()
-        client = gspread.service_account(filename=tmp.name)
-        os.unlink(tmp.name)
+        tmp_path = tmp.name
+        client = gspread.service_account(filename=tmp_path)
         wb = client.open_by_key(SPREADSHEET_ID)
         _gspread_sheet = wb.get_worksheet_by_id(SHEET_GID) if SHEET_GID else wb.get_worksheet(0)
         return _gspread_sheet
     except Exception as e:
         print(f"[GSheets] Connection failed: {e}")
         return None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
-def gsheet_all_records() -> list:
-    """Fetch all rows as list of dicts with deduplicated headers."""
+def gsheet_all_records():
+    """Fetch all rows as list of dicts with deduplicated headers.
+    Returns None on connection failure, [] on empty sheet."""
     sh = _get_gsheet()
     if sh is None:
-        return []
+        return None
     try:
         all_values = sh.get_all_values()
     except Exception:
         sh = _get_gsheet(force_reconnect=True)
         if sh is None:
-            return []
+            return None
         all_values = sh.get_all_values()
 
     if not all_values:
@@ -68,8 +73,16 @@ def gsheet_all_records() -> list:
     return records
 
 
+ALLOWED_UPDATE_FIELDS = {
+    "Outreach Status", "Notes", "Deal Value",
+    "Follow-Up Date", "Campaign", "Pipeline Notes",
+}
+
+
 def gsheet_update_field(creator_name: str, col_header: str, value) -> int:
     """Find a creator by name and update one cell. Returns rows updated."""
+    if col_header not in ALLOWED_UPDATE_FIELDS:
+        return 0
     sh = _get_gsheet()
     if sh is None:
         return 0
@@ -99,6 +112,19 @@ def gsheet_append_row(values: list) -> bool:
         return True
     except Exception as e:
         print(f"[GSheets] Append failed: {e}")
+        return False
+
+
+def gsheet_append_rows(rows: list) -> bool:
+    """Append multiple rows to the sheet in a single batch."""
+    sh = _get_gsheet()
+    if sh is None:
+        return False
+    try:
+        sh.append_rows(rows, value_input_option="USER_ENTERED")
+        return True
+    except Exception as e:
+        print(f"[GSheets] Batch append failed: {e}")
         return False
 
 
@@ -310,14 +336,15 @@ def process_records(raw_rows: list) -> list:
         country = COUNTRY_NORMALIZE.get(country, country)
 
         content_type = safe(row.get("Content Type"))
+        casino_flag = get_casino_flag(content_type, safe(row.get("Notes")))
         records.append({
             "name": name,
             "status": safe(row.get("Status")),
             "country": country,
             "platforms": platforms,
             "contentType": content_type,
-            "casinoFlag": get_casino_flag(content_type, safe(row.get("Notes"))),
-            "contentCategories": get_categories(content_type) + (["Slots / Casino"] if get_casino_flag(content_type, safe(row.get("Notes"))) == "yes" else []),
+            "casinoFlag": casino_flag,
+            "contentCategories": get_categories(content_type) + (["Slots / Casino"] if casino_flag == "yes" else []),
             "twitchHandle": safe(row.get("Twitch Handle")),
             "twitchCCV": t_ccv,
             "twitchTier": safe(twitch_tier),

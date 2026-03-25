@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler
 import base64, io
 from api._shared import (
     json_response, read_body,
-    existing_names_in_gsheet, gsheet_headers, gsheet_append_row,
+    existing_names_in_gsheet, gsheet_headers, gsheet_append_rows,
 )
 
 COL_MAP = {
@@ -60,7 +60,8 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             sheet_col_map = {h: i for i, h in enumerate(sheet_headers)}
-            added, skipped = 0, 0
+            rows_to_append = []
+            skipped = 0
 
             for row in ws_in.iter_rows(min_row=2, values_only=True):
                 name_idx = col_idx.get("Creator Name")
@@ -80,11 +81,15 @@ class handler(BaseHTTPRequestHandler):
                     if std_name in sheet_col_map:
                         out_row[sheet_col_map[std_name]] = val
 
-                if gsheet_append_row(out_row):
-                    added += 1
-                    existing.add(name.lower())
+                rows_to_append.append(out_row)
+                existing.add(name.lower())
+
+            added = 0
+            if rows_to_append:
+                if gsheet_append_rows(rows_to_append):
+                    added = len(rows_to_append)
                 else:
-                    skipped += 1
+                    skipped += len(rows_to_append)
 
             json_response(self, 200, {"ok": True, "added": added, "skipped": skipped})
         except Exception as e:
