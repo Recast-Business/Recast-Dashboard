@@ -2959,6 +2959,13 @@ function getScoutCategory() {
 
 const SCOUT_SERVER = '';  // Relative paths — Vercel serves /api/* as serverless functions
 
+// Allowed emails for Google OAuth — only these accounts can access the dashboard
+const ALLOWED_EMAILS = [
+  'partners@shadowoperator.ai',
+  'harry@maudegroup.co.uk',
+  // Add bruno and frazier here when you know their emails
+];
+
 const SUPABASE_URL = 'https://meobtbqoklldvloqichy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lb2J0YnFva2xsZHZsb3FpY2h5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NTM4NzAsImV4cCI6MjA5MDAyOTg3MH0.0zRsZ6yhnmUZ7-pBpvex7KGEyUoE_ecGypsVxIE-bfI';
 let _supabase = null;
@@ -3825,6 +3832,30 @@ async function handleGoogleLogin(){
     if(error)showLoginError(error.message);
   }catch(e){showLoginError('Google sign-in failed');}
 }
+async function checkGoogleAuthReturn(){
+  if(!_supabase)return;
+  const{data:{session}}=await _supabase.auth.getSession();
+  if(!session)return;
+  const email=(session.user?.email||'').toLowerCase();
+  if(!ALLOWED_EMAILS.map(e=>e.toLowerCase()).includes(email)){
+    await _supabase.auth.signOut();
+    showLoginError('Access denied. Your Google account is not authorised.');
+    return;
+  }
+  // Allowed — proceed as logged in
+  const meta=session.user.user_metadata||{};
+  const name=meta.full_name||meta.name||email.split('@')[0];
+  sessionStorage.setItem('recast_auth',JSON.stringify({
+    token:session.access_token,
+    username:email.split('@')[0],
+    name:name,
+    initials:name.slice(0,1).toUpperCase(),
+    color:'#2563eb',
+    role:'Team'
+  }));
+  document.getElementById('loginOverlay').style.display='none';
+  loadRosterFromAPI();
+}
 function handleLogin(e){
   e.preventDefault();
   const btn=document.getElementById('loginBtn');
@@ -3908,6 +3939,11 @@ function handleLogout(msg){
 }
 // Defined here, called at bottom after all vars/funcs are declared
 function checkSession(){
+  // Handle Google OAuth redirect return
+  if(window.location.hash.includes('access_token')||window.location.search.includes('code=')){
+    checkGoogleAuthReturn();
+    return;
+  }
   const auth=JSON.parse(sessionStorage.getItem('recast_auth')||'{}');
   if(auth.token&&auth.username){
     // Resume existing session (e.g. after location.reload) — no login screen, no animation
