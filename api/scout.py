@@ -152,8 +152,11 @@ def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_na
     if quick:
         lang_codes = lang_codes[:3]
 
-    games = TWITCH_GAME_NAMES.get(category, []) if category else TWITCH_ALL_GAMES
-    max_games = 2 if quick else 4
+    # If a category is selected, optionally narrow by game — otherwise browse ALL streams by language
+    game_filter_names = TWITCH_GAME_NAMES.get(category, [None]) if category else [None]
+    max_games = 1 if not category else (2 if quick else 4)
+    max_pages = 1 if quick else 3
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
         "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
@@ -163,58 +166,86 @@ def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_na
     results = []
     seen = set()
 
-    for game_name in games[:max_games]:
-        for lang_code in lang_codes:
-            lang_filter = f'broadcasterLanguages: ["{lang_code}"], '
-            query = (
-                '{ game(name: "%s") { streams(first: %d, options: {sort: VIEWER_COUNT, %s}) '
-                '{ edges { node { viewersCount broadcaster { displayName login '
-                'broadcastSettings { language } channel { socialMedias { name url } } } } } } } }'
-                % (game_name.replace('"', '\\"'), min(limit, 100), lang_filter)
-            )
-            try:
-                r = requests.post("https://gql.twitch.tv/gql",
-                                  json=[{"query": query}], headers=headers, timeout=10)
-                if r.status_code != 200:
-                    continue
-                data = r.json()
-                edges = (data[0].get("data", {}).get("game", {})
-                         .get("streams", {}).get("edges", [])) if data else []
-            except Exception:
-                continue
+    for lang_code in lang_codes:
+        for game_name in game_filter_names[:max_games]:
+            cursor = None
+            pages_fetched = 0
+            while pages_fetched < max_pages:
+                lang_opt = f'broadcasterLanguages: ["{lang_code}"]'
+                after_opt = f', after: "{cursor}"' if cursor else ''
 
-            for edge in edges:
+                if game_name:
+                    # Narrow by game — same structure as before
+                    query = (
+                        '{ game(name: "%s") { streams(first: 100, options: {sort: VIEWER_COUNT, %s%s}) '
+                        '{ edges { cursor node { viewersCount broadcaster { displayName login '
+                        'broadcastSettings { language } channel { socialMedias { name url } } } } } '
+                        'pageInfo { hasNextPage } } } }'
+                        % (game_name.replace('"', '\\"'), lang_opt, after_opt)
+                    )
+                else:
+                    # No category — browse ALL live Twitch streams filtered by language (like Kick)
+                    query = (
+                        '{ streams(first: 100, options: {sort: VIEWER_COUNT, %s%s}) '
+                        '{ edges { cursor node { viewersCount game { name } broadcaster { displayName login '
+                        'broadcastSettings { language } channel { socialMedias { name url } } } } } '
+                        'pageInfo { hasNextPage } } }'
+                        % (lang_opt, after_opt)
+                    )
+
                 try:
-                    node = edge["node"]
-                    broadcaster = node["broadcaster"]
-                    login = broadcaster["login"]
-                    if login in seen:
-                        continue
-                    seen.add(login)
-                    name = broadcaster["displayName"]
-                    if name.lower().strip() in roster_names:
-                        continue
-                    ccv = node.get("viewersCount", 0)
-                    if ccv_min and ccv < ccv_min:
-                        continue
-                    if ccv_max and ccv > ccv_max:
-                        continue
-                    stream_lang = (broadcaster.get("broadcastSettings") or {}).get("language", lang_code)
-                    twitter = ""
-                    for sm in ((broadcaster.get("channel") or {}).get("socialMedias") or []):
-                        if sm.get("name", "").lower() in ("x", "twitter"):
-                            twitter = sm.get("url", "")
-                            break
-                    results.append({
-                        "id": int(datetime.now().timestamp() * 1000) + len(results),
-                        "name": name, "platform": "Twitch", "handle": login,
-                        "ccv": ccv, "country": "", "language": stream_lang,
-                        "content": game_name, "twitter": twitter, "instagram": "",
-                        "source": f"Twitch/{lang_code}", "inRoster": False,
-                        "date": datetime.now().strftime("%d/%m/%Y"),
-                    })
+                    r = requests.post("https://gql.twitch.tv/gql",
+                                      json=[{"query": query}], headers=headers, timeout=10)
+                    if r.status_code != 200:
+                        break
+                    data = r.json()
+                    if game_name:
+                        stream_data = ((data[0].get("data") or {}).get("game") or {}).get("streams") or {}
+                    else:
+                        stream_data = ((data[0].get("data") or {}).get("streams")) or {}
+                    edges = stream_data.get("edges") or []
+                    has_next = (stream_data.get("pageInfo") or {}).get("hasNextPage", False)
+                    cursor = edges[-1].get("cursor") if edges and has_next else None
                 except Exception:
-                    continue
+                    break
+
+                for edge in edges:
+                    try:
+                        node = edge["node"]
+                        broadcaster = node["broadcaster"]
+                        login = broadcaster["login"]
+                        if login in seen:
+                            continue
+                        seen.add(login)
+                        name = broadcaster["displayName"]
+                        if name.lower().strip() in roster_names:
+                            continue
+                        ccv = node.get("viewersCount", 0)
+                        if ccv_min and ccv < ccv_min:
+                            continue
+                        if ccv_max and ccv > ccv_max:
+                            continue
+                        stream_lang = (broadcaster.get("broadcastSettings") or {}).get("language", lang_code)
+                        twitter = ""
+                        for sm in ((broadcaster.get("channel") or {}).get("socialMedias") or []):
+                            if sm.get("name", "").lower() in ("x", "twitter"):
+                                twitter = sm.get("url", "")
+                                break
+                        content = game_name or ((node.get("game") or {}).get("name") or "")
+                        results.append({
+                            "id": int(datetime.now().timestamp() * 1000) + len(results),
+                            "name": name, "platform": "Twitch", "handle": login,
+                            "ccv": ccv, "country": "", "language": stream_lang,
+                            "content": content, "twitter": twitter, "instagram": "",
+                            "source": f"Twitch/{lang_code}", "inRoster": False,
+                            "date": datetime.now().strftime("%d/%m/%Y"),
+                        })
+                    except Exception:
+                        continue
+
+                pages_fetched += 1
+                if not cursor or len(results) >= limit:
+                    break
 
     return results, None
 

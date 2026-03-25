@@ -253,10 +253,17 @@ def parse_ccv(val):
 
 
 def tier_from_ccv(platform, ccv):
-    if ccv >= 50000: return "MEGA"
-    if ccv >= 10000: return "BIG"
-    if ccv >= 3000: return "MID"
-    return "SMALL"
+    """Platform-specific tier thresholds — Kick numbers are much lower than Twitch."""
+    if platform.lower() == "kick":
+        if ccv >= 10000: return "Mega"
+        if ccv >= 3000:  return "Big"
+        if ccv >= 500:   return "Mid"
+        return "Small"
+    else:  # Twitch and others
+        if ccv >= 50000: return "Mega"
+        if ccv >= 10000: return "Big"
+        if ccv >= 3000:  return "Mid"
+        return "Small"
 
 
 # ── Process Records ───────────────────────────────────────────────────────────
@@ -282,10 +289,9 @@ def process_records(raw_rows: list) -> list:
             tier_map = {"MEGA": "Mega", "ELITE": "Big", "BIG": "Big", "HIGH": "Big", "MID": "Mid", "LOW": "Small", "SMALL": "Small"}
             display_tier = tier_map.get(str(twitch_tier).upper(), str(twitch_tier))
         else:
-            if best_ccv >= 50000: display_tier = "Mega"
-            elif best_ccv >= 10000: display_tier = "Big"
-            elif best_ccv >= 3000: display_tier = "Mid"
-            else: display_tier = "Small"
+            # Use platform-specific thresholds — Kick tops out much lower than Twitch
+            primary_platform = "kick" if "kick" in platforms.lower() else "twitch"
+            display_tier = tier_from_ccv(primary_platform, best_ccv)
 
         def safe(val):
             if val is None: return ""
