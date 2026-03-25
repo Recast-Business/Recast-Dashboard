@@ -1350,6 +1350,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
         <div style="display:flex;gap:8px">
           <button class="btn btn-sm" id="recentlySeenBtn" onclick="toggleRecentlySeen()" title="Show creators discovered by Auto-Scout in the last 2 hours" style="color:#a78bfa;border-color:rgba(167,139,250,.35)">🕐 Recently Seen</button>
           <button class="btn btn-sm" onclick="fetchAll30d()" title="Fetch 30-day avg CCV from TwitchTracker / Kick API for all entries">Fetch All 30d CCV</button>
+          <button class="btn btn-sm" id="scrapeSocialsBtn2" onclick="scrapeSocials()" style="color:#a78bfa;border-color:rgba(167,139,250,.3)" title="Fetch Twitter &amp; Instagram for all scouted creators">🔍 Scrape Handles</button>
           <button class="btn btn-sm" onclick="exportToMasterList()" style="color:#4ade80;border-color:rgba(74,222,128,.3);font-weight:600" title="Append new creators directly to Recast_Master_Creator_List.xlsx">⬆ Export to Master List</button>
           <button class="btn btn-sm" onclick="exportScoutCSV()">Export CSV</button>
           <button class="btn btn-sm" onclick="exportScoutClipboard()">Copy List</button>
@@ -3201,10 +3202,12 @@ function exportPotentialClipboard(){
   navigator.clipboard.writeText(h+'\n'+rows.join('\n')).then(()=>showToast('Copied '+list.length+' potential creators'));
 }
 async function scrapeSocials(){
-  const list=scoutList.filter(e=>e.potential&&e.handle&&(!e.twitter||!e.instagram));
-  if(!list.length){showToast('All potential creators already have socials');return;}
+  const list=scoutList.filter(e=>e.handle&&(!e.twitter||!e.instagram));
+  if(!list.length){showToast('All creators already have socials');return;}
   const btn=document.getElementById('scrapeSocialsBtn');
-  btn.innerHTML='<span class="spinner"></span> Scraping…';btn.disabled=true;
+  const btn2=document.getElementById('scrapeSocialsBtn2');
+  const setBtn=(html,dis)=>{if(btn){btn.innerHTML=html;btn.disabled=dis;}if(btn2){btn2.innerHTML=html;btn2.disabled=dis;}};
+  setBtn('<span class="spinner"></span> Scraping…',true);
   let updated=0,checked=0;
   try{
     // Twitch creators — direct GQL from browser (bypasses Vercel integrity issues)
@@ -3225,7 +3228,7 @@ async function scrapeSocials(){
           if(n==='instagram'&&!creator.instagram){creator.instagram=sm.url;updated++;}
         }
         checked++;
-        btn.innerHTML='<span class="spinner"></span> '+checked+'/'+list.length;
+        setBtn('<span class="spinner"></span> '+checked+'/'+list.length,true);
       }catch(e){console.warn('Scrape fail:',creator.handle,e);}
     }
     // Kick creators — try via backend (cloudscraper needed)
@@ -3254,7 +3257,7 @@ async function scrapeSocials(){
   }catch(err){
     showToast('Scrape failed: '+err.message);
   }finally{
-    btn.innerHTML='🔍 Scrape Handles';btn.disabled=false;
+    setBtn('🔍 Scrape Handles',false);
   }
 }
 function clearPotential(){
