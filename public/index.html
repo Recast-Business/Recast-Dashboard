@@ -1698,7 +1698,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
           <textarea id="briefNotes" placeholder="Campaign notes, special requirements..." rows="3"></textarea>
         </div>
         <div style="padding:12px 18px">
-          <button class="btn btn-accent" style="width:100%;font-weight:700;padding:10px" onclick="exportBriefCSV()">Export Matches CSV</button>
+          <button class="btn btn-accent" style="width:100%;font-weight:700;padding:10px" onclick="exportBriefCSV()">Export Matches to Sheets</button>
         </div>
         <div class="brief-agency-panel">
           <div class="brief-agency-panel-title">🎯 Agencies Scalped for this Brief</div>
@@ -3791,15 +3791,22 @@ function updateBriefFeed(){
   feed.innerHTML='';
   feed.appendChild(frag);
 }
-function exportBriefCSV(){
+async function exportBriefCSV(){
   const creators=DATA.map(c=>({...c,matchScore:scoreBriefMatch(c)})).filter(c=>c.matchScore>0).sort((a,b)=>b.matchScore-a.matchScore);
   if(!creators.length){showToast('No matches to export');return;}
-  const esc=s=>'"'+(s||'').replace(/"/g,'""')+'"';
-  const h='Match %,Name,Platform,Tier,CCV,Country,Content,Outreach Status';
-  const rows=creators.map(c=>[c.matchScore,esc(c.name),esc(c.platforms),esc(c.tier),c.bestCCV||0,esc(c.country),(c.contentCategories||[]).join('; '),esc(c.outreachStatus||'')].join(','));
-  const blob=new Blob([h+'\n'+rows.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='recast_brief_matches.csv';a.click();
-  showToast('Exported '+creators.length+' matched creators');
+  const niche=document.getElementById('briefNiche')?.value||'';
+  const geo=document.getElementById('briefGeo')?.value||'';
+  const briefName=[niche,geo].filter(Boolean).join(' — ')||'Campaign';
+  showToast('Creating sheet in Google Drive...');
+  try{
+    const rows=creators.map(c=>({matchScore:c.matchScore,name:c.name,platforms:c.platforms,tier:c.tier,ccv:c.bestCCV||0,country:c.country,content:(c.contentCategories||[]).join('; '),outreachStatus:c.outreachStatus||''}));
+    const res=await fetch('/api/export_brief',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows,briefName})});
+    const d=await res.json();
+    if(d.ok){
+      showToast('\u2713 '+d.count+' matches exported to Drive');
+      if(d.url)window.open(d.url,'_blank');
+    }else{showToast('Export failed: '+(d.error||'unknown'),'error');}
+  }catch(e){showToast('Export failed — '+e.message,'error');}
 }
 
 // ─── Authentication ──────────────────────────────────────────────────────────
