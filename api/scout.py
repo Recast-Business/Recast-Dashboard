@@ -288,7 +288,7 @@ class handler(BaseHTTPRequestHandler):
             ccv_min = int(body.get("ccvMin") or 0)
             ccv_max = int(body.get("ccvMax") or 0)
             languages = body.get("languages") or []
-            limit = min(int(body.get("limit") or 100), 200)
+            limit = min(int(body.get("limit") or 200), 500)
             quick = bool(body.get("quick"))
 
             # Load roster names for dedup

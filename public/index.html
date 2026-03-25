@@ -1367,6 +1367,20 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
           </tr></thead>
           <tbody id="scoutTableBody"></tbody>
         </table>
+        <div id="scoutPaginationBar" style="display:none;align-items:center;justify-content:space-between;padding:8px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text2)">
+          <span id="scoutPageInfo"></span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn btn-sm" onclick="changeScoutPage(-1)" id="scoutPrevBtn" style="padding:3px 10px">← Prev</button>
+            <span id="scoutPageNum" style="min-width:60px;text-align:center"></span>
+            <button class="btn btn-sm" onclick="changeScoutPage(1)" id="scoutNextBtn" style="padding:3px 10px">Next →</button>
+            <select id="scoutPageSizeSelect" onchange="changeScoutPageSize(this.value)" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-size:11px">
+              <option value="50">50 / page</option>
+              <option value="100" selected>100 / page</option>
+              <option value="200">200 / page</option>
+              <option value="0">Show all</option>
+            </select>
+          </div>
+        </div>
         <div class="empty-state" id="scoutEmpty">No scouted creators yet. Use the form above to log creators you find.</div>
       </div>
       <!-- Recently Seen Panel -->
@@ -2931,7 +2945,7 @@ async function goScout() {
     const res = await fetch('/api/scout', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({platform, category: catVal === 'all' ? '' : catVal, ccvMin: +ccvMin, ccvMax: +ccvMax, languages, excluded, limit: 100}),
+      body: JSON.stringify({platform, category: catVal === 'all' ? '' : catVal, ccvMin: +ccvMin, ccvMax: +ccvMax, languages, excluded, limit: 300}),
       signal: AbortSignal.timeout(30000),
     });
     const data = await res.json();
@@ -2979,7 +2993,7 @@ async function runScoutWithParams(params, statusEl) {
   const res = await fetch('/api/scout', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({...params, limit: params.quick ? 50 : 100}),
+    body: JSON.stringify({...params, limit: params.quick ? 100 : 300}),
     signal: AbortSignal.timeout(60000),
   });
   return await res.json();
@@ -3091,6 +3105,7 @@ let scoutList=JSON.parse(localStorage.getItem('recast_scout')||'[]');
 let sessionHistory=JSON.parse(localStorage.getItem('recast_sessions')||'[]');
 let scoutDisplayFilter='all';
 let scoutSortDir='desc';
+let scoutCurrentPage=0,scoutPageSize=100;
 let lastScoutParams=null;
 let autoScoutTimer=null;
 let autoScoutRunCount=0;
@@ -3413,15 +3428,26 @@ function setScoutFilter(btn){
   document.querySelectorAll('#chipScoutFilter .chip').forEach(c=>c.classList.remove('active'));
   btn.classList.add('active');
   scoutDisplayFilter=btn.dataset.val;
+  scoutCurrentPage=0;
   renderScout();
 }
-function renderScout(){
-  const tbody=document.getElementById('scoutTableBody'),empty=document.getElementById('scoutEmpty');
-  const visible=scoutDisplayFilter==='all'?scoutList
+function changeScoutPage(delta){
+  const visible=_getScoutVisible();
+  const totalPages=scoutPageSize>0?Math.ceil(visible.length/scoutPageSize):1;
+  scoutCurrentPage=Math.max(0,Math.min(scoutCurrentPage+delta,totalPages-1));
+  renderScout();
+}
+function changeScoutPageSize(val){scoutPageSize=parseInt(val)||0;scoutCurrentPage=0;renderScout();}
+function _getScoutVisible(){
+  return scoutDisplayFilter==='all'?scoutList
     :scoutDisplayFilter==='potential'?scoutList.filter(e=>e.potential)
     :scoutDisplayFilter==='new'?scoutList.filter(e=>!e.inRoster)
     :scoutDisplayFilter==='inroster'?scoutList.filter(e=>e.inRoster)
     :scoutList.filter(e=>e.platform===scoutDisplayFilter);
+}
+function renderScout(){
+  const tbody=document.getElementById('scoutTableBody'),empty=document.getElementById('scoutEmpty');
+  const visible=_getScoutVisible();
   const potentialCount=scoutList.filter(e=>e.potential).length;
   let countLabel=visible.length;
   if(scoutDisplayFilter==='potential') countLabel+=' potential';
@@ -3431,10 +3457,25 @@ function renderScout(){
   document.getElementById('scoutCount').textContent=countLabel+' scouted creator'+(visible.length!==1?'s':'')
     +(scoutDisplayFilter==='all'&&potentialCount?' · '+potentialCount+' ★':'')
     +(scoutDisplayFilter!=='all'?' ('+scoutList.length+' total)':'');
-  if(visible.length===0){tbody.innerHTML='';empty.style.display='block';return;}
+  if(visible.length===0){tbody.innerHTML='';empty.style.display='block';document.getElementById('scoutPaginationBar').style.display='none';return;}
   empty.style.display='none';
+  // Pagination
+  const total=visible.length;
+  const start=scoutPageSize>0?scoutCurrentPage*scoutPageSize:0;
+  const end=scoutPageSize>0?Math.min(start+scoutPageSize,total):total;
+  const totalPages=scoutPageSize>0?Math.ceil(total/scoutPageSize):1;
+  if(scoutCurrentPage>=totalPages)scoutCurrentPage=totalPages-1;
+  const paged=scoutPageSize>0?visible.slice(start,end):visible;
+  const pagBar=document.getElementById('scoutPaginationBar');
+  if(total>50){
+    pagBar.style.display='flex';
+    document.getElementById('scoutPageInfo').textContent='Showing '+(start+1)+'–'+end+' of '+total;
+    document.getElementById('scoutPageNum').textContent='Page '+(scoutCurrentPage+1)+' / '+totalPages;
+    document.getElementById('scoutPrevBtn').disabled=scoutCurrentPage===0;
+    document.getElementById('scoutNextBtn').disabled=scoutCurrentPage>=totalPages-1;
+  } else { pagBar.style.display='none'; }
   const frag=document.createDocumentFragment();
-  visible.forEach(e=>{
+  paged.forEach(e=>{
     const tr=document.createElement('tr');
     const badge=e.inRoster?'<span class="scout-badge-exists">In Roster</span>':'<span class="scout-badge-new">New</span>';
     const tw=e.twitter?'<a class="link-icon" href="'+esc(e.twitter.startsWith('http')?e.twitter:'https://x.com/'+e.twitter)+'" target="_blank">\uD83D\uDD17</a>':'—';
@@ -3521,7 +3562,7 @@ function exportScoutClipboard(){
 function sortScoutByCCV(){
   scoutSortDir=scoutSortDir==='desc'?'asc':'desc';
   scoutList.sort((a,b)=>scoutSortDir==='desc'?(b.ccv||0)-(a.ccv||0):(a.ccv||0)-(b.ccv||0));
-  saveScout();renderScout();
+  scoutCurrentPage=0;saveScout();renderScout();
   const arrow=document.getElementById('ccvSortArrow');
   if(arrow)arrow.textContent=scoutSortDir==='desc'?'↓':'↑';
 }
