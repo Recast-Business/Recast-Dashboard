@@ -2962,7 +2962,7 @@ async function goScout() {
       briefEl.innerHTML = briefEl.innerHTML.replace('⏳ Scraping live data...', '');
       briefEl.innerHTML += '<br><span style="color:var(--high)">✓ Found ' + found.length + ' creators — ' + added + ' new added to list.</span>';
       if (data.errors?.length) briefEl.innerHTML += '<br><span style="color:var(--elite);font-size:10px">Note: ' + data.errors.join('; ') + '</span>';
-      saveSession({platform, category: catVal === 'all' ? '' : catVal, region: regionVal, ccvMin: +ccvMin, ccvMax: +ccvMax}, found.length, added);
+      saveSession({platform, category: catVal === 'all' ? '' : catVal, region: 'all', ccvMin: +ccvMin, ccvMax: +ccvMax}, found.length, added);
       renderHistory();
       showToast('Scouted ' + added + ' new creators');
     }
