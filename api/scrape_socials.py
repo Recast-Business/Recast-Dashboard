@@ -14,33 +14,22 @@ TWITCH_HEADERS = {
 
 
 def _fetch_twitch_socials(handles):
-    """Batch-fetch socials for up to 35 Twitch users in one GQL call."""
+    """Fetch socials for Twitch users — one request per user (non-array format bypasses integrity check)."""
     results = {}
-    for chunk_start in range(0, len(handles), 35):
-        chunk = handles[chunk_start:chunk_start + 35]
-        aliases = []
-        for i, h in enumerate(chunk):
+    for h in handles:
+        try:
             safe_h = h.replace('"', '\\"')
-            aliases.append(
-                f'u{i}: user(login: "{safe_h}") {{ displayName login '
-                f'channel {{ socialMedias {{ name url }} }} }}'
+            query = (
+                '{ user(login: "%s") { displayName login '
+                'channel { socialMedias { name url } } } }' % safe_h
             )
-        query = "{ " + " ".join(aliases) + " }"
-        r = requests.post("https://gql.twitch.tv/gql",
-                          json=[{"query": query}], headers=TWITCH_HEADERS, timeout=12)
-        if r.status_code != 200:
-            raise Exception(f"Twitch GQL status {r.status_code}: {r.text[:200]}")
-        resp = r.json()
-        if isinstance(resp, list):
-            data = resp[0].get("data") or {}
-            errors = resp[0].get("errors")
-        else:
-            data = resp.get("data") or {}
-            errors = resp.get("errors")
-        if errors:
-            raise Exception(f"GQL errors: {errors}")
-        for i, h in enumerate(chunk):
-            user = data.get(f"u{i}") or {}
+            # IMPORTANT: send as plain object, NOT wrapped in array — array triggers integrity check
+            r = requests.post("https://gql.twitch.tv/gql",
+                              json={"query": query}, headers=TWITCH_HEADERS, timeout=8)
+            if r.status_code != 200:
+                continue
+            resp = r.json()
+            user = (resp.get("data") or {}).get("user") or {}
             socials = (user.get("channel") or {}).get("socialMedias") or []
             twitter = ""
             instagram = ""
@@ -53,54 +42,73 @@ def _fetch_twitch_socials(handles):
                     instagram = url
             if twitter or instagram:
                 results[h.lower()] = {"twitter": twitter, "instagram": instagram}
+        except Exception as e:
+            print(f"[SocScrape] Twitch {h}: {e}")
     return results
 
 
 def _fetch_kick_socials(handles):
     """Fetch socials for Kick users via individual channel lookups."""
     results = {}
+    kick_debug = []
     try:
         import cloudscraper
         scraper = cloudscraper.create_scraper()
     except ImportError:
-        print("[SocScrape] cloudscraper not installed")
-        return results
+        return results, ["cloudscraper not installed"]
 
     headers = {
         "Accept": "application/json",
         "Referer": "https://kick.com",
+        "x-app-platform": "web",
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     }
 
-    for handle in handles[:20]:  # Cap at 20 to stay within timeout
+    for handle in handles[:15]:  # Cap to stay within timeout
         try:
-            url = f"https://kick.com/api/v2/channels/{handle}"
+            # Try v1 web API (same as scout uses)
+            url = f"https://web.kick.com/api/v1/channels/{handle}"
             r = scraper.get(url, headers=headers, timeout=8)
             if r.status_code != 200:
+                kick_debug.append(f"{handle}: status {r.status_code}")
                 continue
             data = r.json()
             twitter = ""
             instagram = ""
-            # Kick stores socials in different places
-            for sm in (data.get("socials") or []):
-                name = (sm.get("type") or sm.get("name") or "").lower()
-                url_val = sm.get("url") or sm.get("value") or ""
-                if "twitter" in name or "x.com" in url_val:
-                    twitter = url_val
-                elif "instagram" in name:
-                    instagram = url_val
-            # Also check top-level fields
-            if not twitter:
-                twitter = data.get("twitter") or ""
-            if not instagram:
-                instagram = data.get("instagram") or ""
+
+            # Search ALL string values for twitter/instagram URLs
+            def _search(obj, depth=0):
+                nonlocal twitter, instagram
+                if depth > 4:
+                    return
+                if isinstance(obj, dict):
+                    for k, v in obj.items():
+                        kl = k.lower()
+                        if isinstance(v, str):
+                            vl = v.lower()
+                            if not twitter and ("twitter" in kl or "twitter.com" in vl or "x.com" in vl):
+                                twitter = v
+                            if not instagram and ("instagram" in kl or "instagram.com" in vl):
+                                instagram = v
+                        elif isinstance(v, (dict, list)):
+                            _search(v, depth + 1)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        _search(item, depth + 1)
+
+            _search(data)
+
             if twitter or instagram:
                 results[handle.lower()] = {"twitter": twitter, "instagram": instagram}
+                kick_debug.append(f"{handle}: found tw={bool(twitter)} ig={bool(instagram)}")
+            else:
+                # Log top-level keys for debugging
+                kick_debug.append(f"{handle}: no socials found, keys={sorted(data.keys())[:15]}")
         except Exception as e:
-            print(f"[SocScrape] Kick {handle}: {e}")
+            kick_debug.append(f"{handle}: error {e}")
             continue
-    return results
+    return results, kick_debug
 
 
 class handler(BaseHTTPRequestHandler):
@@ -128,9 +136,10 @@ class handler(BaseHTTPRequestHandler):
                     debug.append(f"twitch error: {e}")
             if kick_handles:
                 try:
-                    ki_res = _fetch_kick_socials(kick_handles)
+                    ki_res, ki_debug = _fetch_kick_socials(kick_handles)
                     results.update(ki_res)
                     debug.append(f"kick: {len(kick_handles)} handles, {len(ki_res)} found")
+                    debug.extend(ki_debug)
                 except Exception as e:
                     debug.append(f"kick error: {e}")
 
