@@ -3201,29 +3201,56 @@ function exportPotentialClipboard(){
   navigator.clipboard.writeText(h+'\n'+rows.join('\n')).then(()=>showToast('Copied '+list.length+' potential creators'));
 }
 async function scrapeSocials(){
-  const list=scoutList.filter(e=>e.potential&&e.handle&&(!e.twitter&&!e.instagram));
-  if(!list.length){showToast('All potential creators already have socials or no handle');return;}
+  const list=scoutList.filter(e=>e.potential&&e.handle&&(!e.twitter||!e.instagram));
+  if(!list.length){showToast('All potential creators already have socials');return;}
   const btn=document.getElementById('scrapeSocialsBtn');
   btn.innerHTML='<span class="spinner"></span> Scraping…';btn.disabled=true;
+  let updated=0,checked=0;
   try{
-    const res=await fetch('/api/scrape_socials',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({creators:list.map(e=>({platform:e.platform,handle:e.handle}))}),
-      signal:AbortSignal.timeout(30000),
-    });
-    const data=await res.json();
-    if(!data.ok){showToast('Error: '+(data.error||'unknown'));return;}
-    let updated=0;
-    for(const e of scoutList){
-      const info=data.results[e.handle?.toLowerCase()];
-      if(info){
-        if(info.twitter&&!e.twitter){e.twitter=info.twitter;updated++;}
-        if(info.instagram&&!e.instagram){e.instagram=info.instagram;updated++;}
-      }
+    // Twitch creators — direct GQL from browser (bypasses Vercel integrity issues)
+    const twitchList=list.filter(e=>e.platform==='Twitch');
+    for(const creator of twitchList){
+      try{
+        const q='{ user(login: "'+creator.handle.replace(/"/g,'\\"')+'") { channel { socialMedias { name url } } } }';
+        const r=await fetch('https://gql.twitch.tv/gql',{
+          method:'POST',
+          headers:{'Client-Id':'kimne78kx3ncx6brgo4mv6wki5h1ko','Content-Type':'application/json'},
+          body:JSON.stringify({query:q}),
+        });
+        const d=await r.json();
+        const socials=d?.data?.user?.channel?.socialMedias||[];
+        for(const sm of socials){
+          const n=(sm.name||'').toLowerCase();
+          if((n==='twitter'||n==='x')&&!creator.twitter){creator.twitter=sm.url;updated++;}
+          if(n==='instagram'&&!creator.instagram){creator.instagram=sm.url;updated++;}
+        }
+        checked++;
+        btn.innerHTML='<span class="spinner"></span> '+checked+'/'+list.length;
+      }catch(e){console.warn('Scrape fail:',creator.handle,e);}
+    }
+    // Kick creators — try via backend (cloudscraper needed)
+    const kickList=list.filter(e=>e.platform==='Kick');
+    if(kickList.length){
+      try{
+        const res=await fetch('/api/scrape_socials',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({creators:kickList.map(e=>({platform:e.platform,handle:e.handle}))}),
+          signal:AbortSignal.timeout(30000),
+        });
+        const data=await res.json();
+        for(const e of kickList){
+          const info=(data.results||{})[e.handle?.toLowerCase()];
+          if(info){
+            if(info.twitter&&!e.twitter){e.twitter=info.twitter;updated++;}
+            if(info.instagram&&!e.instagram){e.instagram=info.instagram;updated++;}
+          }
+          checked++;
+        }
+      }catch(e){console.warn('Kick scrape fail:',e);}
     }
     saveScout();renderPotential();renderScout();
-    showToast('Found socials for '+data.found+'/'+data.total+' creators ('+updated+' links added)');
+    showToast('Done — '+updated+' links added for '+checked+' creators');
   }catch(err){
     showToast('Scrape failed: '+err.message);
   }finally{
