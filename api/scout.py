@@ -147,16 +147,93 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
     return results, None
 
 
+def _twitch_fetch_game_streams(game_name, lang_code, max_pages, limit, ccv_min, ccv_max, roster_names, seen, headers):
+    """Fetch streams for a single game + language combo via Twitch GQL."""
+    results = []
+    cursor = None
+    pages_fetched = 0
+    lang_upper = lang_code.upper()
+
+    while pages_fetched < max_pages:
+        after_opt = f', after: "{cursor}"' if cursor else ''
+        query = (
+            '{ game(name: "%s") { streams(first: 100, options: {sort: VIEWER_COUNT, '
+            'broadcasterLanguages: [%s]%s}) '
+            '{ edges { cursor node { viewersCount broadcaster { displayName login '
+            'broadcastSettings { language } channel { socialMedias { name url } } } } } '
+            'pageInfo { hasNextPage } } } }'
+            % (game_name.replace('"', '\\"'), lang_upper, after_opt)
+        )
+
+        try:
+            r = requests.post("https://gql.twitch.tv/gql",
+                              json=[{"query": query}], headers=headers, timeout=10)
+            if r.status_code != 200:
+                break
+            data = r.json()
+            stream_data = ((data[0].get("data") or {}).get("game") or {}).get("streams") or {}
+            edges = stream_data.get("edges") or []
+            has_next = (stream_data.get("pageInfo") or {}).get("hasNextPage", False)
+            cursor = edges[-1].get("cursor") if edges and has_next else None
+        except Exception:
+            break
+
+        for edge in edges:
+            try:
+                node = edge["node"]
+                broadcaster = node["broadcaster"]
+                login = broadcaster["login"]
+                if login in seen:
+                    continue
+                seen.add(login)
+                name = broadcaster["displayName"]
+                if name.lower().strip() in roster_names:
+                    continue
+                ccv = node.get("viewersCount", 0)
+                if ccv_min and ccv < ccv_min:
+                    continue
+                if ccv_max and ccv > ccv_max:
+                    continue
+                stream_lang = (broadcaster.get("broadcastSettings") or {}).get("language", lang_code)
+                twitter = ""
+                for sm in ((broadcaster.get("channel") or {}).get("socialMedias") or []):
+                    if sm.get("name", "").lower() in ("x", "twitter"):
+                        twitter = sm.get("url", "")
+                        break
+                content = game_name or ""
+                results.append({
+                    "id": int(datetime.now().timestamp() * 1000) + len(results),
+                    "name": name, "platform": "Twitch", "handle": login,
+                    "ccv": ccv, "country": "", "language": stream_lang,
+                    "content": content, "twitter": twitter, "instagram": "",
+                    "source": f"Twitch/{lang_code}", "inRoster": False,
+                    "date": datetime.now().strftime("%d/%m/%Y"),
+                })
+            except Exception:
+                continue
+
+        pages_fetched += 1
+        if not cursor or len(results) >= limit:
+            break
+
+    return results
+
+
+# Popular Twitch categories to scrape when no specific category is selected
+# Covers the same spread as browsing /directory/all
+TWITCH_BROWSE_GAMES = [
+    "Just Chatting", "Fortnite", "League of Legends", "VALORANT",
+    "Grand Theft Auto V", "Minecraft", "Apex Legends", "Counter-Strike 2",
+    "World of Warcraft", "Call of Duty: Black Ops 6", "Slots",
+    "EA Sports FC 25", "Dota 2", "Path of Exile 2", "Elden Ring",
+    "Rocket League", "PUBG: BATTLEGROUNDS", "Genshin Impact",
+]
+
+
 def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_names):
     lang_codes = list(dict.fromkeys(LANG_CODES.get(l, "en") for l in (languages or []))) or _DEFAULT_LANGS
     if quick:
         lang_codes = lang_codes[:3]
-
-    # If a category is selected, optionally narrow by game — otherwise browse ALL streams by language
-    game_filter_names = TWITCH_GAME_NAMES.get(category, [None]) if category else [None]
-    max_games = 1 if not category else (2 if quick else 4)
-    # Top-level streams limited to 30 per page, so allow more pages to compensate
-    max_pages = 2 if quick else 5
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -167,86 +244,37 @@ def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_na
     results = []
     seen = set()
 
-    for lang_code in lang_codes:
-        for game_name in game_filter_names[:max_games]:
-            cursor = None
-            pages_fetched = 0
-            while pages_fetched < max_pages:
-                lang_opt = f'broadcasterLanguages: [{lang_code.upper()}]'
-                after_opt = f', after: "{cursor}"' if cursor else ''
-
-                if game_name:
-                    # Narrow by game — game.streams allows first: up to 100
-                    query = (
-                        '{ game(name: "%s") { streams(first: 100, options: {sort: VIEWER_COUNT, %s%s}) '
-                        '{ edges { cursor node { viewersCount broadcaster { displayName login '
-                        'broadcastSettings { language } channel { socialMedias { name url } } } } } '
-                        'pageInfo { hasNextPage } } } }'
-                        % (game_name.replace('"', '\\"'), lang_opt, after_opt)
-                    )
-                else:
-                    # No category — top-level streams query (max first: 30)
-                    query = (
-                        '{ streams(first: 30, options: {sort: VIEWER_COUNT, %s%s}) '
-                        '{ edges { cursor node { viewersCount game { name } broadcaster { displayName login '
-                        'broadcastSettings { language } channel { socialMedias { name url } } } } } '
-                        'pageInfo { hasNextPage } } }'
-                        % (lang_opt, after_opt)
-                    )
-
-                try:
-                    r = requests.post("https://gql.twitch.tv/gql",
-                                      json=[{"query": query}], headers=headers, timeout=10)
-                    if r.status_code != 200:
-                        break
-                    data = r.json()
-                    if game_name:
-                        stream_data = ((data[0].get("data") or {}).get("game") or {}).get("streams") or {}
-                    else:
-                        stream_data = ((data[0].get("data") or {}).get("streams")) or {}
-                    edges = stream_data.get("edges") or []
-                    has_next = (stream_data.get("pageInfo") or {}).get("hasNextPage", False)
-                    cursor = edges[-1].get("cursor") if edges and has_next else None
-                except Exception:
+    if category:
+        # Specific category selected — scrape its games
+        game_names = TWITCH_GAME_NAMES.get(category, [category])
+        max_games = 2 if quick else 4
+        max_pages = 1 if quick else 3
+        for lang_code in lang_codes:
+            for game_name in game_names[:max_games]:
+                batch = _twitch_fetch_game_streams(
+                    game_name, lang_code, max_pages, limit - len(results),
+                    ccv_min, ccv_max, roster_names, seen, headers
+                )
+                results.extend(batch)
+                if len(results) >= limit:
                     break
-
-                for edge in edges:
-                    try:
-                        node = edge["node"]
-                        broadcaster = node["broadcaster"]
-                        login = broadcaster["login"]
-                        if login in seen:
-                            continue
-                        seen.add(login)
-                        name = broadcaster["displayName"]
-                        if name.lower().strip() in roster_names:
-                            continue
-                        ccv = node.get("viewersCount", 0)
-                        if ccv_min and ccv < ccv_min:
-                            continue
-                        if ccv_max and ccv > ccv_max:
-                            continue
-                        stream_lang = (broadcaster.get("broadcastSettings") or {}).get("language", lang_code)
-                        twitter = ""
-                        for sm in ((broadcaster.get("channel") or {}).get("socialMedias") or []):
-                            if sm.get("name", "").lower() in ("x", "twitter"):
-                                twitter = sm.get("url", "")
-                                break
-                        content = game_name or ((node.get("game") or {}).get("name") or "")
-                        results.append({
-                            "id": int(datetime.now().timestamp() * 1000) + len(results),
-                            "name": name, "platform": "Twitch", "handle": login,
-                            "ccv": ccv, "country": "", "language": stream_lang,
-                            "content": content, "twitter": twitter, "instagram": "",
-                            "source": f"Twitch/{lang_code}", "inRoster": False,
-                            "date": datetime.now().strftime("%d/%m/%Y"),
-                        })
-                    except Exception:
-                        continue
-
-                pages_fetched += 1
-                if not cursor or len(results) >= limit:
+            if len(results) >= limit:
+                break
+    else:
+        # No category — browse across all popular games (like /directory/all)
+        max_games = 6 if quick else len(TWITCH_BROWSE_GAMES)
+        max_pages = 1 if quick else 2
+        for lang_code in lang_codes:
+            for game_name in TWITCH_BROWSE_GAMES[:max_games]:
+                batch = _twitch_fetch_game_streams(
+                    game_name, lang_code, max_pages, limit - len(results),
+                    ccv_min, ccv_max, roster_names, seen, headers
+                )
+                results.extend(batch)
+                if len(results) >= limit:
                     break
+            if len(results) >= limit:
+                break
 
     return results, None
 
