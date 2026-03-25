@@ -16,7 +16,6 @@ TWITCH_HEADERS = {
 def _fetch_twitch_socials(handles):
     """Batch-fetch socials for up to 35 Twitch users in one GQL call."""
     results = {}
-    # GQL aliases can't exceed ~35 per query safely
     for chunk_start in range(0, len(handles), 35):
         chunk = handles[chunk_start:chunk_start + 35]
         aliases = []
@@ -27,28 +26,33 @@ def _fetch_twitch_socials(handles):
                 f'channel {{ socialMedias {{ name url }} }} }}'
             )
         query = "{ " + " ".join(aliases) + " }"
-        try:
-            r = requests.post("https://gql.twitch.tv/gql",
-                              json=[{"query": query}], headers=TWITCH_HEADERS, timeout=12)
-            if r.status_code != 200:
-                continue
-            data = r.json()[0].get("data") or {}
-            for i, h in enumerate(chunk):
-                user = data.get(f"u{i}") or {}
-                socials = (user.get("channel") or {}).get("socialMedias") or []
-                twitter = ""
-                instagram = ""
-                for sm in socials:
-                    name = sm.get("name", "").lower()
-                    url = sm.get("url", "")
-                    if name in ("twitter", "x") and not twitter:
-                        twitter = url
-                    elif "instagram" in name and not instagram:
-                        instagram = url
-                if twitter or instagram:
-                    results[h.lower()] = {"twitter": twitter, "instagram": instagram}
-        except Exception as e:
-            print(f"[SocScrape] Twitch batch error: {e}")
+        r = requests.post("https://gql.twitch.tv/gql",
+                          json=[{"query": query}], headers=TWITCH_HEADERS, timeout=12)
+        if r.status_code != 200:
+            raise Exception(f"Twitch GQL status {r.status_code}: {r.text[:200]}")
+        resp = r.json()
+        if isinstance(resp, list):
+            data = resp[0].get("data") or {}
+            errors = resp[0].get("errors")
+        else:
+            data = resp.get("data") or {}
+            errors = resp.get("errors")
+        if errors:
+            raise Exception(f"GQL errors: {errors}")
+        for i, h in enumerate(chunk):
+            user = data.get(f"u{i}") or {}
+            socials = (user.get("channel") or {}).get("socialMedias") or []
+            twitter = ""
+            instagram = ""
+            for sm in socials:
+                name = sm.get("name", "").lower()
+                url = sm.get("url", "")
+                if name in ("twitter", "x") and not twitter:
+                    twitter = url
+                elif "instagram" in name and not instagram:
+                    instagram = url
+            if twitter or instagram:
+                results[h.lower()] = {"twitter": twitter, "instagram": instagram}
     return results
 
 
@@ -114,16 +118,28 @@ class handler(BaseHTTPRequestHandler):
                             if c.get("platform", "").lower() == "kick" and c.get("handle")]
 
             results = {}
+            debug = []
             if twitch_handles:
-                results.update(_fetch_twitch_socials(twitch_handles))
+                try:
+                    tw_res = _fetch_twitch_socials(twitch_handles)
+                    results.update(tw_res)
+                    debug.append(f"twitch: {len(twitch_handles)} handles, {len(tw_res)} found")
+                except Exception as e:
+                    debug.append(f"twitch error: {e}")
             if kick_handles:
-                results.update(_fetch_kick_socials(kick_handles))
+                try:
+                    ki_res = _fetch_kick_socials(kick_handles)
+                    results.update(ki_res)
+                    debug.append(f"kick: {len(kick_handles)} handles, {len(ki_res)} found")
+                except Exception as e:
+                    debug.append(f"kick error: {e}")
 
             json_response(self, 200, {
                 "ok": True,
                 "results": results,
                 "found": len(results),
                 "total": len(twitch_handles) + len(kick_handles),
+                "debug": debug,
             })
         except Exception as e:
             json_response(self, 500, {"error": str(e)})
