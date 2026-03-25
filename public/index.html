@@ -186,8 +186,8 @@ html.light .logout-chip:hover{background:rgba(220,38,38,0.18)}
 .sidebar-header{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;background:rgba(255,255,255,0.02)}
 .sidebar-header-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
 /* ── Tier chips grid ── */
-.tier-chip-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.tier-chip{padding:7px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid transparent;transition:all .2s ease;cursor:pointer;text-align:left}
+.tier-chip-grid{display:flex;flex-direction:column;gap:4px}
+.tier-chip{padding:6px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid transparent;transition:all .2s ease;cursor:pointer;text-align:left}.tier-chip-label{display:flex;flex-direction:column;gap:1px}.tier-chip-range{font-size:9px;font-weight:400;color:var(--text3);letter-spacing:.2px}
 .tier-chip::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.85}
 .tier-chip:hover{transform:translateY(-1px);background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.08)}
 .tier-chip.active[data-val="Mega"]{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.22)}
@@ -1137,10 +1137,10 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
       <div class="filter-group">
         <div class="filter-label"><span>Tier</span><span class="clear-filter" id="clear-tier" onclick="clearTierChips()">Clear</span></div>
         <div class="tier-chip-grid" id="chipTier">
-          <button class="tier-chip" data-val="Mega"  onclick="toggleTierChip(this)" style="color:#ef4444;border:1px solid rgba(239,68,68,.35)">Mega</button>
-          <button class="tier-chip" data-val="Big"   onclick="toggleTierChip(this)" style="color:#eab308;border:1px solid rgba(234,179,8,.35)">Big</button>
-          <button class="tier-chip" data-val="Mid"   onclick="toggleTierChip(this)" style="color:#3b82f6;border:1px solid rgba(59,130,246,.35)">Mid</button>
-          <button class="tier-chip" data-val="Small" onclick="toggleTierChip(this)" style="color:#9ca3af;border:1px solid rgba(156,163,175,.35)">Small</button>
+          <button class="tier-chip" data-val="Mega"  onclick="toggleTierChip(this)" style="color:#ef4444;border:1px solid rgba(239,68,68,.35)"><span class="tier-chip-label"><span>Mega</span><span class="tier-chip-range">Twitch 50k+ · Kick 10k+</span></span></button>
+          <button class="tier-chip" data-val="Big"   onclick="toggleTierChip(this)" style="color:#eab308;border:1px solid rgba(234,179,8,.35)"><span class="tier-chip-label"><span>Big</span><span class="tier-chip-range">Twitch 10k–50k · Kick 3k–10k</span></span></button>
+          <button class="tier-chip" data-val="Mid"   onclick="toggleTierChip(this)" style="color:#3b82f6;border:1px solid rgba(59,130,246,.35)"><span class="tier-chip-label"><span>Mid</span><span class="tier-chip-range">Twitch 3k–10k · Kick 500–3k</span></span></button>
+          <button class="tier-chip" data-val="Small" onclick="toggleTierChip(this)" style="color:#9ca3af;border:1px solid rgba(156,163,175,.35)"><span class="tier-chip-label"><span>Small</span><span class="tier-chip-range">Twitch &lt;3k · Kick &lt;500</span></span></button>
         </div>
       </div>
       <div class="filter-group">
@@ -2361,6 +2361,8 @@ function _plStatus(r){
   const v=(r.outreachStatus||'').trim();
   const vl=v.toLowerCase();
   if(v===''||vl==='not contacted'||vl==='not started'||vl==='to contact')return'__none__';
+  // Map legacy/alternate status names to canonical keys
+  if(vl==="frazier dm'd"||vl==='frazier dm'||vl==='frazier dmd')return'Outreached';
   return v;
 }
 function _plColFor(key){return PIPELINE_COLS.find(c=>c.key===key)||{key,label:key,color:'var(--accent)'};}
