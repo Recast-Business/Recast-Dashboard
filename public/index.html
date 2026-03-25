@@ -1877,8 +1877,26 @@ async function loadRosterFromAPI() {
       DATA = d.data;
       applyFilters();
       if(typeof renderPipeline === 'function') renderPipeline();
+      if(typeof renderReminders === 'function') renderReminders();
     }
   } catch(e) { console.error('Failed to load roster:', e); }
+}
+let _rosterPollTimer = null;
+function startRosterPoll(){
+  if(_rosterPollTimer) return;
+  _rosterPollTimer = setInterval(async ()=>{
+    if(Date.now() - _lastLocalWrite < 15000) return; // skip if we just wrote
+    try{
+      const r = await fetch('/api/roster');
+      const d = await r.json();
+      if(d.ok && d.data && d.data.length !== DATA.length){
+        DATA = d.data;
+        applyFilters();
+        if(typeof renderPipeline === 'function') renderPipeline();
+        showToast('Roster updated ✓');
+      }
+    }catch(e){}
+  }, 30000);
 }
 const LAST_UPDATED = '25 Mar 2026 15:53';
 const CREATOR_COUNT = 746;
@@ -1932,9 +1950,9 @@ async function submitAddCreator(){
     const d=await res.json();
     if(d.errors&&d.errors.length){showToast('Error: '+d.errors[0],'error');btn.disabled=false;btn.textContent='Add to Roster';return;}
     if(d.skipped>0&&d.added===0){showToast(name+' is already in the roster','warn');btn.disabled=false;btn.textContent='Add to Roster';return;}
-    showToast('✓ '+name+' added to roster — reloading…');
+    showToast('✓ '+name+' added to roster');
     closeAddCreatorModal();
-    setTimeout(()=>location.reload(),1800);
+    setTimeout(()=>loadRosterFromAPI(),600);
   }catch(e){
     showToast('Server error — could not add creator','error');
     btn.disabled=false;btn.textContent='Add to Roster';
@@ -1944,18 +1962,12 @@ async function reloadData(){
   const btn=document.getElementById('reloadBtn');
   if(btn){btn.disabled=true;btn.textContent='Syncing…';}
   try{
-    const res=await fetch('/api/roster');
-    const d=await res.json();
-    if(d.status==='ok'){
-      showToast('Sheet synced — '+d.roster+' creators loaded');
-      setTimeout(()=>location.reload(),800);
-    } else {
-      showToast('Sync failed: '+(d.error||'unknown'),'error');
-      if(btn){btn.disabled=false;btn.textContent='Sync Sheet';}
-    }
+    await loadRosterFromAPI();
+    showToast('Sheet synced — '+DATA.length+' creators loaded');
   }catch(e){
     showToast('Could not reach server','error');
-    if(btn){btn.disabled=false;btn.textContent='Sync Sheet';}
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='↻ Sync Sheet';}
   }
 }
 let _lastLocalWrite = 0; // timestamp of last local write — suppresses self-triggered reloads
@@ -3277,8 +3289,8 @@ async function exportPotentialToMasterList(){
     });
     const data=await res.json();
     if(data.errors&&data.errors.length){alert('Export errors:\n'+data.errors.join('\n'));return;}
-    showToast('✓ Added '+data.added+' · Skipped '+data.skipped+' duplicates · Reloading…');
-    setTimeout(()=>location.reload(),3000);
+    showToast('✓ Added '+data.added+' · Skipped '+data.skipped+' duplicates');
+    setTimeout(()=>loadRosterFromAPI(),600);
   }catch(err){
     showToast('Export failed: '+err.message);
   }
@@ -3572,8 +3584,8 @@ async function exportToMasterList(){
     if(data.errors&&data.errors.length){
       alert('Export errors:\n'+data.errors.join('\n'));return;
     }
-    showToast('✓ Added '+data.added+' · Skipped '+data.skipped+' duplicates · Reloading…');
-    setTimeout(()=>location.reload(),3000);
+    showToast('✓ Added '+data.added+' · Skipped '+data.skipped+' duplicates');
+    setTimeout(()=>loadRosterFromAPI(),600);
   }catch(err){
     showToast('Export failed: '+err.message);
   }
@@ -3898,6 +3910,7 @@ function checkSession(){
     localStorage.setItem('recast_user_id',auth.username);
     document.getElementById('loginScreen').classList.add('hidden');
     if(localStorage.getItem('recast_theme')==='light')document.documentElement.classList.add('light');
+    startRosterPoll();
     updateThemeIcon();
     const dw=document.getElementById('dashboardWrap');
     dw.style.transition='none';dw.classList.remove('hidden');dw.offsetHeight;dw.style.transition='';
@@ -4113,14 +4126,13 @@ async function fetchExtras(){
     plExtra=d.extras||{};
     if(_extrasRosterVer>0&&d.roster_version&&d.roster_version!==_extrasRosterVer){
       _extrasRosterVer=d.roster_version||0;
-      // Only reload if the version bump wasn't caused by our own recent action (within 15s)
       if(Date.now()-_lastLocalWrite > 15000){
-        showToast('Roster updated — refreshing...');
-        setTimeout(()=>window.location.reload(),1500);
-      } else {
-        // Our own write triggered this — pipeline already updated in-memory, just re-render
-        renderPipeline();renderReminders();renderSignedBanner();
+        // Remote change detected — silently refresh data
+        if(d.data){DATA=d.data;}
+        showToast('Roster updated ✓');
+        applyFilters();
       }
+      renderPipeline();renderReminders();renderSignedBanner();
     } else {
       _extrasRosterVer=d.roster_version||0;
     }
@@ -4314,7 +4326,7 @@ async function handleImportExcel(input){
       body:JSON.stringify({file_b64:b64,username:auth.username,token:auth.token})});
     const d=await r.json();
     if(d.ok){showToast('✓ Imported '+d.added+' creators'+(d.skipped?' ('+d.skipped+' skipped — already exist)':''));
-      if(d.added>0)setTimeout(()=>location.reload(),1800);
+      if(d.added>0)setTimeout(()=>loadRosterFromAPI(),600);
     }else{showToast('Import failed: '+(d.error||'unknown error'),'warn');}
   }catch(e){showToast('Import error','warn');}
 }
