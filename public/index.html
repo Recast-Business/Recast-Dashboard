@@ -1510,7 +1510,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
         <th style="width:30px"></th>
         <th>Creator Name</th><th>Platform</th><th>Handle</th>
         <th>Live CCV</th><th>30d CCV</th>
-        <th>Country</th><th>Content Type</th><th>Twitter</th>
+        <th>Country</th><th>Language</th><th>Content Type</th><th>Twitter</th><th>Instagram</th>
         <th>Status</th><th>Source</th><th>Added</th><th></th>
       </tr></thead>
       <tbody id="potentialTableBody"></tbody>
@@ -3149,6 +3149,7 @@ function renderPotential(){
     const tr=document.createElement('tr');
     const badge=e.inRoster?'<span class="scout-badge-exists">In Roster</span>':'<span class="scout-badge-new">New</span>';
     const tw=e.twitter?'<a class="link-icon" href="'+esc(e.twitter.startsWith('http')?e.twitter:'https://x.com/'+e.twitter)+'" target="_blank">\uD83D\uDD17</a>':'—';
+    const ig=e.instagram?'<a class="link-icon" href="'+esc(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram)+'" target="_blank">\uD83D\uDD17</a>':'—';
     const ccv30=e.avg30dCCV!=null
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
       :(e.handle&&e.platform==='Twitch'
@@ -3156,9 +3157,15 @@ function renderPotential(){
         :(e.handle&&e.platform==='Kick'
           ?'<a class="link-icon" href="https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick" target="_blank" title="View 30-day stats on StreamCharts">&#128202;</a>'
           :'—'));
+    // Build channel URL for name link
+    const h=e.handle?(e.handle).replace(/^@/,''):'';
+    const channelUrl=e.platform==='Twitch'&&h?'https://twitch.tv/'+h:e.platform==='Kick'&&h?'https://kick.com/'+h:'';
+    const nameHtml=channelUrl
+      ?'<a href="'+channelUrl+'" target="_blank" style="color:#f59e0b;text-decoration:none;font-weight:700" title="Open '+e.platform+' channel">'+esc(e.name)+' ↗</a>'
+      :'<span style="color:#f59e0b;font-weight:700">'+esc(e.name)+'</span>';
     tr.innerHTML=
       '<td style="text-align:center;padding:4px 6px"><button onclick="togglePotential('+e.id+')" title="Remove from Potential" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:0;color:#f59e0b">\u2605</button></td>'+
-      '<td><strong><span style="color:#f59e0b">'+esc(e.name)+'</span></strong></td>'+
+      '<td><strong>'+nameHtml+'</strong></td>'+
       '<td>'+platformBadge(e.platform)+'</td>'+
       '<td>'+handleLink(e.platform,e.handle)+'</td>'+
       '<td style="font-variant-numeric:tabular-nums">'+(e.ccv?e.ccv.toLocaleString():'—')+'</td>'+
@@ -3166,7 +3173,7 @@ function renderPotential(){
       '<td style="cursor:pointer" onclick="editScoutField('+e.id+',\'country\',\''+escJ(e.country)+'\')" title="Click to edit country">'+(e.country?esc(e.country):'<span style="color:var(--text2);font-size:11px">+ country</span>')+'</td>'+
       '<td style="color:var(--text2)">'+esc(e.language||'—')+'</td>'+
       '<td title="'+esc(e.content||'')+'">'+esc(truncate(e.content,28))+'</td>'+
-      '<td style="text-align:center">'+tw+'</td><td>'+badge+'</td>'+
+      '<td style="text-align:center">'+tw+'</td><td style="text-align:center">'+ig+'</td><td>'+badge+'</td>'+
       '<td style="color:var(--text2)">'+esc(truncate(e.source,20))+'</td>'+
       '<td style="color:var(--text2);font-size:11px">'+esc(e.date)+'</td>'+
       '<td><button class="btn btn-sm" style="color:var(--mega);border-color:rgba(239,68,68,.3);padding:3px 8px" onclick="removeScoutEntry('+e.id+')">\xD7</button></td>';
@@ -3489,9 +3496,16 @@ function renderScout(){
         :(e.handle&&e.platform==='Kick'
           ?'<a class="link-icon" href="https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick" target="_blank" title="View 30-day stats on StreamCharts">&#128202;</a>'
           :'—'));
+    // Build channel URL for name link
+    const _h=e.handle?(e.handle).replace(/^@/,''):'';
+    const _chUrl=e.platform==='Twitch'&&_h?'https://twitch.tv/'+_h:e.platform==='Kick'&&_h?'https://kick.com/'+_h:'';
+    const _nameColor=e.potential?'#f59e0b':'var(--accent)';
+    const _nameHtml=_chUrl
+      ?'<a href="'+_chUrl+'" target="_blank" style="color:'+_nameColor+';text-decoration:none" title="Open '+e.platform+' channel">'+esc(e.name)+'</a>'
+      :e.potential?'<span style="color:#f59e0b">'+esc(e.name)+'</span>':esc(e.name);
     tr.innerHTML=
       '<td style="text-align:center;padding:4px 6px"><button onclick="togglePotential('+e.id+')" title="'+(e.potential?'Remove from Potential':'Add to Potential')+'" style="background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:0;color:'+starColor+'">'+starIcon+'</button></td>'+
-      '<td><strong>'+(e.potential?'<span style="color:#f59e0b">'+esc(e.name)+'</span>':esc(e.name))+'</strong></td>'+
+      '<td><strong>'+_nameHtml+'</strong></td>'+
       '<td>'+platformBadge(e.platform)+'</td>'+
       '<td>'+handleLink(e.platform,e.handle)+'</td>'+
       '<td style="font-variant-numeric:tabular-nums">'+(e.ccv?e.ccv.toLocaleString():'—')+'</td>'+
