@@ -191,11 +191,8 @@ html.light .logout-chip:hover{background:rgba(220,38,38,0.18)}
 .tier-chip::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.85}
 .tier-chip:hover{transform:translateY(-1px);background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.08)}
 .tier-chip.active[data-val="Mega"]{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.22)}
-.tier-chip.active[data-val="Elite"]{background:rgba(249,115,22,.14);border-color:rgba(249,115,22,.22)}
 .tier-chip.active[data-val="Big"]{background:rgba(234,179,8,.14);border-color:rgba(234,179,8,.22)}
-.tier-chip.active[data-val="High"]{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.22)}
 .tier-chip.active[data-val="Mid"]{background:rgba(59,130,246,.14);border-color:rgba(59,130,246,.22)}
-.tier-chip.active[data-val="Low"]{background:rgba(96,165,250,.14);border-color:rgba(96,165,250,.22)}
 .tier-chip.active[data-val="Small"]{background:rgba(156,163,175,.14);border-color:rgba(156,163,175,.22)}
 /* ── Multi-select (Apple glass dropdown) ── */
 .ms-trigger{width:100%;padding:7px 10px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);background:rgba(255,255,255,0.04);color:var(--text);font-size:12px;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;transition:all .2s ease}
@@ -796,7 +793,7 @@ html.light .chat-alert{background:rgba(255,255,255,.92)}
 ::selection{background:rgba(59,130,246,0.3);color:#fff}
 /* ── Print ── */
 @media print{
-  .header,.sidebar,.scout-sidebar,.tabs,.header-right,.btn,.chip,.scout-actions,.kpi-bar .kpi:not(.mega):not(.elite):not(.high),#scrollTopBtn,#creatorModal,#loadingOverlay{display:none!important}
+  .header,.sidebar,.scout-sidebar,.tabs,.header-right,.btn,.chip,.scout-actions,.kpi-bar .kpi:not(.mega):not(.big),#scrollTopBtn,#creatorModal,#loadingOverlay{display:none!important}
   body,html{background:#fff!important;color:#000!important}
   body::before{display:none!important}
   .view.active{height:auto!important;display:block!important}
@@ -1141,11 +1138,8 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
         <div class="filter-label"><span>Tier</span><span class="clear-filter" id="clear-tier" onclick="clearTierChips()">Clear</span></div>
         <div class="tier-chip-grid" id="chipTier">
           <button class="tier-chip" data-val="Mega"  onclick="toggleTierChip(this)" style="color:#ef4444;border:1px solid rgba(239,68,68,.35)">Mega</button>
-          <button class="tier-chip" data-val="Elite" onclick="toggleTierChip(this)" style="color:#f97316;border:1px solid rgba(249,115,22,.35)">Elite</button>
           <button class="tier-chip" data-val="Big"   onclick="toggleTierChip(this)" style="color:#eab308;border:1px solid rgba(234,179,8,.35)">Big</button>
-          <button class="tier-chip" data-val="High"  onclick="toggleTierChip(this)" style="color:#22c55e;border:1px solid rgba(34,197,94,.35)">High</button>
           <button class="tier-chip" data-val="Mid"   onclick="toggleTierChip(this)" style="color:#3b82f6;border:1px solid rgba(59,130,246,.35)">Mid</button>
-          <button class="tier-chip" data-val="Low"   onclick="toggleTierChip(this)" style="color:#60a5fa;border:1px solid rgba(96,165,250,.35)">Low</button>
           <button class="tier-chip" data-val="Small" onclick="toggleTierChip(this)" style="color:#9ca3af;border:1px solid rgba(156,163,175,.35)">Small</button>
         </div>
       </div>
@@ -1185,11 +1179,8 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
         <div class="kpi"><div class="kpi-val" id="kpiTotal">0</div><div class="kpi-label">Total</div></div>
         <div class="kpi"><div class="kpi-val" id="kpiFiltered">0</div><div class="kpi-label">Filtered</div></div>
         <div class="kpi mega"><div class="kpi-val" id="kpiMega">0</div><div class="kpi-label">Mega</div></div>
-        <div class="kpi elite"><div class="kpi-val" id="kpiElite">0</div><div class="kpi-label">Elite</div></div>
         <div class="kpi big"><div class="kpi-val" id="kpiBig">0</div><div class="kpi-label">Big</div></div>
-        <div class="kpi high"><div class="kpi-val" id="kpiHigh">0</div><div class="kpi-label">High</div></div>
         <div class="kpi mid"><div class="kpi-val" id="kpiMid">0</div><div class="kpi-label">Mid</div></div>
-        <div class="kpi low"><div class="kpi-val" id="kpiLow">0</div><div class="kpi-label">Low</div></div>
         <div class="kpi small"><div class="kpi-val" id="kpiSmall">0</div><div class="kpi-label">Small</div></div>
       </div>
       <div id="signedBanner" class="signed-banner" style="display:none;margin:10px 16px 0"></div>
@@ -2148,14 +2139,11 @@ function animateCount(el,target,duration){
 function updateKPIs(){
   animateCount(document.getElementById('kpiTotal'),DATA.length,600);
   animateCount(document.getElementById('kpiFiltered'),filtered.length,500);
-  const counts={mega:0,elite:0,big:0,high:0,mid:0,low:0,small:0};
+  const counts={mega:0,big:0,mid:0,small:0};
   for(let i=0;i<filtered.length;i++){const t=(filtered[i].tier||'').toLowerCase();if(counts[t]!==undefined)counts[t]++;}
   animateCount(document.getElementById('kpiMega'),counts.mega,400);
-  animateCount(document.getElementById('kpiElite'),counts.elite,400);
   animateCount(document.getElementById('kpiBig'),counts.big,400);
-  animateCount(document.getElementById('kpiHigh'),counts.high,400);
   animateCount(document.getElementById('kpiMid'),counts.mid,400);
-  animateCount(document.getElementById('kpiLow'),counts.low,400);
   animateCount(document.getElementById('kpiSmall'),counts.small,400);
 }
 function changePage(delta){
@@ -2359,7 +2347,6 @@ function plDrop(e){
 const PIPELINE_COLS=[
   {key:'__none__',label:'Not Contacted',color:'#6b7280'},
   {key:'Outreached',label:'Outreached',color:'#60a5fa'},
-  {key:"FRAZIER DM'D",label:"Frazier DM'd",color:'#60a5fa'},
   {key:'Responded',label:'Responded',color:'#f59e0b'},
   {key:'Interested',label:'Interested',color:'#34d399'},
   {key:'In Progress',label:'In Progress',color:'#60a5fa'},
@@ -2381,7 +2368,7 @@ function _pipelineGroups(src){
   // Filter out Below Threshold
   let filtered=src.filter(r=>{const s=(r.outreachStatus||'').toLowerCase();return !s.includes('below threshold');});
   // Deduplicate by name — keep the one with the most advanced status
-  const statusRank={'Signed':8,'Already Running':7,'In Progress':6,'Interested':5,'Responded':4,"FRAZIER DM'D":3,'Frazier DM':3,'Outreached':2,'To Contact':1,'Not Started':1,'Not Contacted':0,'':0};
+  const statusRank={'Signed':8,'Already Running':7,'In Progress':6,'Interested':5,'Responded':4,'Outreached':2,'To Contact':1,'Not Started':1,'Not Contacted':0,'':0};
   const byName={};
   filtered.forEach(r=>{
     const key=r.name.toLowerCase().trim();
@@ -2548,7 +2535,7 @@ function renderPipeline(){
 function _renderPipelineSummary(allCols,groups){
   const bar=document.getElementById('plSummaryBar');
   if(!bar)return;
-  const funnelKeys=['__none__','Outreached',"FRAZIER DM'D",'Responded','Interested','In Progress','Signed','Already Running'];
+  const funnelKeys=['__none__','Outreached','Responded','Interested','In Progress','Signed','Already Running'];
   const funnelCols=allCols.filter(c=>funnelKeys.includes(c.key));
   const sideKeys=['Not Interested','Pass','On Hold'];
   // Total across all funnel stages
@@ -2735,14 +2722,14 @@ function renderAnalytics(){
   const casinoYes=DATA.filter(r=>r.casinoFlag==='yes').length;
   const casinoNo=DATA.filter(r=>r.casinoFlag==='no').length;
 
-  const tierOrder=['Mega','Elite','Big','High','Mid','Low','Small'];
+  const tierOrder=['Mega','Big','Mid','Small'];
   const tierCols={mega:'#ef4444',elite:'#f97316',big:'#eab308',high:'#22c55e',mid:'#3b82f6',low:'#60a5fa',small:'#6b7280'};
   const tierCounts={};
   DATA.forEach(r=>{const t=r.tier||'Unknown';tierCounts[t]=(tierCounts[t]||0)+1;});
   const maxTier=Math.max(...Object.values(tierCounts),1);
 
   const{allCols,groups}=_pipelineGroups(DATA);
-  const funnelKeys=['__none__','Outreached',"FRAZIER DM'D",'Responded','Interested','In Progress','Signed','Already Running'];
+  const funnelKeys=['__none__','Outreached','Responded','Interested','In Progress','Signed','Already Running'];
   const sideKeys=['Not Interested','Pass','On Hold'];
   const maxFunnel=Math.max(...allCols.map(c=>(groups[c.key]||[]).length),1);
 
@@ -3635,7 +3622,7 @@ function init(){
   document.getElementById('updateDate').textContent='Updated '+LAST_UPDATED+' · '+CREATOR_COUNT+' creators';
   renderTeamPresence();
   const platforms=['Twitch','Kick','YouTube','TikTok'];
-  const tiers=['Mega','Elite','Big','High','Mid','Low','Small'];
+  const tiers=['Mega','Big','Mid','Small'];
   const contentSet=new Set();
   DATA.forEach(r=>{if(r.contentCategories)r.contentCategories.forEach(c=>contentSet.add(c))});
   const statuses=[...new Set(DATA.map(r=>r.outreachStatus).filter(Boolean))].sort();
@@ -3754,8 +3741,8 @@ function updateBriefFeed(){
   else if(sortMode==='name')creators.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   countEl.textContent=creators.length+' matching creators';
   if(creators.length===0){feed.innerHTML='<div class="brief-empty">No creators match this brief. Adjust your criteria.</div>';return;}
-  const tierColors={Mega:'var(--mega)',Elite:'var(--elite)',Big:'var(--big)',High:'var(--high)',Mid:'var(--mid)',Low:'var(--low)',Small:'var(--small)'};
-  const tierBg={Mega:'rgba(239,68,68,.14)',Elite:'rgba(249,115,22,.14)',Big:'rgba(234,179,8,.14)',High:'rgba(34,197,94,.14)',Mid:'rgba(59,130,246,.14)',Low:'rgba(96,165,250,.14)',Small:'rgba(107,114,128,.14)'};
+  const tierColors={Mega:'var(--mega)',Big:'var(--big)',Mid:'var(--mid)',Small:'var(--small)'};
+  const tierBg={Mega:'rgba(239,68,68,.14)',Big:'rgba(234,179,8,.14)',Mid:'rgba(59,130,246,.14)',Small:'rgba(107,114,128,.14)'};
   const avatarColors=['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#2563eb','#ec4899','#14b8a6','#f43f5e','#3b82f6'];
   const frag=document.createDocumentFragment();
   creators.slice(0,60).forEach((c,i)=>{

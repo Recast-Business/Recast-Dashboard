@@ -253,16 +253,10 @@ def parse_ccv(val):
 
 
 def tier_from_ccv(platform, ccv):
-    if platform.lower() == "twitch":
-        if ccv >= 10000: return "BIG"
-        if ccv >= 3000: return "MID"
-        return "SMALL"
-    else:
-        if ccv >= 50000: return "MEGA"
-        if ccv >= 25000: return "ELITE"
-        if ccv >= 10000: return "HIGH"
-        if ccv >= 3000: return "MID"
-        return "LOW"
+    if ccv >= 50000: return "MEGA"
+    if ccv >= 10000: return "BIG"
+    if ccv >= 3000: return "MID"
+    return "SMALL"
 
 
 # ── Process Records ───────────────────────────────────────────────────────────
@@ -282,17 +276,16 @@ def process_records(raw_rows: list) -> list:
         if overall_tier and str(overall_tier) not in ("nan", "None", ""):
             display_tier = str(overall_tier)
         elif kick_tier and str(kick_tier) not in ("nan", "None", ""):
-            tier_map = {"MEGA": "Mega", "ELITE": "Elite", "HIGH": "High", "MID": "Mid", "LOW": "Low"}
+            tier_map = {"MEGA": "Mega", "ELITE": "Big", "HIGH": "Big", "MID": "Mid", "LOW": "Small"}
             display_tier = tier_map.get(str(kick_tier).upper(), str(kick_tier))
         elif twitch_tier and str(twitch_tier) not in ("nan", "None", ""):
-            tier_map = {"MEGA": "Mega", "BIG": "Big", "MID": "Mid", "SMALL": "Small"}
+            tier_map = {"MEGA": "Mega", "ELITE": "Big", "BIG": "Big", "HIGH": "Big", "MID": "Mid", "LOW": "Small", "SMALL": "Small"}
             display_tier = tier_map.get(str(twitch_tier).upper(), str(twitch_tier))
         else:
             if best_ccv >= 50000: display_tier = "Mega"
-            elif best_ccv >= 25000: display_tier = "Elite"
-            elif best_ccv >= 10000: display_tier = "High"
+            elif best_ccv >= 10000: display_tier = "Big"
             elif best_ccv >= 3000: display_tier = "Mid"
-            else: display_tier = "Low"
+            else: display_tier = "Small"
 
         def safe(val):
             if val is None: return ""
