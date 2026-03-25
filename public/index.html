@@ -1499,7 +1499,6 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
   <div class="scout-actions" style="border-bottom:1px solid var(--border);flex-shrink:0">
     <span class="scout-count" id="potentialCount">0 potential creators</span>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-sm" id="scrapeSocialsBtn" onclick="scrapeSocials()" style="color:#a78bfa;border-color:rgba(167,139,250,.3);font-weight:600" title="Fetch Twitter &amp; Instagram for all potential creators">🔍 Scrape Handles</button>
       <button class="btn btn-sm" onclick="exportPotentialToMasterList()" style="color:#4ade80;border-color:rgba(74,222,128,.3);font-weight:600" title="Append potential creators directly to Recast_Master_Creator_List.xlsx">⬆ Export to Master List</button>
       <button class="btn btn-sm" onclick="exportPotentialCSV()">Export CSV</button>
       <button class="btn btn-sm" onclick="exportPotentialClipboard()">Copy List</button>
@@ -3204,9 +3203,8 @@ function exportPotentialClipboard(){
 async function scrapeSocials(){
   const list=scoutList.filter(e=>e.handle&&(!e.twitter||!e.instagram));
   if(!list.length){showToast('All creators already have socials');return;}
-  const btn=document.getElementById('scrapeSocialsBtn');
   const btn2=document.getElementById('scrapeSocialsBtn2');
-  const setBtn=(html,dis)=>{if(btn){btn.innerHTML=html;btn.disabled=dis;}if(btn2){btn2.innerHTML=html;btn2.disabled=dis;}};
+  const setBtn=(html,dis)=>{if(btn2){btn2.innerHTML=html;btn2.disabled=dis;}};
   setBtn('<span class="spinner"></span> Scraping…',true);
   let updated=0,checked=0;
   try{
