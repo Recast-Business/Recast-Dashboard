@@ -3149,13 +3149,11 @@ function renderPotential(){
     const tr=document.createElement('tr');
     const badge=e.inRoster?'<span class="scout-badge-exists">In Roster</span>':'<span class="scout-badge-new">New</span>';
     const twUrl=e.twitter?(e.twitter.startsWith('http')?e.twitter:'https://x.com/'+e.twitter):'';
-    const twCell=e.twitter
-      ?'<a href="'+esc(twUrl)+'" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none" title="'+esc(e.twitter)+'">🔗 '+esc(e.twitter.replace(/https?:\/\/(www\.)?(x\.com|twitter\.com)\/?/,'@').substring(0,18))+'</a> <span style="cursor:pointer;color:var(--text2);font-size:9px" onclick="event.stopPropagation();editScoutField('+e.id+',\'twitter\',\''+escJ(e.twitter)+'\')">✎</span>'
-      :'<span style="cursor:pointer;color:var(--text2);font-size:11px" onclick="editScoutField('+e.id+',\'twitter\',\''+escJ(e.twitter||'')+'\')" title="Click to add Twitter">+ twitter</span>';
+    const twHandle=e.twitter?e.twitter.replace(/https?:\/\/(www\.)?(x\.com|twitter\.com)\/?/,'').replace(/^@/,'').split('?')[0]:'';
+    const twCell=twHandle?'<a href="'+esc(twUrl)+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open Twitter">@'+esc(twHandle)+'</a>':'<span style="color:var(--text2)">—</span>';
     const igUrl=e.instagram?(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram):'';
-    const igCell=e.instagram
-      ?'<a href="'+esc(igUrl)+'" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none" title="'+esc(e.instagram)+'">🔗 '+esc(e.instagram.replace(/https?:\/\/(www\.)?instagram\.com\/?/,'@').substring(0,18))+'</a> <span style="cursor:pointer;color:var(--text2);font-size:9px" onclick="event.stopPropagation();editScoutField('+e.id+',\'instagram\',\''+escJ(e.instagram)+'\')">✎</span>'
-      :'<span style="cursor:pointer;color:var(--text2);font-size:11px" onclick="editScoutField('+e.id+',\'instagram\',\''+escJ(e.instagram||'')+'\')" title="Click to add Instagram">+ instagram</span>';
+    const igHandle=e.instagram?e.instagram.replace(/https?:\/\/(www\.)?instagram\.com\/?/,'').replace(/^@/,'').replace(/\/$/,'').split('?')[0]:'';
+    const igCell=igHandle?'<a href="'+esc(igUrl)+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open Instagram">@'+esc(igHandle)+'</a>':'<span style="color:var(--text2)">—</span>';
     const ccv30=e.avg30dCCV!=null
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
       :(e.handle&&e.platform==='Twitch'
