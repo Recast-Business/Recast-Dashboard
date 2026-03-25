@@ -155,7 +155,8 @@ def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_na
     # If a category is selected, optionally narrow by game — otherwise browse ALL streams by language
     game_filter_names = TWITCH_GAME_NAMES.get(category, [None]) if category else [None]
     max_games = 1 if not category else (2 if quick else 4)
-    max_pages = 1 if quick else 3
+    # Top-level streams limited to 30 per page, so allow more pages to compensate
+    max_pages = 2 if quick else 5
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -171,11 +172,11 @@ def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_na
             cursor = None
             pages_fetched = 0
             while pages_fetched < max_pages:
-                lang_opt = f'broadcasterLanguages: ["{lang_code}"]'
+                lang_opt = f'broadcasterLanguages: [{lang_code.upper()}]'
                 after_opt = f', after: "{cursor}"' if cursor else ''
 
                 if game_name:
-                    # Narrow by game — same structure as before
+                    # Narrow by game — game.streams allows first: up to 100
                     query = (
                         '{ game(name: "%s") { streams(first: 100, options: {sort: VIEWER_COUNT, %s%s}) '
                         '{ edges { cursor node { viewersCount broadcaster { displayName login '
@@ -184,9 +185,9 @@ def scrape_twitch(category, ccv_min, ccv_max, languages, limit, quick, roster_na
                         % (game_name.replace('"', '\\"'), lang_opt, after_opt)
                     )
                 else:
-                    # No category — browse ALL live Twitch streams filtered by language (like Kick)
+                    # No category — top-level streams query (max first: 30)
                     query = (
-                        '{ streams(first: 100, options: {sort: VIEWER_COUNT, %s%s}) '
+                        '{ streams(first: 30, options: {sort: VIEWER_COUNT, %s%s}) '
                         '{ edges { cursor node { viewersCount game { name } broadcaster { displayName login '
                         'broadcastSettings { language } channel { socialMedias { name url } } } } } '
                         'pageInfo { hasNextPage } } }'
