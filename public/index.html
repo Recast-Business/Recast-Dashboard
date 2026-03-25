@@ -3148,8 +3148,14 @@ function renderPotential(){
   list.forEach(e=>{
     const tr=document.createElement('tr');
     const badge=e.inRoster?'<span class="scout-badge-exists">In Roster</span>':'<span class="scout-badge-new">New</span>';
-    const tw=e.twitter?'<a class="link-icon" href="'+esc(e.twitter.startsWith('http')?e.twitter:'https://x.com/'+e.twitter)+'" target="_blank">\uD83D\uDD17</a>':'—';
-    const ig=e.instagram?'<a class="link-icon" href="'+esc(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram)+'" target="_blank">\uD83D\uDD17</a>':'—';
+    const twUrl=e.twitter?(e.twitter.startsWith('http')?e.twitter:'https://x.com/'+e.twitter):'';
+    const twCell=e.twitter
+      ?'<a href="'+esc(twUrl)+'" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none" title="'+esc(e.twitter)+'">🔗 '+esc(e.twitter.replace(/https?:\/\/(www\.)?(x\.com|twitter\.com)\/?/,'@').substring(0,18))+'</a> <span style="cursor:pointer;color:var(--text2);font-size:9px" onclick="event.stopPropagation();editScoutField('+e.id+',\'twitter\',\''+escJ(e.twitter)+'\')">✎</span>'
+      :'<span style="cursor:pointer;color:var(--text2);font-size:11px" onclick="editScoutField('+e.id+',\'twitter\',\''+escJ(e.twitter||'')+'\')" title="Click to add Twitter">+ twitter</span>';
+    const igUrl=e.instagram?(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram):'';
+    const igCell=e.instagram
+      ?'<a href="'+esc(igUrl)+'" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none" title="'+esc(e.instagram)+'">🔗 '+esc(e.instagram.replace(/https?:\/\/(www\.)?instagram\.com\/?/,'@').substring(0,18))+'</a> <span style="cursor:pointer;color:var(--text2);font-size:9px" onclick="event.stopPropagation();editScoutField('+e.id+',\'instagram\',\''+escJ(e.instagram)+'\')">✎</span>'
+      :'<span style="cursor:pointer;color:var(--text2);font-size:11px" onclick="editScoutField('+e.id+',\'instagram\',\''+escJ(e.instagram||'')+'\')" title="Click to add Instagram">+ instagram</span>';
     const ccv30=e.avg30dCCV!=null
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
       :(e.handle&&e.platform==='Twitch'
@@ -3173,7 +3179,7 @@ function renderPotential(){
       '<td style="cursor:pointer" onclick="editScoutField('+e.id+',\'country\',\''+escJ(e.country)+'\')" title="Click to edit country">'+(e.country?esc(e.country):'<span style="color:var(--text2);font-size:11px">+ country</span>')+'</td>'+
       '<td style="color:var(--text2)">'+esc(e.language||'—')+'</td>'+
       '<td title="'+esc(e.content||'')+'">'+esc(truncate(e.content,28))+'</td>'+
-      '<td style="text-align:center">'+tw+'</td><td style="text-align:center">'+ig+'</td><td>'+badge+'</td>'+
+      '<td>'+twCell+'</td><td>'+igCell+'</td><td>'+badge+'</td>'+
       '<td style="color:var(--text2)">'+esc(truncate(e.source,20))+'</td>'+
       '<td style="color:var(--text2);font-size:11px">'+esc(e.date)+'</td>'+
       '<td><button class="btn btn-sm" style="color:var(--mega);border-color:rgba(239,68,68,.3);padding:3px 8px" onclick="removeScoutEntry('+e.id+')">\xD7</button></td>';
