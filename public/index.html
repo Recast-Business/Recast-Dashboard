@@ -27,7 +27,7 @@
   --accent:#3b82f6;
   --accent-soft:rgba(59,130,246,0.18);
   --accent-glow:rgba(59,130,246,0.12);
-  --mega:#f87171;--elite:#fb923c;--high:#4ade80;--mid:#3b82f6;--low:#60a5fa;
+  --mega:#f87171;--mid:#3b82f6;
   --small:#9ca3af;--big:#fbbf24;
   /* Glass material values */
   --glass-blur:60px;
@@ -67,7 +67,7 @@ html.light{
   --accent:#2563eb;
   --accent-soft:rgba(37,99,235,0.10);
   --accent-glow:rgba(37,99,235,0.06);
-  --mega:#dc2626;--elite:#ea580c;--high:#15803d;--mid:#2563eb;--low:#3b82f6;
+  --mega:#dc2626;--mid:#2563eb;
   --small:#6b7280;--big:#a16207;
   --glass-bg:rgba(255,255,255,0.55);
   --glass-bg-heavy:rgba(255,255,255,0.72);
@@ -230,7 +230,7 @@ input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appear
 .kpi .kpi-val{font-size:22px;font-weight:800;line-height:1;letter-spacing:-.5px}
 .kpi .kpi-label{font-size:9.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-top:4px}
 .kpi.mega .kpi-val{color:var(--mega)}.kpi.mega::after{background:var(--mega)}
-.kpi.elite .kpi-val{color:var(--elite)}.kpi.elite::after{background:var(--elite)}
+
 .kpi.high .kpi-val{color:var(--high)}.kpi.high::after{background:var(--high)}
 .kpi.mid .kpi-val{color:var(--mid)}.kpi.mid::after{background:var(--mid)}
 .kpi.low .kpi-val{color:var(--low)}.kpi.low::after{background:var(--low)}
@@ -252,10 +252,7 @@ tr:hover td{background:rgba(59,130,246,0.06)!important;transition:background .15
 .tier-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:var(--radius-sm);font-size:10.5px;font-weight:700;letter-spacing:.2px}
 .tier-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.9}
 .tier-mega{background:rgba(239,68,68,.10);color:var(--mega);border:1px solid rgba(239,68,68,.20)}
-.tier-elite{background:rgba(249,115,22,.10);color:var(--elite);border:1px solid rgba(249,115,22,.20)}
-.tier-high{background:rgba(34,197,94,.10);color:var(--high);border:1px solid rgba(34,197,94,.20)}
 .tier-mid{background:rgba(59,130,246,.10);color:var(--mid);border:1px solid rgba(59,130,246,.20)}
-.tier-low{background:rgba(96,165,250,.10);color:var(--low);border:1px solid rgba(96,165,250,.20)}
 .tier-big{background:rgba(234,179,8,.10);color:var(--big);border:1px solid rgba(234,179,8,.20)}
 .tier-small{background:rgba(107,114,128,.10);color:var(--small);border:1px solid rgba(107,114,128,.20)}
 .link-icon{color:var(--accent);text-decoration:none;font-size:12px}
@@ -609,59 +606,8 @@ td:hover .copy-btn,.copy-btn:hover{opacity:1}
 .brief-empty{text-align:center;padding:60px 20px;color:var(--text2);width:100%}
 @media(max-width:1400px){.brief-card{width:calc(50% - 6px)}}
 @media(max-width:900px){.brief-card{width:100%}}
-/* ── Team Chat FAB ── */
-.chat-fab{position:fixed;bottom:26px;right:26px;width:58px;height:58px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 24px rgba(37,99,235,.45);transition:transform .2s,box-shadow .2s;z-index:8400;color:#fff}
-.chat-fab:hover{transform:scale(1.1);box-shadow:0 6px 32px rgba(37,99,235,.6)}
-.chat-fab.open{transform:scale(1.05)}
-.chat-fab-dot{position:absolute;top:1px;right:1px;width:13px;height:13px;background:#ef4444;border-radius:50%;border:2px solid var(--body-base);display:none}
-.chat-fab-dot.active{display:block;animation:chatDotPulse 1s ease-in-out infinite}
-@keyframes chatDotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.7}}
-/* Chat popup widget */
-.chat-panel{position:fixed;bottom:96px;right:26px;width:340px;height:480px;background:var(--glass-bg-heavy);backdrop-filter:blur(40px) saturate(1.8);-webkit-backdrop-filter:blur(40px) saturate(1.8);border:1px solid var(--glass-border-top);border-radius:18px;z-index:8500;display:flex;flex-direction:column;transform:scale(.88) translateY(20px);transform-origin:bottom right;opacity:0;pointer-events:none;transition:transform .25s cubic-bezier(.4,0,.2,1),opacity .25s ease;box-shadow:0 16px 64px rgba(0,0,0,.45)}
-.chat-panel.open{transform:scale(1) translateY(0);opacity:1;pointer-events:all}
-.chat-panel-header{padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-radius:18px 18px 0 0}
-.chat-panel-title{font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px}
-.chat-panel-close{background:none;border:none;color:var(--text2);cursor:pointer;font-size:15px;line-height:1;padding:4px 6px;border-radius:6px;transition:all .2s}
-.chat-panel-close:hover{color:var(--text);background:rgba(255,255,255,.1)}
-.chat-messages{flex:1;overflow-y:auto;padding:12px 13px;display:flex;flex-direction:column;gap:9px;scroll-behavior:smooth}
-.chat-messages::-webkit-scrollbar{width:3px}
-.chat-messages::-webkit-scrollbar-track{background:transparent}
-.chat-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
-.chat-day-sep{text-align:center;font-size:10px;color:var(--text2);opacity:.5;letter-spacing:.5px;padding:2px 0;flex-shrink:0}
-.chat-sys-msg{text-align:center;font-size:10px;color:var(--text2);padding:3px 10px;opacity:.65;flex-shrink:0;font-style:italic}
-.chat-msg{display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
-.chat-msg.own{flex-direction:row-reverse}
-.chat-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0;margin-bottom:2px}
-.chat-bubble{max-width:210px;padding:7px 10px;border-radius:14px;border-bottom-left-radius:3px;background:rgba(255,255,255,.07);border:1px solid var(--glass-border);border-top-color:var(--glass-border-top)}
-.chat-msg.own .chat-bubble{border-bottom-left-radius:14px;border-bottom-right-radius:3px;background:rgba(37,99,235,.25);border-color:rgba(59,130,246,.35)}
-.chat-bubble-text{font-size:12px;color:var(--text);line-height:1.45;word-break:break-word;white-space:pre-wrap}
-.chat-bubble-meta{font-size:10px;color:var(--text2);margin-top:4px;display:flex;gap:5px;align-items:center}
-.chat-msg.own .chat-bubble-meta{justify-content:flex-end}
-.chat-empty{text-align:center;color:var(--text2);font-size:12px;margin:auto;opacity:.6;padding:20px}
-.chat-input-area{padding:10px 12px;border-top:1px solid var(--glass-border);flex-shrink:0;display:flex;gap:7px;align-items:flex-end;border-radius:0 0 18px 18px}
-.chat-input{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--glass-border);border-radius:10px;padding:7px 10px;color:var(--text);font-size:12px;font-family:inherit;resize:none;outline:none;max-height:80px;min-height:32px;transition:border-color .2s;line-height:1.4}
-.chat-input:focus{border-color:rgba(59,130,246,.45);box-shadow:0 0 0 3px rgba(59,130,246,.08)}
-.chat-input::placeholder{color:var(--text2)}
-.chat-send{background:var(--accent);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
-.chat-send:hover{background:#1d4ed8;transform:scale(1.08)}
-.chat-send:disabled{opacity:.4;cursor:not-allowed;transform:none}
-/* Chat alert banner */
-.chat-alert{position:fixed;bottom:96px;right:96px;background:var(--glass-bg-heavy);backdrop-filter:blur(20px);border:1px solid var(--glass-border-top);border-radius:12px;padding:10px 14px;z-index:8300;max-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.4);display:flex;align-items:flex-start;gap:10px;animation:chatAlertIn .3s cubic-bezier(.4,0,.2,1) forwards;cursor:pointer}
-.chat-alert-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
-.chat-alert-body{flex:1;min-width:0}
-.chat-alert-name{font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px}
-.chat-alert-text{font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chat-alert-dismiss{font-size:12px;color:var(--text2);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;margin-top:1px}
-@keyframes chatAlertIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-html.light .chat-panel{background:rgba(248,250,252,.94);box-shadow:0 16px 64px rgba(0,0,0,.14)}
-html.light .chat-bubble{background:rgba(255,255,255,.8);border-color:rgba(0,0,0,.07)}
-html.light .chat-msg.own .chat-bubble{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.2)}
-html.light .chat-input{background:rgba(255,255,255,.75);border-color:rgba(0,0,0,.1)}
-html.light .chat-panel-close:hover{background:rgba(0,0,0,.06)}
-html.light .chat-messages::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12)}
-html.light .chat-alert{background:rgba(255,255,255,.92)}
-@media(max-width:600px){.chat-panel{width:calc(100vw - 20px);right:10px;bottom:86px}.chat-fab{bottom:16px;right:16px}}
 /* ── Loading Screen (glass themed) ── */
+@keyframes dotPulse{from{opacity:.3;transform:scale(.8)}to{opacity:1;transform:scale(1.2)}}
 #loadingOverlay{position:fixed;inset:0;background:var(--body-base);background-image:radial-gradient(ellipse 80% 60% at 5% 15%,rgba(30,80,200,0.30) 0%,transparent 55%),radial-gradient(ellipse 60% 50% at 95% 85%,rgba(30,64,175,0.28) 0%,transparent 50%),radial-gradient(ellipse 50% 50% at 50% 50%,rgba(20,60,160,0.12) 0%,transparent 50%),radial-gradient(ellipse 35% 30% at 75% 15%,rgba(29,78,137,0.18) 0%,transparent 45%),radial-gradient(ellipse 25% 25% at 20% 80%,rgba(25,70,180,0.10) 0%,transparent 40%);display:flex;align-items:center;justify-content:center;z-index:10500;flex-direction:column;gap:32px;transition:opacity .6s,visibility .6s}
 #loadingOverlay.done{opacity:0;visibility:hidden;pointer-events:none}
 .loading-slot-machine{display:flex;gap:6px;perspective:600px}
@@ -1099,27 +1045,6 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
   </div>
 </div>
 
-<!-- ── Team Chat FAB + Widget ── -->
-<!-- Chat removed --><button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Team Chat" style="display:none !important">
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block">
-    <path d="M12 2C6.477 2 2 6.163 2 11.5c0 2.278.87 4.355 2.3 5.963L3 21l4.3-1.366A10.6 10.6 0 0 0 12 21c5.523 0 10-4.163 10-9.5S17.523 2 12 2z" fill="white" fill-opacity="0.95"/>
-  </svg>
-  <span class="chat-fab-dot" id="chatFabDot"></span>
-</button>
-<div class="chat-panel" id="chatPanel">
-  <div class="chat-panel-header">
-    <span class="chat-panel-title">Team Chat</span>
-    <button class="chat-panel-close" onclick="toggleChat()">&#x2715;</button>
-  </div>
-  <div class="chat-messages" id="chatMessages">
-    <div class="chat-empty">Loading messages&hellip;</div>
-  </div>
-  <div class="chat-input-area">
-    <textarea class="chat-input" id="chatInput" placeholder="Message the team&#x2026;" rows="1"
-      onkeydown="chatKeyDown(event)" oninput="chatAutoResize(this)"></textarea>
-    <button class="chat-send" id="chatSendBtn" onclick="sendChat()" title="Send (Enter)">&#10148;</button>
-  </div>
-</div>
 
 <div class="view active" id="view-roster">
   <div class="layout">
@@ -1200,7 +1125,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
             <th onclick="sortBy('outreachStatus')">Outreach Status <span class="sort-arrow" id="sort-outreachStatus"></span></th>
             <th onclick="sortBy('notes')">Notes <span class="sort-arrow" id="sort-notes"></span></th>
           </tr></thead>
-          <tbody id="tableBody"></tbody>
+          <tbody id="tableBody"><tr id="rosterLoading"><td colspan="14" style="text-align:center;padding:48px 20px;color:var(--text2);font-size:13px;opacity:.7"><span class="loader-dot-pulse" style="display:inline-block;width:8px;height:8px;background:var(--accent);border-radius:50%;animation:dotPulse .8s ease-in-out infinite alternate"></span>&nbsp;&nbsp;Loading roster&hellip;</td></tr></tbody>
         </table>
         <div class="empty-state" id="emptyState" style="display:none">No creators match your filters.</div>
       </div>
@@ -1861,11 +1786,13 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
 let DATA = [];
 
 async function loadRosterFromAPI() {
+  const _rl=document.getElementById('rosterLoading');if(_rl)_rl.style.display='table-row';
   try {
     const r = await fetch('/api/roster');
     const d = await r.json();
     if (d.ok && d.data) {
       DATA = d.data;
+      const _rl2=document.getElementById('rosterLoading');if(_rl2)_rl2.remove();
       applyFilters();
       if(typeof renderPipeline === 'function') renderPipeline();
       if(typeof renderReminders === 'function') renderReminders();
@@ -2112,8 +2039,8 @@ function sortBy(key){
   const a=document.getElementById('sort-'+key);if(a)a.textContent=currentSort.dir==='asc'?'▲':'▼';
   doSort();renderTable();
 }
-function tierClass(t){const l=(t||'').toLowerCase();const m={mega:'tier-mega',elite:'tier-elite',high:'tier-high',mid:'tier-mid',low:'tier-low',big:'tier-big',small:'tier-small'};return m[l]||'';}
-function tierEmoji(t){const l=(t||'').toLowerCase();const m={mega:'\uD83D\uDD34',elite:'\uD83D\uDFE0',high:'\uD83D\uDFE2',mid:'\uD83D\uDD35',low:'\uD83D\uDFE3',big:'\uD83D\uDFE1',small:'\u26AA'};return m[l]||'';}
+function tierClass(t){const l=(t||'').toLowerCase();const m={mega:'tier-mega',mid:'tier-mid',big:'tier-big',small:'tier-small'};return m[l]||'';}
+function tierEmoji(t){const l=(t||'').toLowerCase();const m={mega:'\uD83D\uDD34',mid:'\uD83D\uDD35',big:'\uD83D\uDFE1',small:'\u26AA'};return m[l]||'';}
 function linkCell(url){if(!url)return '<span style="color:var(--text2)">—</span>';const href=url.startsWith('http')?url:'https://'+url;return '<a class="link-icon" href="'+esc(href)+'" target="_blank">\uD83D\uDD17</a>';}
 function platformBadge(p){if(!p||p==='—')return'<span style="color:var(--text2)">—</span>';const cfg={Twitch:{cls:'twitch',s:'TW'},Kick:{cls:'kick',s:'KI'},YouTube:{cls:'youtube',s:'YT'},TikTok:{cls:'tiktok',s:'TT'}};const q=cfg[p]||{cls:'other',s:p.substring(0,2).toUpperCase()};return'<span class="plat-badge plat-badge-'+q.cls+'">'+q.s+'</span>';}
 function handleLink(platform,handle){if(!handle||handle==='—')return'<span style="color:var(--text2)">—</span>';const h=handle.replace(/^@/,'');let url=platform==='Twitch'?'https://twitch.tv/'+h:platform==='Kick'?'https://kick.com/'+h:null;if(!url)return'<span style="color:var(--text2);font-size:12px">'+esc(handle)+'</span>';return'<a href="'+url+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open '+platform+' channel">'+esc(handle)+'</a>';}
@@ -2725,7 +2652,7 @@ function renderAnalytics(){
   const casinoNo=DATA.filter(r=>r.casinoFlag==='no').length;
 
   const tierOrder=['Mega','Big','Mid','Small'];
-  const tierCols={mega:'#ef4444',elite:'#f97316',big:'#eab308',high:'#22c55e',mid:'#3b82f6',low:'#60a5fa',small:'#6b7280'};
+  const tierCols={mega:'#ef4444',big:'#eab308',mid:'#3b82f6',small:'#6b7280'};
   const tierCounts={};
   DATA.forEach(r=>{const t=r.tier||'Unknown';tierCounts[t]=(tierCounts[t]||0)+1;});
   const maxTier=Math.max(...Object.values(tierCounts),1);
@@ -3890,13 +3817,6 @@ function handleLogout(msg){
   document.getElementById('loginBtn').disabled=false;
   document.getElementById('loginBtn').textContent='Sign In';
   currentUserId='';
-  clearInterval(_chatPollTimer);
-  stopExtrasPoll();
-  _extrasRosterVer=0;
-  _chatOpen=false;_chatUnread=0;_chatAllMsgs=[];_chatLastTs=0;
-  document.getElementById('chatPanel').classList.remove('open');
-  const _fab=document.getElementById('chatFab');if(_fab){_fab.style.display='none';_fab.classList.remove('open');}
-  _updateChatDot();
 }
 // Defined here, called at bottom after all vars/funcs are declared
 function checkSession(){
@@ -4019,31 +3939,13 @@ const TEAM_ROSTER=[
   {id:'frazier',name:'Frazier',initials:'F',color:'#22c55e',role:'Team'}
 ];
 let currentUserId='';
-let _serverPresence={};
-const ACTIVE_TIMEOUT=2*60;   // 2 min = online
-const AWAY_TIMEOUT=10*60;    // 10 min = away, after = offline
-
-function heartbeat(){}
-
-function fetchPresence(){}
-
-function getPresenceStatus(userId){
-  const entry=_serverPresence[userId];
-  if(!entry)return{status:'offline',tab:'',ago:''};
-  const diff=(Date.now()/1000)-entry.ts;
-  if(diff<ACTIVE_TIMEOUT)return{status:'online',tab:entry.tab,ago:'now'};
-  if(diff<AWAY_TIMEOUT){const m=Math.floor(diff/60);return{status:'away',tab:entry.tab,ago:m+'m ago'};}
-  const m=Math.floor(diff/60),h=Math.floor(m/60);
-  return{status:'offline',tab:entry.tab,ago:h>0?h+'h ago':m+'m ago'};
-}
-
 function renderTeamPresence(){
   const el=document.getElementById('teamPresence');
   if(!el||!currentUserId)return;
   const statusColors={online:'#4ade80',away:'#fbbf24',offline:'#6b7280'};
   const statusLabels={online:'Online',away:'Away',offline:'Offline'};
   el.innerHTML=TEAM_ROSTER.map((m,i)=>{
-    const p=getPresenceStatus(m.id);
+    const p={status:'online',tab:'',ago:''};
     const cls=p.status==='online'?'team-avatar-online':p.status==='away'?'team-avatar-away':'team-avatar-offline';
     const isMe=m.id===currentUserId;
     return '<div class="team-avatar '+cls+(isMe?' team-avatar-me':'')+'" style="background:'+m.color+';z-index:'+(20-i)+'">'
@@ -5129,173 +5031,6 @@ checkSession();
 </div>
 
 <script>
-// ─── Team Chat ────────────────────────────────────────────────────────────────
-let _chatOpen=false,_chatLastTs=0,_chatUnread=0,_chatPollTimer=null,_chatAlertTimer=null;
-let _chatAllMsgs=[];
-
-function toggleChat(){
-  _chatOpen=!_chatOpen;
-  const panel=document.getElementById('chatPanel');
-  const fab=document.getElementById('chatFab');
-  panel.classList.toggle('open',_chatOpen);
-  fab.classList.toggle('open',_chatOpen);
-  if(_chatOpen){
-    _chatUnread=0;
-    _updateChatDot();
-    _renderChat();
-    setTimeout(_scrollChatBottom,60);
-    document.getElementById('chatInput').focus();
-  }
-}
-
-function _updateChatDot(){
-  const dot=document.getElementById('chatFabDot');
-  if(!dot)return;
-  if(_chatUnread>0)dot.classList.add('active');
-  else dot.classList.remove('active');
-}
-
-function _scrollChatBottom(){
-  const el=document.getElementById('chatMessages');
-  if(el)el.scrollTop=el.scrollHeight;
-}
-
-function _chatFmtTime(ts){
-  return new Date(ts*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-}
-function _chatFmtDate(ts){
-  const d=new Date(ts*1000),today=new Date(),yest=new Date(today);
-  yest.setDate(yest.getDate()-1);
-  if(d.toDateString()===today.toDateString())return'Today';
-  if(d.toDateString()===yest.toDateString())return'Yesterday';
-  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
-}
-
-function _renderChat(){
-  const el=document.getElementById('chatMessages');
-  if(!el)return;
-  const msgs=_chatAllMsgs.filter(m=>m.type!=='system'||true); // show all
-  if(!msgs.length){el.innerHTML='<div class="chat-empty">No messages yet — say hello! &#x1f44b;</div>';return;}
-  let html='',lastDate='',me=currentUserId;
-  msgs.forEach(m=>{
-    const dl=_chatFmtDate(m.ts);
-    if(dl!==lastDate){html+=`<div class="chat-day-sep">&#x2014; ${dl} &#x2014;</div>`;lastDate=dl;}
-    if(m.type==='system'){
-      html+=`<div class="chat-sys-msg">&#x2022; ${esc(m.text)}</div>`;
-      return;
-    }
-    const own=m.username===me;
-    html+=`<div class="chat-msg${own?' own':''}">
-      <div class="chat-avatar" style="background:${m.color}">${esc(m.name[0].toUpperCase())}</div>
-      <div class="chat-bubble">
-        <div class="chat-bubble-text">${esc(m.text)}</div>
-        <div class="chat-bubble-meta">
-          ${!own?`<span style="color:${m.color};font-weight:700">${esc(m.name)}</span>`:''}
-          <span>${_chatFmtTime(m.ts)}</span>
-        </div>
-      </div>
-    </div>`;
-  });
-  el.innerHTML=html;
-}
-
-async function _postSystemMsg(text){
-  const auth=JSON.parse(sessionStorage.getItem('recast_auth')||'{}');
-  if(!auth.token)return;
-  try{
-    await Promise.resolve({ok:true,json:()=>({ok:true})})/*fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username:auth.username,token:auth.token,text,type:'system'})});
-  }catch(e){}
-}
-
-function _showChatAlert(m){
-  // Remove any existing alert
-  const old=document.getElementById('chatAlertEl');
-  if(old)old.remove();
-  clearTimeout(_chatAlertTimer);
-  const el=document.createElement('div');
-  el.className='chat-alert';el.id='chatAlertEl';
-  el.onclick=()=>{el.remove();if(!_chatOpen)toggleChat();};
-  el.innerHTML=`<div class="chat-alert-avatar" style="background:${m.color}">${esc(m.name[0].toUpperCase())}</div>
-    <div class="chat-alert-body">
-      <div class="chat-alert-name">${esc(m.name)}</div>
-      <div class="chat-alert-text">${esc(m.text.substring(0,60)+(m.text.length>60?'…':''))}</div>
-    </div>
-    <span class="chat-alert-dismiss" onclick="event.stopPropagation();this.parentElement.remove()">&#x2715;</span>`;
-  document.body.appendChild(el);
-  _chatAlertTimer=setTimeout(()=>{if(el.parentElement)el.remove();},6000);
-}
-
-async function _pollChat(){
-  if(!sessionStorage.getItem('recast_auth'))return;
-  try{
-    const r={ok:false,json:()=>({})}; // chat polling disabled
-    const d=await r.json();
-    if(!d.messages||!d.messages.length)return;
-    const atBottom=(()=>{const el=document.getElementById('chatMessages');return!el||el.scrollHeight-el.scrollTop-el.clientHeight<80;})();
-    let gotNew=false;
-    d.messages.forEach(m=>{
-      if(!_chatAllMsgs.find(x=>x.id===m.id)){
-        _chatAllMsgs.push(m);
-        _chatLastTs=Math.max(_chatLastTs,m.ts);
-        if(m.username!==currentUserId){
-          gotNew=true;
-          if(!_chatOpen){
-            _chatUnread++;
-            _showChatAlert(m);
-          }
-        }
-      }
-    });
-    _chatAllMsgs.sort((a,b)=>a.ts-b.ts);
-    if(_chatOpen){_renderChat();if(atBottom)setTimeout(_scrollChatBottom,30);}
-    if(!_chatOpen&&gotNew)_updateChatDot();
-  }catch(e){}
-}
-
-async function sendChat(){
-  const input=document.getElementById('chatInput');
-  const text=input.value.trim();
-  if(!text)return;
-  const auth=JSON.parse(sessionStorage.getItem('recast_auth')||'{}');
-  if(!auth.token)return;
-  const btn=document.getElementById('chatSendBtn');
-  btn.disabled=true;
-  input.value='';chatAutoResize(input);
-  try{
-    const r=await Promise.resolve({ok:true,json:()=>({ok:true})})/*fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username:auth.username,token:auth.token,text})});
-    const d=await r.json();
-    if(d.ok&&d.message){
-      if(!_chatAllMsgs.find(x=>x.id===d.message.id))_chatAllMsgs.push(d.message);
-      _chatLastTs=Math.max(_chatLastTs,d.message.ts);
-      _chatAllMsgs.sort((a,b)=>a.ts-b.ts);
-      _renderChat();
-      setTimeout(_scrollChatBottom,30);
-    }
-  }catch(e){showToast('Failed to send');}
-  btn.disabled=false;
-  input.focus();
-}
-
-function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
-function chatAutoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,80)+'px';}
-
-async function initChat(){
-  document.getElementById('chatFab').style.display='flex';
-  try{
-    const r={ok:false,json:()=>({})}; // chat disabled
-    const d=await r.json();
-    if(d.messages){
-      _chatAllMsgs=d.messages.sort((a,b)=>a.ts-b.ts);
-      if(_chatAllMsgs.length)_chatLastTs=_chatAllMsgs[_chatAllMsgs.length-1].ts;
-    }
-  }catch(e){}
-  clearInterval(_chatPollTimer);
-  _chatPollTimer=setInterval(_pollChat,3000);
-  // return resolved promise so callers can chain
-  return Promise.resolve();
-}
 </script>
 </body>
 </html>
