@@ -195,17 +195,20 @@ def _twitch_fetch_game_streams(game_name, lang_code, max_pages, limit, ccv_min, 
                 if ccv_max and ccv > ccv_max:
                     continue
                 stream_lang = (broadcaster.get("broadcastSettings") or {}).get("language", lang_code)
-                twitter = ""
+                twitter, instagram = "", ""
                 for sm in ((broadcaster.get("channel") or {}).get("socialMedias") or []):
-                    if sm.get("name", "").lower() in ("x", "twitter"):
-                        twitter = sm.get("url", "")
-                        break
+                    sm_name = sm.get("name", "").lower()
+                    sm_url = sm.get("url", "")
+                    if sm_name in ("x", "twitter") and not twitter:
+                        twitter = sm_url
+                    elif "instagram" in sm_name and not instagram:
+                        instagram = sm_url
                 content = game_name or ""
                 results.append({
                     "id": int(datetime.now().timestamp() * 1000) + len(results),
                     "name": name, "platform": "Twitch", "handle": login,
                     "ccv": ccv, "country": "", "language": stream_lang,
-                    "content": content, "twitter": twitter, "instagram": "",
+                    "content": content, "twitter": twitter, "instagram": instagram,
                     "source": f"Twitch/{lang_code}", "inRoster": False,
                     "date": datetime.now().strftime("%d/%m/%Y"),
                 })
