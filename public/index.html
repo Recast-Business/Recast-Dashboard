@@ -4380,18 +4380,31 @@ let currentUserId='';
 let _presenceData={};
 let _heartbeatTimer=null;
 let _presencePollTimer=null;
+let _myTeamIdx=-1; // which TEAM_ROSTER index is the current user
 
-function _matchTeamMember(m,userId){
-  // Match TEAM_ROSTER id against email (e.g. 'harry' matches 'harry@example.com')
-  return userId&&(userId===m.id||userId.toLowerCase().startsWith(m.id.toLowerCase()+'@')||userId.toLowerCase().includes(m.id.toLowerCase()));
+function _linkMyTeamIdx(){
+  // After login, figure out which TEAM_ROSTER entry matches currentUserId (email)
+  if(!currentUserId)return;
+  const lower=currentUserId.toLowerCase();
+  _myTeamIdx=TEAM_ROSTER.findIndex(m=>{
+    const id=m.id.toLowerCase();
+    return lower===id||lower.startsWith(id+'@')||lower.includes(id);
+  });
+  // If no match found, try matching by first name in the email
+  if(_myTeamIdx<0){
+    const emailName=lower.split('@')[0].replace(/[^a-z]/g,'');
+    _myTeamIdx=TEAM_ROSTER.findIndex(m=>emailName.includes(m.id.toLowerCase()));
+  }
 }
-function _isMe(m){return _matchTeamMember(m,currentUserId);}
 
-function _getPresenceStatus(m){
-  // Find this member's heartbeat by matching against all presence keys
+function _getPresenceStatus(memberIdx){
+  // Check all presence keys to find this member's heartbeat
+  const m=TEAM_ROSTER[memberIdx];
   const now=Math.floor(Date.now()/1000);
+  const id=m.id.toLowerCase();
   for(const[user,ts]of Object.entries(_presenceData)){
-    if(_matchTeamMember(m,user)){
+    const lower=user.toLowerCase();
+    if(lower===id||lower.startsWith(id+'@')||lower.includes(id)||lower.split('@')[0].replace(/[^a-z]/g,'').includes(id)){
       const age=now-ts;
       if(age<90)return{status:'online',ago:''};
       if(age<300)return{status:'away',ago:Math.floor(age/60)+'m ago'};
@@ -4404,11 +4417,13 @@ function _getPresenceStatus(m){
 function renderTeamPresence(){
   const el=document.getElementById('teamPresence');
   if(!el||!currentUserId)return;
+  if(_myTeamIdx<0)_linkMyTeamIdx();
   const statusColors={online:'#4ade80',away:'#fbbf24',offline:'#6b7280'};
   const statusLabels={online:'Online',away:'Away',offline:'Offline'};
   el.innerHTML=TEAM_ROSTER.map((m,i)=>{
-    const isMe=_isMe(m);
-    const p=isMe?{status:'online',ago:''}:_getPresenceStatus(m);
+    const isMe=(i===_myTeamIdx);
+    // If it's me, always show online; otherwise check heartbeat
+    const p=isMe?{status:'online',ago:''}:_getPresenceStatus(i);
     const cls=p.status==='online'?'team-avatar-online':p.status==='away'?'team-avatar-away':'team-avatar-offline';
     return '<div class="team-avatar '+cls+(isMe?' team-avatar-me':'')+'" style="background:'+m.color+';z-index:'+(20-i)+'">'
       +m.initials
@@ -4424,6 +4439,7 @@ function renderTeamPresence(){
 
 function sendHeartbeat(){
   if(!currentUserId)return;
+  if(_myTeamIdx<0)_linkMyTeamIdx();
   fetch('/api/sync?type=presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:currentUserId})})
     .then(r=>r.json()).then(d=>{if(d.ok&&d.presence){_presenceData=d.presence;renderTeamPresence();}})
     .catch(()=>{});
