@@ -1849,6 +1849,7 @@ async function loadRosterFromAPI() {
     const d = await r.json();
     if (d.ok && d.data) {
       DATA = d.data;
+      loadCcv30FromSheet();
       const _rl2=document.getElementById('rosterLoading');if(_rl2)_rl2.remove();
       if(typeof refreshRosterNames==='function')refreshRosterNames();
       applyFilters();
@@ -1868,6 +1869,7 @@ function startRosterPoll(){
       const d = await r.json();
       if(d.ok && d.data && d.data.length !== DATA.length){
         DATA = d.data;
+        loadCcv30FromSheet();
         if(typeof refreshRosterNames==='function')refreshRosterNames();
         applyFilters();
         updateHeaderDate();
@@ -1886,14 +1888,39 @@ function updateHeaderDate(){
 const msState = {platform:new Set(),tier:new Set(),content:new Set(),status:new Set()};
 let rosterCcv30=JSON.parse(localStorage.getItem('recast_roster_ccv30')||'{}');
 function saveRosterCcv30(){localStorage.setItem('recast_roster_ccv30',JSON.stringify(rosterCcv30));}
+function loadCcv30FromSheet(){
+  // Populate rosterCcv30 from sheet data so all logins share the same values
+  DATA.forEach(r=>{
+    if(r.twitchHandle&&r.twitch30dCCV>0){
+      const key=r.twitchHandle.toLowerCase()+'_twitch';
+      if(!rosterCcv30[key]||rosterCcv30[key]==='N/A')rosterCcv30[key]=r.twitch30dCCV;
+    }
+    if(r.kickHandle&&r.kick30dCCV>0){
+      const key=r.kickHandle.toLowerCase()+'_kick';
+      if(!rosterCcv30[key]||rosterCcv30[key]==='N/A')rosterCcv30[key]=r.kick30dCCV;
+    }
+  });
+  saveRosterCcv30();
+}
+function saveCcv30ToSheet(name,platform,value){
+  // Persist 30d CCV to Google Sheet so it syncs across logins
+  const field=platform==='twitch'?'twitch_30d_ccv':'kick_30d_ccv';
+  fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field,value:value||''})}).catch(()=>{});
+}
 function editRosterCCV30(key){
   const current=rosterCcv30[key];
   const input=prompt('Enter 30d avg CCV for this creator (leave blank to clear):', typeof current==='number'?current:'');
-  if(input===null)return; // cancelled
+  if(input===null)return;
   const trimmed=input.trim();
   if(trimmed===''){delete rosterCcv30[key];}
   else{const n=parseInt(trimmed.replace(/,/g,''),10);if(isNaN(n)){showToast('Invalid number');return;}rosterCcv30[key]=n;}
   saveRosterCcv30();renderTable();
+  // Save to sheet — extract platform and handle from key (e.g. "handle_twitch")
+  const parts=key.split('_');
+  const platform=parts.pop();
+  const handle=parts.join('_');
+  const rec=DATA.find(r=>(platform==='twitch'?(r.twitchHandle||''):( r.kickHandle||'')).toLowerCase()===handle);
+  if(rec){const val=rosterCcv30[key];saveCcv30ToSheet(rec.name,platform,typeof val==='number'?val:'');}
 }
 
 const OUTREACH_OPTS=['','Outreached','Responded','Interested','Not Interested','In Progress','Signed','Pass','On Hold'];
@@ -2181,6 +2208,11 @@ async function fetchRosterCCV30(handle,platform,key,btnId){
     const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await res.json();
     rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';saveRosterCcv30();renderTable();
+    // Save to Google Sheet so it syncs across all logins
+    if(d.ccv30!=null){
+      const rec=DATA.find(r=>(platform==='twitch'?r.twitchHandle:r.kickHandle||'').toLowerCase()===handle.toLowerCase());
+      if(rec)saveCcv30ToSheet(rec.name,platform,d.ccv30);
+    }
     if(d.ccv30==null)showToast('30d CCV not available for '+handle);
   }catch(e){
     if(btn){btn.textContent='\uD83D\uDCCA';btn.disabled=false;}
@@ -2203,7 +2235,8 @@ async function fetchAllRosterCCV30(){
       try{
         const res=await fetch('/api/ccv30?platform=twitch&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
         const d=await res.json();
-        rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';if(d.ccv30!=null)done++;
+        rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';
+        if(d.ccv30!=null){done++;saveCcv30ToSheet(r.name,'twitch',d.ccv30);}
       }catch(e){/* leave undefined so button stays visible */}
     }));
     saveRosterCcv30();renderTable();
@@ -4457,7 +4490,7 @@ async function fetchExtras(){
       _extrasRosterVer=d.roster_version||0;
       if(Date.now()-_lastLocalWrite > 15000){
         // Remote change detected — silently refresh data
-        if(d.data){DATA=d.data;}
+        if(d.data){DATA=d.data;loadCcv30FromSheet();}
         showToast('Roster updated ✓');
         applyFilters();
       }

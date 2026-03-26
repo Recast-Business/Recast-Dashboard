@@ -77,6 +77,7 @@ ALLOWED_UPDATE_FIELDS = {
     "Outreach Status", "Notes", "Deal Value",
     "Follow-Up Date", "Campaign", "Pipeline Notes",
     "Twitch Handle", "Twitch CCV", "Kick Handle", "Kick CCV",
+    "Twitch 30d CCV", "Kick 30d CCV",
     "Platforms", "Country", "Content Type",
     "Twitter Link", "Instagram Link",
     "Bin",
@@ -93,11 +94,11 @@ def gsheet_update_field(creator_name: str, col_header: str, value) -> int:
     try:
         headers = sh.row_values(1)
         if col_header not in headers:
-            if col_header == "Bin":
-                # Auto-create Bin column
+            if col_header in ("Bin", "Twitch 30d CCV", "Kick 30d CCV"):
+                # Auto-create column
                 new_col = len(headers) + 1
-                sh.update_cell(1, new_col, "Bin")
-                headers.append("Bin")
+                sh.update_cell(1, new_col, col_header)
+                headers.append(col_header)
             else:
                 return 0
         col_idx = headers.index(col_header) + 1
@@ -373,6 +374,8 @@ def process_records(raw_rows: list) -> list:
             "campaign": safe(row.get("Campaign")),
             "pipelineNotes": safe(row.get("Pipeline Notes")),
             "bin": safe(row.get("Bin")).lower() == "yes",
+            "twitch30dCCV": parse_ccv(row.get("Twitch 30d CCV")),
+            "kick30dCCV": parse_ccv(row.get("Kick 30d CCV")),
         })
 
     # ── Deduplicate by name (case-insensitive) ──

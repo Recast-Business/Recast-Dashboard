@@ -29,6 +29,8 @@ FIELD_MAP = {
     "twitter": "Twitter Link",
     "instagram": "Instagram Link",
     "bin": "Bin",
+    "twitch_30d_ccv": "Twitch 30d CCV",
+    "kick_30d_ccv": "Kick 30d CCV",
 }
 
 
