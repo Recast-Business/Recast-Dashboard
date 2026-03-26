@@ -2567,6 +2567,7 @@ function showCreatorDetail(name){
   ).join('')+actions;
   document.getElementById('creatorModal').classList.add('open');
 }
+function openCreatorModal(c){showCreatorDetail(c.name);}
 function closeCreatorModal(e){
   if(!e||e.target===document.getElementById('creatorModal'))
     document.getElementById('creatorModal').classList.remove('open');
@@ -3761,12 +3762,15 @@ function scoreBriefMatch(creator){
     else if(ccv>=minCCV*0.7)score+=12;
     else if(ccv>=minCCV*0.5)score+=6;
   }
-  // Content niche (25pts)
+  // Content niche (25pts) — hard filter: if niche selected and no match, exclude
   if(!niche){score+=25;}
   else{
     const cats=creator.contentCategories||[];
+    const nicheKey=niche.split('/')[0].trim().toLowerCase();
     if(cats.some(c=>c===niche))score+=25;
-    else if(cats.length===0&&(creator.contentType||'').toLowerCase().includes(niche.split('/')[0].trim().toLowerCase()))score+=15;
+    else if(cats.some(c=>c.toLowerCase().includes(nicheKey)))score+=18;
+    else if(cats.length===0&&(creator.contentType||'').toLowerCase().includes(nicheKey))score+=15;
+    else return 0;
   }
   return Math.round(score);
 }
