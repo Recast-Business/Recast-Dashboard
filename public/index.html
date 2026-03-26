@@ -1814,6 +1814,7 @@ async function loadRosterFromAPI() {
     if (d.ok && d.data) {
       DATA = d.data;
       const _rl2=document.getElementById('rosterLoading');if(_rl2)_rl2.remove();
+      if(typeof refreshRosterNames==='function')refreshRosterNames();
       applyFilters();
       updateHeaderDate();
       if(typeof renderPipeline === 'function') renderPipeline();
@@ -1831,6 +1832,7 @@ function startRosterPoll(){
       const d = await r.json();
       if(d.ok && d.data && d.data.length !== DATA.length){
         DATA = d.data;
+        if(typeof refreshRosterNames==='function')refreshRosterNames();
         applyFilters();
         updateHeaderDate();
         if(typeof renderPipeline === 'function') renderPipeline();
@@ -3191,7 +3193,8 @@ let scoutCurrentPage=0,scoutPageSize=100;
 let lastScoutParams=null;
 let autoScoutTimer=null;
 let autoScoutRunCount=0;
-const rosterNames=new Set(DATA.map(r=>r.name.toLowerCase().trim()));
+let rosterNames=new Set(DATA.map(r=>r.name.toLowerCase().trim()));
+function refreshRosterNames(){rosterNames=new Set(DATA.map(r=>r.name.toLowerCase().trim()));}
 
 function addScoutEntry(){
   const name=document.getElementById('sc-name').value.trim();
@@ -3372,6 +3375,8 @@ async function exportPotentialToMasterList(){
     const data=await res.json();
     if(data.errors&&data.errors.length){alert('Export errors:\n'+data.errors.join('\n'));return;}
     showToast('✓ Added '+data.added+' · Skipped '+data.skipped+' duplicates');
+    scoutList.forEach(e=>{if(newOnly.some(n=>n.name===e.name))e.inRoster=true;});
+    saveScout();renderScout();renderPotential();
     setTimeout(()=>loadRosterFromAPI(),600);
   }catch(err){
     showToast('Export failed: '+err.message);
@@ -3700,6 +3705,9 @@ async function exportToMasterList(){
       alert('Export errors:\n'+data.errors.join('\n'));return;
     }
     showToast('✓ Added '+data.added+' · Skipped '+data.skipped+' duplicates');
+    const exportedNames=new Set(toExport.map(e=>e.name.toLowerCase().trim()));
+    scoutList.forEach(e=>{if(exportedNames.has(e.name.toLowerCase().trim()))e.inRoster=true;});
+    saveScout();renderScout();if(typeof renderPotential==='function')renderPotential();
     setTimeout(()=>loadRosterFromAPI(),600);
   }catch(err){
     showToast('Export failed: '+err.message);
