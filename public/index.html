@@ -2061,7 +2061,7 @@ document.addEventListener('click',()=>{
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/\\/g,'&#92;');}
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
 const debouncedApplyFilters=debounce(()=>applyFilters(),150);
-let filtered=[...DATA],currentSort={key:'name',dir:'asc'};
+let filtered=[...DATA],currentSort={key:'ccv30',dir:'desc'};
 let currentPage=0,pageSize=100;
 
 function applyFilters(){
