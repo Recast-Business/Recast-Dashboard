@@ -102,7 +102,9 @@ def gsheet_update_field(creator_name: str, col_header: str, value) -> int:
             else:
                 return 0
         col_idx = headers.index(col_header) + 1
-        name_col_vals = sh.col_values(1)
+        # Find the "Creator Name" column dynamically (don't assume col 1)
+        name_col_idx = _find_name_col(sh)
+        name_col_vals = sh.col_values(name_col_idx)
         # Normalize the search name
         search_name = creator_name.strip()
         search_lower = search_name.lower()
@@ -116,7 +118,7 @@ def gsheet_update_field(creator_name: str, col_header: str, value) -> int:
             if str(cell_val).strip().lower() == search_lower:
                 sh.update_cell(row_idx, col_idx, value if value is not None else "")
                 return 1
-        print(f"[GSheets] Name not found: '{search_name}' (searched {len(name_col_vals)-1} rows)")
+        print(f"[GSheets] Name not found: '{search_name}' in col {name_col_idx} (searched {len(name_col_vals)-1} rows, first 3: {name_col_vals[1:4]})")
         return 0
     except Exception as e:
         print(f"[GSheets] Update failed: {e}")
@@ -159,12 +161,25 @@ def gsheet_headers() -> list:
         return []
 
 
+def _find_name_col(sh) -> int:
+    """Find the 1-based column index for 'Creator Name' (defaults to 1)."""
+    try:
+        headers = sh.row_values(1)
+        for i, h in enumerate(headers):
+            if h.strip().lower() in ("creator name", "name"):
+                return i + 1
+    except Exception:
+        pass
+    return 1
+
+
 def existing_names_in_gsheet() -> set:
     sh = _get_gsheet()
     if sh is None:
         return set()
     try:
-        vals = sh.col_values(1)
+        name_col = _find_name_col(sh)
+        vals = sh.col_values(name_col)
         return {str(v).strip().lower() for v in vals[1:] if v}
     except Exception:
         return set()
