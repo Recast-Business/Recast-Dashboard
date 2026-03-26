@@ -3387,15 +3387,33 @@ async function exportPotentialToMasterList(){
     showToast('Export failed: '+err.message);
   }
 }
+async function _browserKickCCV(handle){
+  try{
+    const r=await fetch('https://kick.com/api/v2/channels/'+encodeURIComponent(handle),{signal:AbortSignal.timeout(10000)});
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(d.recent_average_viewers)return d.recent_average_viewers;
+    if(d.livestream&&d.livestream.viewer_count)return d.livestream.viewer_count;
+    // Estimate from followers
+    if(d.followers_count)return Math.max(1,Math.round(d.followers_count*0.02));
+  }catch(e){}
+  return null;
+}
 async function fetchCCV30(id,platform,handle){
   const btn=document.getElementById('ccv30btn-'+id)||document.getElementById('pccv30btn-'+id);
   if(btn){btn.textContent='⏳';btn.disabled=true;}
   try{
+    // Try backend first
     const r=await fetch('/api/ccv30?platform='+platform.toLowerCase()+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await r.json();
+    let ccv=d.ccv30;
+    // If backend failed and platform is Kick (or could be Kick), try browser-side
+    if(ccv==null){
+      ccv=await _browserKickCCV(handle);
+    }
     const idx=scoutList.findIndex(e=>e.id===id);
-    if(idx>=0){scoutList[idx].avg30dCCV=d.ccv30!=null?d.ccv30:-1;saveScout();renderScout();renderPotential();}
-    if(d.ccv30==null)showToast('30d CCV not available for '+handle);
+    if(idx>=0){scoutList[idx].avg30dCCV=ccv!=null?ccv:-1;saveScout();renderScout();renderPotential();}
+    if(ccv==null)showToast('30d CCV not available for '+handle);
   }catch(err){
     if(btn){btn.textContent='Fetch';btn.disabled=false;}
     showToast('Could not fetch 30d CCV for '+handle);
@@ -3412,8 +3430,10 @@ async function fetchAll30d(){
     const results=await Promise.allSettled(batch.map(async e=>{
       const r=await fetch('/api/ccv30?platform='+e.platform.toLowerCase()+'&handle='+encodeURIComponent(e.handle),{signal:AbortSignal.timeout(12000)});
       const d=await r.json();
+      let ccv=d.ccv30;
+      if(ccv==null)ccv=await _browserKickCCV(e.handle);
       const idx=scoutList.findIndex(x=>x.id===e.id);
-      if(idx>=0)scoutList[idx].avg30dCCV=d.ccv30!=null?d.ccv30:-1;
+      if(idx>=0)scoutList[idx].avg30dCCV=ccv!=null?ccv:-1;
       return true;
     }));
     done+=results.filter(r=>r.status==='fulfilled').length;
