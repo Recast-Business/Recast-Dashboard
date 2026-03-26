@@ -3241,8 +3241,10 @@ function renderPotential(){
     const igUrl=e.instagram?(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram):'';
     const igHandle=e.instagram?e.instagram.replace(/https?:\/\/(www\.)?instagram\.com\/?/,'').replace(/^@/,'').replace(/\/$/,'').split('?')[0]:'';
     const igCell=igHandle?'<a href="'+esc(igUrl)+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open Instagram">@'+esc(igHandle)+'</a>':'<span style="color:var(--text2)">—</span>';
+    const _pCcvLink=e.handle?(e.platform==='Twitch'?'https://twitchtracker.com/'+encodeURIComponent(e.handle):'https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick'):'';
+    const _pCcvChart=_pCcvLink?' <a href="'+_pCcvLink+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(e.platform==='Twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>':'';
     const ccv30=e.avg30dCCV!=null&&e.avg30dCCV>0
-      ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
+      ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'+_pCcvChart
       :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
         ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="pccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
         :'—');
@@ -3638,8 +3640,10 @@ function renderScout(){
     const ig=e.instagram?'<a class="link-icon" href="'+esc(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram)+'" target="_blank">\uD83D\uDD17</a>':'—';
     const starColor=e.potential?'#f59e0b':'var(--text2)';
     const starIcon=e.potential?'\u2605':'\u2606';
+    const _ccvLink=e.handle?(e.platform==='Twitch'?'https://twitchtracker.com/'+encodeURIComponent(e.handle):'https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick'):'';
+    const _ccvChart=_ccvLink?' <a href="'+_ccvLink+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(e.platform==='Twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>':'';
     const ccv30cell=e.avg30dCCV!=null&&e.avg30dCCV>0
-      ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
+      ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'+_ccvChart
       :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
         ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="ccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
         :'—');
