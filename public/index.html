@@ -4371,10 +4371,10 @@ resetSessionTimer();
 
 // ─── Team Presence — real activity via localStorage ─────────────────────────
 const TEAM_ROSTER=[
-  {id:'maximilian',name:'Maximilian',initials:'M',color:'#2563eb',role:'Lead'},
-  {id:'harry',name:'Harry',initials:'H',color:'#3b82f6',role:'Team'},
-  {id:'bruno',name:'Bruno',initials:'B',color:'#f59e0b',role:'Team'},
-  {id:'frazier',name:'Frazier',initials:'F',color:'#22c55e',role:'Team'}
+  {id:'maximilian',email:'partner@shadowoperator.ai',name:'Maximilian',initials:'M',color:'#2563eb',role:'Lead'},
+  {id:'harry',email:'harry@maudegroup.co.uk',name:'Harry',initials:'H',color:'#3b82f6',role:'Team'},
+  {id:'bruno',email:'nolimitbru1@gmail.com',name:'Bruno',initials:'B',color:'#f59e0b',role:'Team'},
+  {id:'frazier',email:'frazierkhattri@gmail.com',name:'Frazier',initials:'F',color:'#22c55e',role:'Team'}
 ];
 let currentUserId='';
 let _presenceData={};
@@ -4383,28 +4383,17 @@ let _presencePollTimer=null;
 let _myTeamIdx=-1; // which TEAM_ROSTER index is the current user
 
 function _linkMyTeamIdx(){
-  // After login, figure out which TEAM_ROSTER entry matches currentUserId (email)
   if(!currentUserId)return;
   const lower=currentUserId.toLowerCase();
-  _myTeamIdx=TEAM_ROSTER.findIndex(m=>{
-    const id=m.id.toLowerCase();
-    return lower===id||lower.startsWith(id+'@')||lower.includes(id);
-  });
-  // If no match found, try matching by first name in the email
-  if(_myTeamIdx<0){
-    const emailName=lower.split('@')[0].replace(/[^a-z]/g,'');
-    _myTeamIdx=TEAM_ROSTER.findIndex(m=>emailName.includes(m.id.toLowerCase()));
-  }
+  _myTeamIdx=TEAM_ROSTER.findIndex(m=>m.email.toLowerCase()===lower);
 }
 
 function _getPresenceStatus(memberIdx){
-  // Check all presence keys to find this member's heartbeat
   const m=TEAM_ROSTER[memberIdx];
+  const email=m.email.toLowerCase();
   const now=Math.floor(Date.now()/1000);
-  const id=m.id.toLowerCase();
   for(const[user,ts]of Object.entries(_presenceData)){
-    const lower=user.toLowerCase();
-    if(lower===id||lower.startsWith(id+'@')||lower.includes(id)||lower.split('@')[0].replace(/[^a-z]/g,'').includes(id)){
+    if(user.toLowerCase()===email){
       const age=now-ts;
       if(age<90)return{status:'online',ago:''};
       if(age<300)return{status:'away',ago:Math.floor(age/60)+'m ago'};
