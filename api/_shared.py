@@ -296,10 +296,11 @@ def tier_from_ccv(platform, ccv):
         if ccv >= 500:   return "Mid"
         return "Small"
     else:  # Twitch and others
-        if ccv >= 50000: return "Mega"
-        if ccv >= 10000: return "Big"
-        if ccv >= 3000:  return "Mid"
-        return "Small"
+        if ccv >= 30000: return "Mega"
+        if ccv >= 8000:  return "Big"
+        if ccv >= 2500:  return "Mid"
+        if ccv >= 1000:  return "Small"
+        return "Micro"
 
 
 # ── Process Records ───────────────────────────────────────────────────────────
