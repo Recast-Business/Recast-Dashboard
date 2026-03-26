@@ -2944,11 +2944,9 @@ function renderAnalytics(){
   const interested=DATA.filter(r=>['interested','in progress'].includes((r.outreachStatus||'').toLowerCase())).length;
   const contacted=DATA.filter(r=>!['','not contacted'].includes((r.outreachStatus||'').toLowerCase())).length;
   const notContacted=total-contacted;
-  const casinoYes=DATA.filter(r=>r.casinoFlag==='yes').length;
-  const casinoNo=DATA.filter(r=>r.casinoFlag==='no').length;
 
-  const tierOrder=['Mega','Big','Mid','Small'];
-  const tierCols={mega:'#ef4444',big:'#eab308',mid:'#3b82f6',small:'#6b7280'};
+  const tierOrder=['Mega','Big','Mid','Small','Micro'];
+  const tierCols={mega:'#ef4444',big:'#eab308',mid:'#3b82f6',small:'#5eead4',micro:'#a1a1aa'};
   const tierCounts={};
   DATA.forEach(r=>{const t=r.tier||'Unknown';tierCounts[t]=(tierCounts[t]||0)+1;});
   const maxTier=Math.max(...Object.values(tierCounts),1);
@@ -3002,8 +3000,6 @@ function renderAnalytics(){
      ['Active Pipeline',interested,'#60a5fa'],
      ['Contacted',contacted,'#60a5fa'],
      ['Not Contacted',notContacted,'#6b7280'],
-     ['Casino Friendly',casinoYes,'#f59e0b'],
-     ['Casino Excluded',casinoNo,'#f87171']
     ].map(([l,v,c])=>statCard(v,l,c)).join('')+'</div>';
 
   // ── Row 1: Tiers | Platform | Funnel ──────────────────────────────────────
