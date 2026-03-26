@@ -3361,7 +3361,7 @@ let sessionHistory=JSON.parse(localStorage.getItem('recast_sessions')||'[]');
 let _scoutSyncing=false;
 async function loadScoutFromServer(){
   try{
-    const r=await fetch('/api/scout_sync');
+    const r=await fetch('/api/sync?type=scout');
     const d=await r.json();
     if(d.ok&&Array.isArray(d.scout)&&d.scout.length>0){
       // Merge: server is source of truth, but keep local entries not on server
@@ -3379,7 +3379,7 @@ async function loadScoutFromServer(){
 }
 function saveScoutToServer(){
   if(_scoutSyncing)return;_scoutSyncing=true;
-  fetch('/api/scout_sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scout:scoutList})})
+  fetch('/api/sync?type=scout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scout:scoutList})})
     .catch(e=>console.error('Scout sync save failed:',e))
     .finally(()=>{_scoutSyncing=false;});
 }
@@ -4975,7 +4975,7 @@ function saveAgencies(){
 let _agencySyncing=false;
 async function loadAgenciesFromServer(){
   try{
-    const r=await fetch('/api/agency_sync');
+    const r=await fetch('/api/sync?type=agency');
     const d=await r.json();
     if(d.ok&&Array.isArray(d.agencies)&&d.agencies.length>0){
       agencyList=d.agencies;
@@ -4992,7 +4992,7 @@ async function loadAgenciesFromServer(){
 function saveAgenciesToServer(){
   if(_agencySyncing)return;_agencySyncing=true;
   const links=loadCreatorAgencyLinks();
-  fetch('/api/agency_sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agencies:agencyList,links})})
+  fetch('/api/sync?type=agency',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agencies:agencyList,links})})
     .catch(e=>console.error('Agency sync save failed:',e))
     .finally(()=>{_agencySyncing=false;});
 }
