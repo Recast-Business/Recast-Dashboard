@@ -1856,6 +1856,7 @@ async function loadRosterFromAPI() {
       updateHeaderDate();
       if(typeof renderPipeline === 'function') renderPipeline();
       if(typeof renderReminders === 'function') renderReminders();
+      if(typeof renderBin === 'function') renderBin();
     }
   } catch(e) { console.error('Failed to load roster:', e); }
 }
@@ -2828,7 +2829,7 @@ function renderBin(){
   if(!binned.length){tbody.innerHTML='';empty.style.display='block';return;}
   empty.style.display='none';
   tbody.innerHTML=binned.map(r=>{
-    const sn=esc(r.name).replace(/'/g,"&#39;");
+    const sn=_safeName(r.name);
     const plat=(()=>{const p=[];const ps=(r.platforms||'').toLowerCase();if(r.twitchHandle||ps.includes('twitch'))p.push(platformBadge('Twitch'));if(r.kickHandle||ps.includes('kick'))p.push(platformBadge('Kick'));return p.length?p.join(' '):'<span style="color:var(--text2)">—</span>';})();
     const tier='<span class="tier-badge '+tierClass(r.tier||'')+'">'+esc(r.tier||'—')+'</span>';
     const tdS='padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border)';
@@ -2844,28 +2845,31 @@ function renderBin(){
       '</td></tr>';
   }).join('');
 }
-async function restoreCreator(name){
+async function restoreCreator(nameId){
+  const rec=_findCreator(nameId);
+  const realName=rec?rec.name:_realName(nameId);
   try{
-    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'bin',value:''})});
+    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:realName,field:'bin',value:''})});
     const d=await r.json();
     if(d.ok&&d.updated){
-      const rec=DATA.find(c=>c.name===name);
       if(rec)rec.bin=false;
-      showToast('"'+name+'" restored to roster');
+      showToast('"'+realName+'" restored to roster');
       renderBin();applyFilters();
     }else{showToast('Restore failed','error');}
   }catch(e){showToast('Restore failed: '+e.message,'error');}
 }
-async function permanentDelete(name){
-  if(!confirm('Permanently delete "'+name+'"? This cannot be undone.'))return;
+async function permanentDelete(nameId){
+  const rec=_findCreator(nameId);
+  const realName=rec?rec.name:_realName(nameId);
+  if(!confirm('Permanently delete "'+realName+'"? This cannot be undone.'))return;
   try{
-    const r=await fetch('/api/remove_duplicates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    const r=await fetch('/api/remove_duplicates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:realName})});
     const d=await r.json();
     if(d.ok&&d.removed>0){
-      DATA=DATA.filter(c=>c.name!==name);
-      showToast('"'+name+'" permanently deleted');
+      DATA=DATA.filter(c=>c.name!==realName);
+      showToast('"'+realName+'" permanently deleted');
       renderBin();
-    }else{showToast('Could not find "'+name+'" in sheet','error');}
+    }else{showToast('Could not find "'+realName+'" in sheet','error');}
   }catch(e){showToast('Delete failed: '+e.message,'error');}
 }
 async function backfillCCV(){
@@ -3437,6 +3441,31 @@ function stopAutoScout() {
 
 let scoutList=JSON.parse(localStorage.getItem('recast_scout')||'[]');
 let sessionHistory=JSON.parse(localStorage.getItem('recast_sessions')||'[]');
+let _scoutSyncing=false;
+async function loadScoutFromServer(){
+  try{
+    const r=await fetch('/api/scout_sync');
+    const d=await r.json();
+    if(d.ok&&Array.isArray(d.scout)&&d.scout.length>0){
+      // Merge: server is source of truth, but keep local entries not on server
+      const serverIds=new Set(d.scout.map(e=>e.id));
+      const localOnly=scoutList.filter(e=>!serverIds.has(e.id));
+      // Server entries take priority, append any local-only entries
+      scoutList=[...d.scout,...localOnly];
+      localStorage.setItem('recast_scout',JSON.stringify(scoutList));
+      renderScout();renderPotential();
+    } else if(scoutList.length>0){
+      // Server empty but local has data — push local to server
+      saveScoutToServer();
+    }
+  }catch(e){console.error('Scout sync load failed:',e);}
+}
+function saveScoutToServer(){
+  if(_scoutSyncing)return;_scoutSyncing=true;
+  fetch('/api/scout_sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scout:scoutList})})
+    .catch(e=>console.error('Scout sync save failed:',e))
+    .finally(()=>{_scoutSyncing=false;});
+}
 let scoutDisplayFilter='all';
 let scoutSortDir='desc';
 let scoutCurrentPage=0,scoutPageSize=100;
@@ -3688,8 +3717,7 @@ async function fetchAll30d(){
 }
 const _debouncedSaveScout=debounce(()=>{
   localStorage.setItem('recast_scout',JSON.stringify(scoutList));
-  // Also backup to server-side JSON file
-  // fetch('/api/backup-scout',...) — removed, using localStorage only
+  saveScoutToServer();
 },300);
 function saveScout(){_debouncedSaveScout();}
 function saveSession(params,found,added){
@@ -4277,6 +4305,7 @@ function handleLogin(e){
       }
       currentUserId=d.username;
       loadRosterFromAPI();
+      loadScoutFromServer();
       startExtrasPoll();
     } else {
       showLoginError(d.error||'Invalid credentials');
@@ -4319,6 +4348,7 @@ function checkSession(){
     dw.style.transition='none';dw.classList.remove('hidden');dw.offsetHeight;dw.style.transition='';
     currentUserId=auth.username;
     loadRosterFromAPI();
+    loadScoutFromServer();
     startExtrasPoll();
   } else {
     // No session — require fresh login
@@ -4377,8 +4407,8 @@ function cmdKSearch(q){
       results.push({name:c.name,meta:getRosterTier(c)+' · '+(getRosterBest30dCCV(c)||0)+' 30d CCV · '+(c.country||''),tab:'Roster',color:'var(--accent)',action:()=>{closeCmdK();switchTab('roster',document.querySelector('.tab-btn'));document.getElementById('searchInput').value=c.name;applyFilters();}});
     }
   });
-  // Search scout (localStorage)
-  try{const scout=JSON.parse(localStorage.getItem('recast_scout')||'[]');
+  // Search scout
+  try{const scout=scoutList||[];
   scout.forEach(s=>{
     if((s.name||'').toLowerCase().includes(ql)){
       results.push({name:s.name,meta:(s.platform||'')+(s.ccv?' · '+s.ccv+' CCV':''),tab:'Scout',color:'var(--high)',action:()=>{closeCmdK();switchTab('scout',document.querySelectorAll('.tab-btn')[1]);}});
@@ -5015,12 +5045,41 @@ function initAgencies(){
   if(saved&&ver>=AGENCY_DB_VERSION){try{agencyList=JSON.parse(saved);}catch(e){agencyList=AGENCY_SAMPLES;}}
   else{agencyList=AGENCY_SAMPLES;saveAgencies();}
   renderAgencies();renderBriefAgencies();
+  loadAgenciesFromServer();
 }
 function resetAgencies(){
   if(!confirm('Reset to default agency list? Your custom entries will be removed.'))return;
   agencyList=AGENCY_SAMPLES;saveAgencies();renderAgencies();
 }
-function saveAgencies(){localStorage.setItem('recast_agencies',JSON.stringify(agencyList));localStorage.setItem('recast_agencies_ver',AGENCY_DB_VERSION);}
+function saveAgencies(){
+  localStorage.setItem('recast_agencies',JSON.stringify(agencyList));
+  localStorage.setItem('recast_agencies_ver',AGENCY_DB_VERSION);
+  saveAgenciesToServer();
+}
+let _agencySyncing=false;
+async function loadAgenciesFromServer(){
+  try{
+    const r=await fetch('/api/agency_sync');
+    const d=await r.json();
+    if(d.ok&&Array.isArray(d.agencies)&&d.agencies.length>0){
+      agencyList=d.agencies;
+      localStorage.setItem('recast_agencies',JSON.stringify(agencyList));
+      renderAgencies();renderBriefAgencies();
+    }else if(agencyList.length>0){
+      saveAgenciesToServer();
+    }
+    if(d.ok&&d.links&&Object.keys(d.links).length>0){
+      localStorage.setItem(CREATOR_AGENCY_KEY,JSON.stringify(d.links));
+    }
+  }catch(e){console.error('Agency sync load failed:',e);}
+}
+function saveAgenciesToServer(){
+  if(_agencySyncing)return;_agencySyncing=true;
+  const links=loadCreatorAgencyLinks();
+  fetch('/api/agency_sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agencies:agencyList,links})})
+    .catch(e=>console.error('Agency sync save failed:',e))
+    .finally(()=>{_agencySyncing=false;});
+}
 
 function toggleAgencyTracker(){
   agencyBodyOpen=!agencyBodyOpen;
@@ -5219,7 +5278,7 @@ function confirmScalp(){
 let _acAgencyId=null;
 const CREATOR_AGENCY_KEY='recast_creator_agency';
 function loadCreatorAgencyLinks(){try{return JSON.parse(localStorage.getItem(CREATOR_AGENCY_KEY)||'{}')}catch(e){return{}}}
-function saveCreatorAgencyLinks(m){localStorage.setItem(CREATOR_AGENCY_KEY,JSON.stringify(m));}
+function saveCreatorAgencyLinks(m){localStorage.setItem(CREATOR_AGENCY_KEY,JSON.stringify(m));saveAgenciesToServer();}
 function matchCreatorsToAgency(ag){
   const raw=ag.talent.filter(t=>!t.toLowerCase().includes('various')&&t.length>2);
   const tokens=raw.map(t=>t.toLowerCase().trim());
