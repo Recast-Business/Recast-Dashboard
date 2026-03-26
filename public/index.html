@@ -2189,12 +2189,14 @@ function renderTable(){
         if(!keys.length)return'<td class="ccv30-cell" style="color:var(--text2)">—</td>';
         const parts=keys.map(({platform,handle,key})=>{
           const v=rosterCcv30[key];
-          const scUrl='https://streamscharts.com/channels/'+encodeURIComponent(handle)+'?platform='+platform;
-          const scBtn='<a href="'+scUrl+'" target="_blank" class="btn btn-sm" style="padding:1px 5px;font-size:9px;text-decoration:none">\uD83D\uDCCA</a>';
+          const verifyUrl=platform==='twitch'?'https://twitchtracker.com/'+encodeURIComponent(handle):'https://streamscharts.com/channels/'+encodeURIComponent(handle)+'?platform=kick';
+          const chartBtn='<a href="'+verifyUrl+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(platform==='twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>';
           const editBtn='<button onclick="editRosterCCV30(\''+esc(key)+'\')" style="background:none;border:none;cursor:pointer;font-size:9px;opacity:.45;padding:0;line-height:1" title="Edit 30d CCV">\u270F\uFE0F</button>';
+          const btnId='rccv30_'+esc(key).replace(/[^a-zA-Z0-9_]/g,'');
+          const fetchBtn='<button class="btn btn-sm" id="'+btnId+'" onclick="fetchRosterCCV30(\''+esc(handle).replace(/'/g,"&#39;")+'\',\''+platform+'\',\''+esc(key).replace(/'/g,"&#39;")+'\',\''+btnId+'\')" style="padding:1px 5px;font-size:9px">Fetch</button>';
           const pc=platform==='twitch'?{c:'#9146ff',bg:'rgba(145,70,255,.14)',b:'rgba(145,70,255,.3)'}:{c:'#53fc18',bg:'rgba(83,252,24,.12)',b:'rgba(83,252,24,.28)'};
-          const valHtml=typeof v==='number'?'<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;background:'+pc.bg+';color:'+pc.c+';border:1px solid '+pc.b+'">'+v.toLocaleString()+'</span>':v==='N/A'?'<span style="color:var(--text2);font-size:10px">N/A</span>':'';
-          return'<div style="display:flex;align-items:center;gap:4px;height:20px">'+valHtml+scBtn+editBtn+'</div>';
+          const valHtml=typeof v==='number'?'<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;background:'+pc.bg+';color:'+pc.c+';border:1px solid '+pc.b+'">'+v.toLocaleString()+'</span> '+chartBtn:v==='N/A'?'<span style="color:var(--text2)">—</span> '+chartBtn:fetchBtn+' '+chartBtn;
+          return'<div style="display:flex;align-items:center;gap:4px;height:20px">'+valHtml+' '+editBtn+'</div>';
         });
         return'<td class="ccv30-cell">'+parts.join('')+'</td>';
       })()+
@@ -3245,9 +3247,10 @@ function renderPotential(){
     const _pCcvChart=_pCcvLink?' <a href="'+_pCcvLink+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(e.platform==='Twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>':'';
     const ccv30=e.avg30dCCV!=null&&e.avg30dCCV>0
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'+_pCcvChart
+      :(e.avg30dCCV!=null?'—'
       :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
         ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="pccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
-        :'—');
+        :'—'));
     // Build channel URL for name link
     const h=e.handle?(e.handle).replace(/^@/,''):'';
     const channelUrl=e.platform==='Twitch'&&h?'https://twitch.tv/'+h:e.platform==='Kick'&&h?'https://kick.com/'+h:'';
@@ -3391,7 +3394,7 @@ async function fetchCCV30(id,platform,handle){
     const r=await fetch('/api/ccv30?platform='+platform.toLowerCase()+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await r.json();
     const idx=scoutList.findIndex(e=>e.id===id);
-    if(idx>=0){scoutList[idx].avg30dCCV=d.ccv30??null;saveScout();renderScout();renderPotential();}
+    if(idx>=0){scoutList[idx].avg30dCCV=d.ccv30!=null?d.ccv30:-1;saveScout();renderScout();renderPotential();}
     if(d.ccv30==null)showToast('30d CCV not available for '+handle);
   }catch(err){
     if(btn){btn.textContent='Fetch';btn.disabled=false;}
@@ -3410,7 +3413,7 @@ async function fetchAll30d(){
       const r=await fetch('/api/ccv30?platform='+e.platform.toLowerCase()+'&handle='+encodeURIComponent(e.handle),{signal:AbortSignal.timeout(12000)});
       const d=await r.json();
       const idx=scoutList.findIndex(x=>x.id===e.id);
-      if(idx>=0)scoutList[idx].avg30dCCV=d.ccv30??null;
+      if(idx>=0)scoutList[idx].avg30dCCV=d.ccv30!=null?d.ccv30:-1;
       return true;
     }));
     done+=results.filter(r=>r.status==='fulfilled').length;
@@ -3644,9 +3647,10 @@ function renderScout(){
     const _ccvChart=_ccvLink?' <a href="'+_ccvLink+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(e.platform==='Twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>':'';
     const ccv30cell=e.avg30dCCV!=null&&e.avg30dCCV>0
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'+_ccvChart
+      :(e.avg30dCCV!=null?'—'
       :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
         ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="ccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
-        :'—');
+        :'—'));
     // Build channel URL for name link
     const _h=e.handle?(e.handle).replace(/^@/,''):'';
     const _chUrl=e.platform==='Twitch'&&_h?'https://twitch.tv/'+_h:e.platform==='Kick'&&_h?'https://kick.com/'+_h:'';
