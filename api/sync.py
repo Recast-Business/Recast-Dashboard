@@ -1,5 +1,5 @@
-"""GET/POST /api/sync — Unified sync endpoint for scout + agency data.
-Query param ?type=scout or ?type=agency to select which data.
+"""GET/POST /api/sync — Unified sync endpoint for scout, agency, and presence data.
+Query param ?type=scout or ?type=agency or ?type=presence to select which data.
 
 Scout:
   GET:  Returns {"ok": true, "scout": [...]}
@@ -8,11 +8,15 @@ Scout:
 Agency:
   GET:  Returns {"ok": true, "agencies": [...], "links": {...}}
   POST: Body {"agencies": [...], "links": {...}}
+
+Presence:
+  GET:  Returns {"ok": true, "presence": {"user_id": timestamp, ...}}
+  POST: Body {"user": "user_id"} — updates heartbeat timestamp
 """
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from api._shared import json_response, read_body, _get_gsheet
-import json
+import json, time
 
 
 def _get_or_create_tab(name, rows_spec):
@@ -47,6 +51,11 @@ AGENCY_TAB_SPEC = [
     (3, 1, "links"), (3, 2, "{}"),
 ]
 
+PRESENCE_TAB_SPEC = [
+    (1, 1, "Key"), (1, 2, "Value"),
+    (2, 1, "heartbeats"), (2, 2, "{}"),
+]
+
 
 class handler(BaseHTTPRequestHandler):
     def _get_type(self):
@@ -70,6 +79,16 @@ class handler(BaseHTTPRequestHandler):
                 except Exception:
                     links = {}
                 json_response(self, 200, {"ok": True, "agencies": agencies, "links": links})
+            elif sync_type == "presence":
+                tab = _get_or_create_tab("Presence", PRESENCE_TAB_SPEC)
+                if tab is None:
+                    json_response(self, 500, {"error": "Could not connect"})
+                    return
+                try:
+                    heartbeats = json.loads(tab.cell(2, 2).value or "{}")
+                except Exception:
+                    heartbeats = {}
+                json_response(self, 200, {"ok": True, "presence": heartbeats})
             else:
                 # Default: scout
                 tab = _get_or_create_tab("Scout Sync", SCOUT_TAB_SPEC)
@@ -98,6 +117,23 @@ class handler(BaseHTTPRequestHandler):
                 tab.update_cell(2, 2, json.dumps(agencies, ensure_ascii=False))
                 tab.update_cell(3, 2, json.dumps(links, ensure_ascii=False))
                 json_response(self, 200, {"ok": True, "saved": len(agencies)})
+            elif sync_type == "presence":
+                tab = _get_or_create_tab("Presence", PRESENCE_TAB_SPEC)
+                if tab is None:
+                    json_response(self, 500, {"error": "Could not connect"})
+                    return
+                user = body.get("user", "")
+                if not user:
+                    json_response(self, 400, {"error": "missing 'user'"})
+                    return
+                # Read current heartbeats, update this user's timestamp
+                try:
+                    heartbeats = json.loads(tab.cell(2, 2).value or "{}")
+                except Exception:
+                    heartbeats = {}
+                heartbeats[user] = int(time.time())
+                tab.update_cell(2, 2, json.dumps(heartbeats))
+                json_response(self, 200, {"ok": True, "presence": heartbeats})
             else:
                 # Default: scout
                 tab = _get_or_create_tab("Scout Sync", SCOUT_TAB_SPEC)

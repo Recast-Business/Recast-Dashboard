@@ -4226,6 +4226,7 @@ function handleLogin(e){
       loadRosterFromAPI();
       loadScoutFromServer();
       startExtrasPoll();
+      startPresence();
     } else {
       showLoginError(d.error||'Invalid credentials');
       btn.disabled=false;btn.textContent='Sign In';
@@ -4236,7 +4237,7 @@ function handleLogin(e){
   });
 }
 function handleLogout(msg){
-  // Post "left" system message before clearing session
+  stopPresence();
   const _auth=JSON.parse(sessionStorage.getItem('recast_auth')||'{}');
   sessionStorage.removeItem('recast_auth');
   localStorage.removeItem('recast_user_id');
@@ -4269,6 +4270,7 @@ function checkSession(){
     loadRosterFromAPI();
     loadScoutFromServer();
     startExtrasPoll();
+    startPresence();
   } else {
     // No session — require fresh login
     sessionStorage.removeItem('recast_auth');
@@ -4375,26 +4377,75 @@ const TEAM_ROSTER=[
   {id:'frazier',name:'Frazier',initials:'F',color:'#22c55e',role:'Team'}
 ];
 let currentUserId='';
+let _presenceData={};
+let _heartbeatTimer=null;
+let _presencePollTimer=null;
+
+function _matchTeamMember(m,userId){
+  // Match TEAM_ROSTER id against email (e.g. 'harry' matches 'harry@example.com')
+  return userId&&(userId===m.id||userId.toLowerCase().startsWith(m.id.toLowerCase()+'@')||userId.toLowerCase().includes(m.id.toLowerCase()));
+}
+function _isMe(m){return _matchTeamMember(m,currentUserId);}
+
+function _getPresenceStatus(m){
+  // Find this member's heartbeat by matching against all presence keys
+  const now=Math.floor(Date.now()/1000);
+  for(const[user,ts]of Object.entries(_presenceData)){
+    if(_matchTeamMember(m,user)){
+      const age=now-ts;
+      if(age<90)return{status:'online',ago:''};
+      if(age<300)return{status:'away',ago:Math.floor(age/60)+'m ago'};
+      return{status:'offline',ago:Math.floor(age/60)+'m ago'};
+    }
+  }
+  return{status:'offline',ago:''};
+}
+
 function renderTeamPresence(){
   const el=document.getElementById('teamPresence');
   if(!el||!currentUserId)return;
   const statusColors={online:'#4ade80',away:'#fbbf24',offline:'#6b7280'};
   const statusLabels={online:'Online',away:'Away',offline:'Offline'};
   el.innerHTML=TEAM_ROSTER.map((m,i)=>{
-    const p={status:'online',tab:'',ago:''};
+    const isMe=_isMe(m);
+    const p=isMe?{status:'online',ago:''}:_getPresenceStatus(m);
     const cls=p.status==='online'?'team-avatar-online':p.status==='away'?'team-avatar-away':'team-avatar-offline';
-    const isMe=m.id===currentUserId;
     return '<div class="team-avatar '+cls+(isMe?' team-avatar-me':'')+'" style="background:'+m.color+';z-index:'+(20-i)+'">'
       +m.initials
       +'<div class="team-avatar-tooltip">'
         +(isMe?'<span style="color:var(--high);font-size:9px;font-weight:700">YOU</span><br>':'')
         +'<strong>'+m.name+'</strong><br>'
         +'<span style="color:var(--text2);font-size:10px">'+m.role+'</span><br>'
-        +'<span style="color:'+statusColors[p.status]+';font-size:10px;font-weight:600">'+statusLabels[p.status]+(p.ago&&p.status!=='online'?' &middot; '+p.ago:'')+'</span>'
-        +(p.tab&&p.status!=='offline'?'<br><span style="color:var(--text2);font-size:10px">'+p.tab+'</span>':'')
+        +'<span style="color:'+statusColors[p.status]+';font-size:10px;font-weight:600">'+statusLabels[p.status]+(p.ago?' &middot; '+p.ago:'')+'</span>'
       +'</div>'
     +'</div>';
   }).join('');
+}
+
+function sendHeartbeat(){
+  if(!currentUserId)return;
+  fetch('/api/sync?type=presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:currentUserId})})
+    .then(r=>r.json()).then(d=>{if(d.ok&&d.presence){_presenceData=d.presence;renderTeamPresence();}})
+    .catch(()=>{});
+}
+
+function pollPresence(){
+  fetch('/api/sync?type=presence').then(r=>r.json()).then(d=>{
+    if(d.ok&&d.presence){_presenceData=d.presence;renderTeamPresence();}
+  }).catch(()=>{});
+}
+
+function startPresence(){
+  sendHeartbeat();
+  if(_heartbeatTimer)clearInterval(_heartbeatTimer);
+  _heartbeatTimer=setInterval(sendHeartbeat,30000);
+  if(_presencePollTimer)clearInterval(_presencePollTimer);
+  _presencePollTimer=setInterval(pollPresence,30000);
+}
+
+function stopPresence(){
+  if(_heartbeatTimer){clearInterval(_heartbeatTimer);_heartbeatTimer=null;}
+  if(_presencePollTimer){clearInterval(_presencePollTimer);_presencePollTimer=null;}
 }
 
 
