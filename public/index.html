@@ -3740,14 +3740,16 @@ function scoreBriefMatch(creator){
   const platform=document.getElementById('briefPlatform').value;
   const minCCV=parseInt(document.getElementById('briefMinCCV').value)||0;
   const niche=document.getElementById('briefNiche').value;
+  // Hard exclude: no CCV data at all
+  if(!creator.bestCCV)return 0;
   let score=0;
-  // Platform match (25pts)
+  // Platform match (25pts) — hard filter when specific platform selected
   if(!platform){score+=25;}
   else{
     const cp=(creator.platforms||'').toLowerCase();
-    if(platform==='Both'){score+=(cp.includes('twitch')&&cp.includes('kick'))?25:(cp.includes('twitch')||cp.includes('kick'))?12:0;}
-    else if(platform==='Twitch'){score+=cp.includes('twitch')?25:0;}
-    else if(platform==='Kick'){score+=cp.includes('kick')?25:0;}
+    if(platform==='Both'){if(!(cp.includes('twitch')&&cp.includes('kick')))return 0;score+=25;}
+    else if(platform==='Twitch'){if(!cp.includes('twitch'))return 0;score+=25;}
+    else if(platform==='Kick'){if(!cp.includes('kick'))return 0;score+=25;}
   }
   // Geography (25pts)
   const geoCountries=getSelectedGeoCountries();
