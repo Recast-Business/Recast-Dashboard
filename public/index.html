@@ -1836,14 +1836,17 @@ function startRosterPoll(){
     try{
       const r = await fetch('/api/roster');
       const d = await r.json();
-      if(d.ok && d.data && d.data.length !== DATA.length){
-        DATA = d.data;
-        loadCcv30FromSheet();
-        if(typeof refreshRosterNames==='function')refreshRosterNames();
-        applyFilters();
-        updateHeaderDate();
-        if(typeof renderPipeline === 'function') renderPipeline();
-        showToast('Roster updated ✓');
+      if(d.ok && d.data){
+        const changed = d.data.length !== DATA.length ||
+          d.data.some((c,i)=> !DATA[i] || c.name!==DATA[i].name || c.outreachStatus!==DATA[i].outreachStatus || c.notes!==DATA[i].notes || c.dealValue!==DATA[i].dealValue || c.campaign!==DATA[i].campaign);
+        if(changed){
+          DATA = d.data;
+          loadCcv30FromSheet();
+          if(typeof refreshRosterNames==='function')refreshRosterNames();
+          applyFilters();
+          updateHeaderDate();
+          if(typeof renderPipeline === 'function') renderPipeline();
+        }
       }
     }catch(e){}
   }, 30000);
