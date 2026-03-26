@@ -363,7 +363,36 @@ def process_records(raw_rows: list) -> list:
             "pipelineNotes": safe(row.get("Pipeline Notes")),
         })
 
-    return records
+    # ── Deduplicate by name (case-insensitive) ──
+    seen_names = {}
+    deduped = []
+    for r in records:
+        key = r["name"].strip().lower()
+        if key in seen_names:
+            # Merge: keep whichever has better CCV, fill in blanks
+            existing = seen_names[key]
+            if r["bestCCV"] > existing["bestCCV"]:
+                existing["bestCCV"] = r["bestCCV"]
+                existing["tier"] = r["tier"]
+            for field in ("twitchHandle", "twitchCCV", "kickHandle", "kickCCV",
+                          "twitter", "instagram", "country", "contentType",
+                          "outreachStatus", "notes", "dealValue", "campaign",
+                          "pipelineNotes", "followUpDate"):
+                if not existing.get(field) and r.get(field):
+                    existing[field] = r[field]
+            # Merge platforms
+            ep = set(p.strip() for p in (existing.get("platforms") or "").split(",") if p.strip())
+            rp = set(p.strip() for p in (r.get("platforms") or "").split(",") if p.strip())
+            existing["platforms"] = ", ".join(sorted(ep | rp))
+            # Merge content categories
+            ec = set(existing.get("contentCategories") or [])
+            rc = set(r.get("contentCategories") or [])
+            existing["contentCategories"] = sorted(ec | rc)
+        else:
+            seen_names[key] = r
+            deduped.append(r)
+
+    return deduped
 
 
 # ── JSON Response Helper ──────────────────────────────────────────────────────
