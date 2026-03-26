@@ -1680,6 +1680,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
   </select>
   <button class="btn btn-accent btn-sm" onclick="applyBulkStatus()">Apply to Selected</button>
   <button class="btn btn-sm" id="bulkCompareBtn" onclick="bulkCompare()" style="display:none">&#x2194; Compare</button>
+  <button class="btn btn-sm" onclick="bulkDelete()" style="color:#f87171;border-color:rgba(248,113,113,.3)">&#x1F5D1; Delete Selected</button>
   <button class="btn btn-sm" onclick="clearBulkSelection()" style="color:var(--text2)">Clear</button>
 </div>
 <div class="toast" id="toast"></div>
@@ -2666,6 +2667,23 @@ async function applyBulkStatus(){
   }
   selectedRows.clear();_updateBulkBar();renderTable();
   showToast('Updated '+done+' creators');
+}
+async function bulkDelete(){
+  const names=[...selectedRows];
+  if(!names.length)return;
+  if(!confirm('Delete '+names.length+' creator'+(names.length>1?'s':'')+' from the roster? This removes them from the Google Sheet.'))return;
+  showToast('Deleting '+names.length+' creators...');
+  let done=0;
+  for(const name of names){
+    try{
+      const r=await fetch('/api/remove_duplicates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+      const d=await r.json();
+      if(d.ok&&d.removed>0){DATA=DATA.filter(c=>c.name!==name);done++;}
+    }catch(e){}
+  }
+  selectedRows.clear();_updateBulkBar();updateKPIs();renderTable();
+  if(typeof updateBriefFeed==='function')updateBriefFeed();
+  showToast('Deleted '+done+' of '+names.length+' creators');
 }
 function clearBulkSelection(){selectedRows.clear();_updateBulkBar();renderTable();}
 function bulkCompare(){
