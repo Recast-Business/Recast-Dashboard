@@ -2582,9 +2582,11 @@ async function deleteCreator(name){
     const d=await r.json();
     if(d.ok&&d.removed>0){
       showToast('Deleted "'+name+'" from roster');
-      closeCreatorModal();
+      document.getElementById('creatorModal').classList.remove('open');
       DATA=DATA.filter(c=>c.name!==name);
+      updateKPIs();
       renderTable();
+      if(typeof updateBriefFeed==='function')updateBriefFeed();
     }else{showToast('Could not find "'+name+'" in sheet','error');}
   }catch(e){showToast('Delete failed: '+e.message,'error');}
 }
