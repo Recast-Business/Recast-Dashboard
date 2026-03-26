@@ -524,11 +524,7 @@ html.light .ac-plat-kick{color:#16a34a;background:rgba(22,163,74,.14);border-col
 .analytics-card{animation:fadeSlideIn .35s ease both}
 .kpi{animation:fadeSlideIn .25s ease both}
 /* PERF: Removed tbody tr animation — causes jank on 750+ rows */
-/* ── Sticky name column ── */
-th.col-name,td.col-name{position:sticky;left:0;z-index:2;background:var(--col-sticky-bg)}
-thead th.col-name{background:var(--col-sticky-bg);z-index:3}
-tbody tr:hover td.col-name{background:var(--col-sticky-bg)!important}
-tbody tr:nth-child(even) td.col-name{background:var(--col-sticky-bg)}
+/* ── Name column (no sticky — blends with rest of row) ── */
 /* ── Checkbox col ── */
 th.col-cb,td.col-cb{width:36px;padding:0 8px;text-align:center;vertical-align:middle}
 /* ── Bulk action bar: heavy glass ── */
