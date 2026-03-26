@@ -3,7 +3,15 @@ Body (optional): {"name": "exact name to delete"}
 No body: removes all duplicate rows, keeping first occurrence.
 """
 from http.server import BaseHTTPRequestHandler
-from api._shared import _get_gsheet, json_response, read_body
+from api._shared import _get_gsheet, _find_name_col, json_response, read_body
+
+
+def _get_name_col_index(headers):
+    """Find the 0-based index of the Creator Name column."""
+    for i, h in enumerate(headers):
+        if h.strip().lower() in ("creator name", "name"):
+            return i
+    return 0
 
 
 class handler(BaseHTTPRequestHandler):
@@ -20,14 +28,24 @@ class handler(BaseHTTPRequestHandler):
                 json_response(self, 200, {"ok": True, "removed": 0})
                 return
 
+            # Find which column has the creator names
+            name_col = _get_name_col_index(all_values[0])
             target_name = (body.get("name") or "").strip()
 
             if target_name:
-                # Delete a specific creator by exact name
+                target_lower = target_name.lower()
+                # Delete a specific creator — exact match first, then case-insensitive
                 rows_to_delete = []
                 for i, row in enumerate(all_values[1:], start=2):
-                    if (row[0] or "").strip() == target_name:
+                    cell = (row[name_col] or "").strip() if name_col < len(row) else ""
+                    if cell == target_name:
                         rows_to_delete.append(i)
+                if not rows_to_delete:
+                    # Case-insensitive fallback
+                    for i, row in enumerate(all_values[1:], start=2):
+                        cell = (row[name_col] or "").strip() if name_col < len(row) else ""
+                        if cell.lower() == target_lower:
+                            rows_to_delete.append(i)
                 removed = 0
                 for row_num in sorted(rows_to_delete, reverse=True):
                     try:
@@ -35,6 +53,8 @@ class handler(BaseHTTPRequestHandler):
                         removed += 1
                     except Exception as e:
                         print(f"[Delete] Failed row {row_num}: {e}")
+                if not removed:
+                    print(f"[Delete] Name not found: '{target_name}' in col {name_col}")
                 json_response(self, 200, {"ok": True, "removed": removed, "name": target_name})
                 return
 
@@ -42,13 +62,13 @@ class handler(BaseHTTPRequestHandler):
             seen = {}
             rows_to_delete = []
             for i, row in enumerate(all_values[1:], start=2):
-                name = (row[0] or "").strip().lower()
-                if not name:
+                cell = (row[name_col] or "").strip().lower() if name_col < len(row) else ""
+                if not cell:
                     continue
-                if name in seen:
+                if cell in seen:
                     rows_to_delete.append(i)
                 else:
-                    seen[name] = i
+                    seen[cell] = i
 
             if not rows_to_delete:
                 json_response(self, 200, {"ok": True, "removed": 0, "message": "No duplicates found"})
