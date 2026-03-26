@@ -7,7 +7,11 @@ from api._shared import json_response
 
 def get_ccv30_twitch(handle):
     url = f"https://twitchtracker.com/api/channels/summary/{handle}"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Referer": f"https://twitchtracker.com/{handle}",
+    }
     r = requests.get(url, headers=headers, timeout=10)
     if r.status_code != 200:
         return None
@@ -64,10 +68,15 @@ class handler(BaseHTTPRequestHandler):
             return
 
         try:
+            avg = None
             if platform == "kick":
                 avg = get_ccv30_kick(handle)
+                if avg is None:
+                    avg = get_ccv30_twitch(handle)
             else:
                 avg = get_ccv30_twitch(handle)
+                if avg is None:
+                    avg = get_ccv30_kick(handle)
 
             if avg is not None:
                 json_response(self, 200, {"ok": True, "ccv30": int(avg), "handle": handle})
