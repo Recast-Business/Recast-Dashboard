@@ -1955,12 +1955,12 @@ async function reloadData(){
 let _lastLocalWrite = 0; // timestamp of last local write — suppresses self-triggered reloads
 
 async function updateOutreachStatus(name,newStatus,el){
-  // Update in-memory DATA immediately
-  const rec=DATA.find(d=>d.name===name);
+  const rec=_findCreator(name);
+  const realName=rec?rec.name:_unesc(name);
   if(rec)rec.outreachStatus=newStatus;
-  _lastLocalWrite = Date.now(); // mark that WE caused the next version bump
+  _lastLocalWrite = Date.now();
   try{
-    const res=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'outreach_status',value:newStatus})});
+    const res=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:realName,field:'outreach_status',value:newStatus})});
     const d=await res.json();
     if(d.updated>0){showToast('Status updated for '+name);}
     else{showToast('Could not find creator in Excel — saved in memory only','warn');}
@@ -2059,7 +2059,7 @@ document.addEventListener('click',()=>{
   document.querySelectorAll('.ms-trigger.open').forEach(t=>t.classList.remove('open'));
 });
 
-function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/\\/g,'&#92;');}
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
 const debouncedApplyFilters=debounce(()=>applyFilters(),150);
 let filtered=[...DATA],currentSort={key:'name',dir:'asc'};
@@ -2616,8 +2616,10 @@ function _editBtn(name,field,dataKey,label){
   const sn=esc(name).replace(/'/g,"&#39;");
   return ' <button class="btn btn-sm" onclick="editCreatorField(\''+sn+'\',\''+field+'\',\''+dataKey+'\',\''+label+'\')" style="font-size:9px;padding:1px 5px;opacity:.6">✎</button>';
 }
+function _unesc(s){const t=document.createElement('textarea');t.innerHTML=s;return t.value;}
+function _findCreator(name){const n=_unesc(name);return DATA.find(d=>d.name===n)||DATA.find(d=>d.name.trim()===n.trim());}
 function showCreatorDetail(name){
-  const r=DATA.find(d=>d.name===name);
+  const r=_findCreator(name);
   if(!r)return;
   document.getElementById('creatorModalTitle').textContent=r.name;
   const eb=(field,dataKey,label)=>_editBtn(r.name,field,dataKey,label);
@@ -2666,12 +2668,13 @@ async function editCreatorField(name,apiField,dataKey,label){
   if(apiField==='platforms'){
     return editCreatorPlatforms(name);
   }
-  const rec=DATA.find(d=>d.name===name);
+  const rec=_findCreator(name);
+  const realName=rec?rec.name:_unesc(name);
   const cur=rec?rec[dataKey]||'':'';
   const val=prompt(label+':',cur);
   if(val===null)return;
   try{
-    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:apiField,value:val.trim()})});
+    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:realName,field:apiField,value:val.trim()})});
     const d=await r.json();
     if(d.ok&&d.updated){
       if(rec){
@@ -2689,8 +2692,9 @@ async function editCreatorField(name,apiField,dataKey,label){
   }catch(e){showToast('Update failed: '+e.message,'error');}
 }
 async function editCreatorPlatforms(name){
-  const rec=DATA.find(d=>d.name===name);
+  const rec=_findCreator(name);
   if(!rec)return;
+  name=rec.name;
   const hasTwitch=!!rec.twitchHandle;
   const hasKick=!!rec.kickHandle;
   // Build a simple dialog
@@ -2752,9 +2756,11 @@ function closeCreatorModal(e){
     document.getElementById('creatorModal').classList.remove('open');
 }
 async function deleteCreator(name){
-  if(!confirm('Move "'+name+'" to the bin?'))return;
+  const rec=_findCreator(name);
+  const realName=rec?rec.name:_unesc(name);
+  if(!confirm('Move "'+realName+'" to the bin?'))return;
   try{
-    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'bin',value:'yes'})});
+    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:realName,field:'bin',value:'yes'})});
     const d=await r.json();
     if(d.ok&&d.updated){
       showToast('"'+name+'" moved to bin');
@@ -2917,13 +2923,14 @@ function bulkCompare(){
 
 // ─── Notes edit ───────────────────────────────────────────────────────────────
 function editNote(name){
-  const rec=DATA.find(d=>d.name===name);
+  const rec=_findCreator(name);
+  const realName=rec?rec.name:_unesc(name);
   const cur=rec?(rec.notes||''):'';
-  const val=prompt('Notes for '+name+':',cur);
+  const val=prompt('Notes for '+realName+':',cur);
   if(val===null)return;
   if(rec)rec.notes=val;
   _lastLocalWrite = Date.now();
-  fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'notes',value:val})})
+  fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:realName,field:'notes',value:val})})
     .then(r=>r.json()).then(d=>showToast(d.updated>0?'Notes saved':'Notes saved (memory only)')).catch(()=>showToast('Saved in memory'));
   renderTable();
 }
