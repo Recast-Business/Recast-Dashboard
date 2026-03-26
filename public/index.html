@@ -1044,6 +1044,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
     <div class="team-presence" id="teamPresence"></div>
     <span class="header-update"><span class="sync-dot"></span><span id="updateDate"></span></span>
     <button class="btn" style="color:#4ade80;border-color:rgba(74,222,128,.3);font-weight:600" onclick="openAddCreatorModal()">+ Add Creator</button>
+    <button class="btn" style="color:#f59e0b;border-color:rgba(245,158,11,.3)" onclick="backfillCCV()" title="Fetch CCV for creators with Twitch/Kick handles but missing CCV data">&#x26A1; Backfill CCV</button>
     <button class="btn btn-accent" onclick="exportClipboard()">Copy to Clipboard</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">&#9790;</button>
     <button class="logout-chip" onclick="handleLogout()">Logout</button>
@@ -2558,9 +2559,11 @@ function showCreatorDetail(name){
     ['Outreach Status','<select class="status-select" style="font-size:12px" onchange="updateOutreachStatus(\''+esc(r.name)+'\',this.value,this)">'+_statusOpts(r.outreachStatus)+'</select>'],
   ];
   // Add action buttons row
+  const safeName=esc(r.name).replace(/'/g,"&#39;");
   const actions='<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;margin-top:6px;border-top:1px solid var(--border)">'+
-    '<button class="btn btn-sm" onclick="copyOutreachEmail(\''+esc(r.name).replace(/'/g,"&#39;")+'\')" style="font-size:11px">&#x2709; Copy Outreach Email</button>'+
-    '<button class="btn btn-sm" onclick="toggleCompare(\''+esc(r.name).replace(/'/g,"&#39;")+'\')" style="font-size:11px" id="compareBtn_'+esc(r.name).replace(/\s/g,'_')+'">'+(_compareList.includes(r.name)?'&#x2714; In Compare':'+ Compare')+'</button>'+
+    '<button class="btn btn-sm" onclick="copyOutreachEmail(\''+safeName+'\')" style="font-size:11px">&#x2709; Copy Outreach Email</button>'+
+    '<button class="btn btn-sm" onclick="toggleCompare(\''+safeName+'\')" style="font-size:11px" id="compareBtn_'+esc(r.name).replace(/\s/g,'_')+'">'+(_compareList.includes(r.name)?'&#x2714; In Compare':'+ Compare')+'</button>'+
+    '<button class="btn btn-sm" onclick="deleteCreator(\''+safeName+'\')" style="font-size:11px;color:#f87171;border-color:rgba(248,113,113,.3)">&#x1F5D1; Delete</button>'+
   '</div>';
   document.getElementById('creatorModalBody').innerHTML=rows.map(([label,val])=>
     '<div class="creator-modal-row"><span class="creator-modal-label">'+label+'</span><span class="creator-modal-val">'+val+'</span></div>'
@@ -2571,6 +2574,33 @@ function openCreatorModal(c){showCreatorDetail(c.name);}
 function closeCreatorModal(e){
   if(!e||e.target===document.getElementById('creatorModal'))
     document.getElementById('creatorModal').classList.remove('open');
+}
+async function deleteCreator(name){
+  if(!confirm('Delete "'+name+'" from the roster? This removes them from the Google Sheet.'))return;
+  try{
+    const r=await fetch('/api/remove_duplicates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    const d=await r.json();
+    if(d.ok&&d.removed>0){
+      showToast('Deleted "'+name+'" from roster');
+      closeCreatorModal();
+      DATA=DATA.filter(c=>c.name!==name);
+      renderTable();
+    }else{showToast('Could not find "'+name+'" in sheet','error');}
+  }catch(e){showToast('Delete failed: '+e.message,'error');}
+}
+async function backfillCCV(){
+  const btn=event?.target;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Fetching CCV...';}
+  try{
+    const r=await fetch('/api/backfill_ccv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
+    const d=await r.json();
+    if(d.ok){
+      showToast('CCV backfilled: '+d.twitch_found+' Twitch, '+d.kick_found+' Kick found ('+d.cells_updated+' cells updated)');
+      // Refresh data
+      setTimeout(()=>location.reload(),1500);
+    }else{showToast('Backfill failed: '+(d.error||'unknown'),'error');}
+  }catch(e){showToast('Backfill failed: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='⚡ Backfill CCV';}}
 }
 
 // ─── Search highlight ─────────────────────────────────────────────────────────
