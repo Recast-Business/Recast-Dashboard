@@ -2780,7 +2780,7 @@ async function deleteCreator(name){
       DATA=DATA.filter(c=>c.name!==realName);
       showToast('"'+realName+'" deleted from roster');
       document.getElementById('creatorModal').classList.remove('open');
-      updateKPIs();renderTable();
+      applyFilters();
       if(typeof updateBriefFeed==='function')updateBriefFeed();
     }else{showToast('Could not find "'+realName+'" in sheet','error');}
   }catch(e){showToast('Delete failed: '+e.message,'error');}
@@ -2880,7 +2880,7 @@ async function bulkDelete(){
       else{failed.push(name);console.warn('[BulkDelete] API returned removed=0 for:',JSON.stringify(name),'response:',d);}
     }catch(e){failed.push(name);console.error('[BulkDelete] Failed for:',name,e);}
   }
-  selectedRows.clear();_updateBulkBar();updateKPIs();renderTable();
+  selectedRows.clear();_updateBulkBar();applyFilters();
   if(typeof updateBriefFeed==='function')updateBriefFeed();
   if(done===names.length){showToast('Deleted '+done+' creator'+(done>1?'s':''));}
   else{showToast('Deleted '+done+' of '+names.length+' — failed: '+failed.join(', '),'warn');}
