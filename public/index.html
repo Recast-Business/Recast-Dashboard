@@ -2547,21 +2547,26 @@ function exportPipelineClipboard(){
 }
 
 // ─── Creator detail modal ─────────────────────────────────────────────────────
+function _editBtn(name,field,dataKey,label){
+  const sn=esc(name).replace(/'/g,"&#39;");
+  return ' <button class="btn btn-sm" onclick="editCreatorField(\''+sn+'\',\''+field+'\',\''+dataKey+'\',\''+label+'\')" style="font-size:9px;padding:1px 5px;opacity:.6">✎</button>';
+}
 function showCreatorDetail(name){
   const r=DATA.find(d=>d.name===name);
   if(!r)return;
   document.getElementById('creatorModalTitle').textContent=r.name;
+  const eb=(field,dataKey,label)=>_editBtn(r.name,field,dataKey,label);
   const rows=[
     ['Tier','<span class="tier-badge '+tierClass(r.tier)+'">'+esc(r.tier||'—')+'</span>'],
-    ['Platform',esc(r.platforms||'—')],
+    ['Platform',esc(r.platforms||'—')+eb('platforms','platforms','Platforms (e.g. Twitch, Kick)')],
     ['CCV (Best)',r.bestCCV?r.bestCCV.toLocaleString():'—'],
-    ['Twitch',r.twitchHandle?'<a href="https://twitch.tv/'+esc(r.twitchHandle)+'" target="_blank" style="color:#9146ff">'+esc(r.twitchHandle)+'</a> \u00b7 '+ccvFmt(r.twitchCCV):'—'],
-    ['Kick',r.kickHandle?'<a href="https://kick.com/'+esc(r.kickHandle)+'" target="_blank" style="color:#53fc18">'+esc(r.kickHandle)+'</a> \u00b7 '+ccvFmt(r.kickCCV):'—'],
-    ['Country',esc(r.country||'—')],
-    ['Content Type',esc(r.contentType||'—')],
+    ['Twitch',(r.twitchHandle?'<a href="https://twitch.tv/'+esc(r.twitchHandle)+'" target="_blank" style="color:#9146ff">'+esc(r.twitchHandle)+'</a> \u00b7 '+ccvFmt(r.twitchCCV):'—')+eb('twitch_handle','twitchHandle','Twitch Handle')],
+    ['Kick',(r.kickHandle?'<a href="https://kick.com/'+esc(r.kickHandle)+'" target="_blank" style="color:#53fc18">'+esc(r.kickHandle)+'</a> \u00b7 '+ccvFmt(r.kickCCV):'—')+eb('kick_handle','kickHandle','Kick Handle')],
+    ['Country',esc(r.country||'—')+eb('country','country','Country')],
+    ['Content Type',esc(r.contentType||'—')+eb('content_type','contentType','Content Type')],
     ['Casino',r.casinoFlag==='yes'?'<span style="color:#4ade80">Friendly</span>':r.casinoFlag==='no'?'<span style="color:#f87171">Exclude</span>':'Unknown'],
-    ['Twitter',r.twitter?'<a href="'+esc(r.twitter.startsWith('http')?r.twitter:'https://'+r.twitter)+'" target="_blank" style="color:var(--accent)">View</a>':'—'],
-    ['Instagram',r.instagram?'<a href="'+esc(r.instagram.startsWith('http')?r.instagram:'https://'+r.instagram)+'" target="_blank" style="color:var(--accent)">View</a>':'—'],
+    ['Twitter',(r.twitter?'<a href="'+esc(r.twitter.startsWith('http')?r.twitter:'https://'+r.twitter)+'" target="_blank" style="color:var(--accent)">'+esc(r.twitter)+'</a>':'—')+eb('twitter','twitter','Twitter Link')],
+    ['Instagram',(r.instagram?'<a href="'+esc(r.instagram.startsWith('http')?r.instagram:'https://'+r.instagram)+'" target="_blank" style="color:var(--accent)">'+esc(r.instagram)+'</a>':'—')+eb('instagram','instagram','Instagram Link')],
     ['Outreach Status','<select class="status-select" style="font-size:12px" onchange="updateOutreachStatus(\''+esc(r.name)+'\',this.value,this)">'+_statusOpts(r.outreachStatus)+'</select>'],
   ];
   // Add action buttons row
@@ -2575,6 +2580,22 @@ function showCreatorDetail(name){
     '<div class="creator-modal-row"><span class="creator-modal-label">'+label+'</span><span class="creator-modal-val">'+val+'</span></div>'
   ).join('')+actions;
   document.getElementById('creatorModal').classList.add('open');
+}
+async function editCreatorField(name,apiField,dataKey,label){
+  const rec=DATA.find(d=>d.name===name);
+  const cur=rec?rec[dataKey]||'':'';
+  const val=prompt(label+':',cur);
+  if(val===null)return;
+  try{
+    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:apiField,value:val.trim()})});
+    const d=await r.json();
+    if(d.ok&&d.updated){
+      if(rec)rec[dataKey]=val.trim();
+      showToast(label+' updated');
+      showCreatorDetail(name);
+      renderTable();
+    }else{showToast('Update failed','error');}
+  }catch(e){showToast('Update failed: '+e.message,'error');}
 }
 function openCreatorModal(c){showCreatorDetail(c.name);}
 function closeCreatorModal(e){

@@ -76,6 +76,9 @@ def gsheet_all_records():
 ALLOWED_UPDATE_FIELDS = {
     "Outreach Status", "Notes", "Deal Value",
     "Follow-Up Date", "Campaign", "Pipeline Notes",
+    "Twitch Handle", "Twitch CCV", "Kick Handle", "Kick CCV",
+    "Platforms", "Country", "Content Type",
+    "Twitter Link", "Instagram Link",
 }
 
 

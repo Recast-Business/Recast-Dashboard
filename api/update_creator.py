@@ -19,6 +19,15 @@ FIELD_MAP = {
     "follow_up_date": "Follow-Up Date",
     "campaign": "Campaign",
     "pipeline_notes": "Pipeline Notes",
+    "twitch_handle": "Twitch Handle",
+    "twitch_ccv": "Twitch CCV",
+    "kick_handle": "Kick Handle",
+    "kick_ccv": "Kick CCV",
+    "platforms": "Platforms",
+    "country": "Country",
+    "content_type": "Content Type",
+    "twitter": "Twitter Link",
+    "instagram": "Instagram Link",
 }
 
 
