@@ -3241,13 +3241,11 @@ function renderPotential(){
     const igUrl=e.instagram?(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram):'';
     const igHandle=e.instagram?e.instagram.replace(/https?:\/\/(www\.)?instagram\.com\/?/,'').replace(/^@/,'').replace(/\/$/,'').split('?')[0]:'';
     const igCell=igHandle?'<a href="'+esc(igUrl)+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open Instagram">@'+esc(igHandle)+'</a>':'<span style="color:var(--text2)">—</span>';
-    const ccv30=e.avg30dCCV!=null
+    const ccv30=e.avg30dCCV!=null&&e.avg30dCCV>0
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
-      :(e.handle&&e.platform==='Twitch'
-        ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="pccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\'Twitch\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg">&#128202;</button>'
-        :(e.handle&&e.platform==='Kick'
-          ?'<a class="link-icon" href="https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick" target="_blank" title="View 30-day stats on StreamCharts">&#128202;</a>'
-          :'—'));
+      :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
+        ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="pccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
+        :'—');
     // Build channel URL for name link
     const h=e.handle?(e.handle).replace(/^@/,''):'';
     const channelUrl=e.platform==='Twitch'&&h?'https://twitch.tv/'+h:e.platform==='Kick'&&h?'https://kick.com/'+h:'';
@@ -3385,16 +3383,16 @@ async function exportPotentialToMasterList(){
   }
 }
 async function fetchCCV30(id,platform,handle){
-  const btn=document.getElementById('ccv30btn-'+id);
-  if(btn){btn.textContent='\u23F3';btn.disabled=true;}
+  const btn=document.getElementById('ccv30btn-'+id)||document.getElementById('pccv30btn-'+id);
+  if(btn){btn.textContent='⏳';btn.disabled=true;}
   try{
     const r=await fetch('/api/ccv30?platform='+platform.toLowerCase()+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await r.json();
     const idx=scoutList.findIndex(e=>e.id===id);
-    if(idx>=0){scoutList[idx].avg30dCCV=d.ccv30??null;saveScout();renderScout();}
+    if(idx>=0){scoutList[idx].avg30dCCV=d.ccv30??null;saveScout();renderScout();renderPotential();}
     if(d.ccv30==null)showToast('30d CCV not available for '+handle);
   }catch(err){
-    if(btn){btn.innerHTML='&#128202;';btn.disabled=false;}
+    if(btn){btn.textContent='Fetch';btn.disabled=false;}
     showToast('Could not fetch 30d CCV for '+handle);
   }
 }
@@ -3415,7 +3413,7 @@ async function fetchAll30d(){
     }));
     done+=results.filter(r=>r.status==='fulfilled').length;
   }
-  saveScout();renderScout();showToast('Done — fetched 30d CCV for '+done+'/'+toFetch.length+' creators');
+  saveScout();renderScout();renderPotential();showToast('Done — fetched 30d CCV for '+done+'/'+toFetch.length+' creators');
 }
 const _debouncedSaveScout=debounce(()=>{
   localStorage.setItem('recast_scout',JSON.stringify(scoutList));
@@ -3640,13 +3638,11 @@ function renderScout(){
     const ig=e.instagram?'<a class="link-icon" href="'+esc(e.instagram.startsWith('http')?e.instagram:'https://instagram.com/'+e.instagram)+'" target="_blank">\uD83D\uDD17</a>':'—';
     const starColor=e.potential?'#f59e0b':'var(--text2)';
     const starIcon=e.potential?'\u2605':'\u2606';
-    const ccv30cell=e.avg30dCCV!=null
+    const ccv30cell=e.avg30dCCV!=null&&e.avg30dCCV>0
       ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'
-      :(e.handle&&e.platform==='Twitch'
-        ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="ccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\'Twitch\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg from TwitchTracker">&#128202;</button>'
-        :(e.handle&&e.platform==='Kick'
-          ?'<a class="link-icon" href="https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick" target="_blank" title="View 30-day stats on StreamCharts">&#128202;</a>'
-          :'—'));
+      :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
+        ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="ccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
+        :'—');
     // Build channel URL for name link
     const _h=e.handle?(e.handle).replace(/^@/,''):'';
     const _chUrl=e.platform==='Twitch'&&_h?'https://twitch.tv/'+_h:e.platform==='Kick'&&_h?'https://kick.com/'+_h:'';
