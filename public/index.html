@@ -1815,6 +1815,7 @@ async function loadRosterFromAPI() {
       DATA = d.data;
       const _rl2=document.getElementById('rosterLoading');if(_rl2)_rl2.remove();
       applyFilters();
+      updateHeaderDate();
       if(typeof renderPipeline === 'function') renderPipeline();
       if(typeof renderReminders === 'function') renderReminders();
     }
@@ -1831,14 +1832,18 @@ function startRosterPoll(){
       if(d.ok && d.data && d.data.length !== DATA.length){
         DATA = d.data;
         applyFilters();
+        updateHeaderDate();
         if(typeof renderPipeline === 'function') renderPipeline();
         showToast('Roster updated ✓');
       }
     }catch(e){}
   }, 30000);
 }
-const LAST_UPDATED = '25 Mar 2026 15:53';
-const CREATOR_COUNT = 746;
+function updateHeaderDate(){
+  const now=new Date();
+  const ts=now.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('updateDate').textContent='Live · '+ts+' · '+DATA.length+' creators';
+}
 
 const msState = {platform:new Set(),tier:new Set(),content:new Set(),status:new Set()};
 let rosterCcv30=JSON.parse(localStorage.getItem('recast_roster_ccv30')||'{}');
@@ -3721,7 +3726,7 @@ function scrollToTop(){
   }
 })();
 function init(){
-  document.getElementById('updateDate').textContent='Updated '+LAST_UPDATED+' · '+CREATOR_COUNT+' creators';
+  updateHeaderDate();
   renderTeamPresence();
   const platforms=['Twitch','Kick','YouTube','TikTok'];
   const tiers=['Mega','Big','Mid','Small'];
