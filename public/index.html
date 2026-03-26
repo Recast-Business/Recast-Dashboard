@@ -573,6 +573,9 @@ td:hover .copy-btn,.copy-btn:hover{opacity:1}
 .brief-field input,.brief-field select,.brief-field textarea{width:100%;padding:8px 10px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);background:rgba(255,255,255,0.04);color:var(--text);font-size:12px;outline:none;transition:all .2s ease;font-family:inherit}
 .brief-field input:focus,.brief-field select:focus,.brief-field textarea:focus{border-color:rgba(59,130,246,0.5);box-shadow:0 0 0 3px rgba(59,130,246,0.08)}
 .brief-field textarea{resize:vertical;min-height:60px}
+.brief-geo-chip{padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--text2);transition:all .2s ease;user-select:none}
+.brief-geo-chip:hover{border-color:rgba(59,130,246,0.4);color:var(--text)}
+.brief-geo-chip.active{background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.5);color:#60a5fa}
 .brief-toggle{display:flex;align-items:center;gap:10px;cursor:pointer}
 .brief-toggle-track{width:36px;height:20px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);position:relative;transition:.2s;flex-shrink:0}
 .brief-toggle-track.on{background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.4)}
@@ -863,6 +866,8 @@ html.light .tier-chip:hover{background:rgba(255,255,255,0.70)}
 html.light .kpi{background:rgba(255,255,255,0.60);border-color:rgba(0,0,0,0.04);border-top-color:rgba(255,255,255,0.95)}
 html.light .kpi:hover{border-color:rgba(37,99,235,0.15);box-shadow:0 4px 16px rgba(37,99,235,0.05)}
 html.light .analytics-card,html.light .analytics-kpi{background:rgba(255,255,255,0.55);border-color:rgba(0,0,0,0.04);border-top-color:rgba(255,255,255,0.92)}
+html.light .brief-geo-chip{border-color:rgba(0,0,0,0.1);background:rgba(0,0,0,0.03);color:var(--text2)}
+html.light .brief-geo-chip.active{background:rgba(37,99,235,0.1);border-color:rgba(37,99,235,0.4);color:#2563eb}
 html.light .brief-card{background:rgba(255,255,255,0.55);border-color:rgba(0,0,0,0.04);border-top-color:rgba(255,255,255,0.92)}
 html.light .brief-card:hover{border-color:rgba(37,99,235,0.15);box-shadow:0 8px 24px rgba(0,0,0,0.06)}
 html.light .pipeline-col{background:rgba(255,255,255,0.40);border-color:rgba(0,0,0,0.04);border-top-color:rgba(255,255,255,0.90)}
@@ -1583,14 +1588,13 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
         </div>
         <div class="brief-field">
           <label>Geography</label>
-          <select id="briefGeo" onchange="debouncedBriefUpdate()">
-            <option value="">Any</option>
-            <option>US Only</option>
-            <option>UK Only</option>
-            <option>Tier 1</option>
-            <option>Tier 2</option>
-            <option>Tier 3</option>
-          </select>
+          <div id="briefGeoChips" class="brief-geo-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">
+            <span class="brief-geo-chip" data-val="US Only" onclick="toggleBriefGeo(this)">US</span>
+            <span class="brief-geo-chip" data-val="UK Only" onclick="toggleBriefGeo(this)">UK</span>
+            <span class="brief-geo-chip" data-val="Tier 1" onclick="toggleBriefGeo(this)">Tier 1</span>
+            <span class="brief-geo-chip" data-val="Tier 2" onclick="toggleBriefGeo(this)">Tier 2</span>
+            <span class="brief-geo-chip" data-val="Tier 3" onclick="toggleBriefGeo(this)">Tier 3</span>
+          </div>
         </div>
         <div class="brief-field">
           <label>Min CCV</label>
@@ -3716,6 +3720,10 @@ const BRIEF_GEO_MAP={
   'Tier 2':['Germany','France','Netherlands','Sweden','Denmark','Norway','Finland','Belgium','Switzerland','Austria','Japan','South Korea','Singapore'],
   'Tier 3':['Spain','Italy','Brazil','Mexico','Argentina','Colombia','Peru','Poland','Czech Republic','Turkey','Saudi Arabia','UAE','Russia','Philippines','Vietnam']
 };
+function toggleBriefGeo(el){el.classList.toggle('active');debouncedBriefUpdate();}
+function getSelectedGeos(){return [...document.querySelectorAll('#briefGeoChips .brief-geo-chip.active')].map(c=>c.dataset.val);}
+function getSelectedGeoCountries(){const geos=getSelectedGeos();if(!geos.length)return[];const s=new Set();geos.forEach(g=>(BRIEF_GEO_MAP[g]||[]).forEach(c=>s.add(c)));return[...s];}
+function getSelectedGeoLabel(){const geos=getSelectedGeos();if(!geos.length)return'';return geos.map(g=>g.replace(' Only','')).join(', ');}
 let briefCasinoExclude=false;
 let _briefTimer=null;
 function debouncedBriefUpdate(){clearTimeout(_briefTimer);_briefTimer=setTimeout(updateBriefFeed,200);}
@@ -3729,7 +3737,6 @@ function toggleBriefCasino(){
 }
 function scoreBriefMatch(creator){
   const platform=document.getElementById('briefPlatform').value;
-  const geo=document.getElementById('briefGeo').value;
   const minCCV=parseInt(document.getElementById('briefMinCCV').value)||0;
   const niche=document.getElementById('briefNiche').value;
   let score=0;
@@ -3742,12 +3749,9 @@ function scoreBriefMatch(creator){
     else if(platform==='Kick'){score+=cp.includes('kick')?25:0;}
   }
   // Geography (25pts)
-  if(!geo){score+=25;}
-  else{
-    const countries=BRIEF_GEO_MAP[geo]||[];
-    if(countries.length===0){score+=25;}
-    else{score+=countries.some(c=>c.toLowerCase()===(creator.country||'').toLowerCase())?25:0;}
-  }
+  const geoCountries=getSelectedGeoCountries();
+  if(!geoCountries.length){score+=25;}
+  else{score+=geoCountries.some(c=>c.toLowerCase()===(creator.country||'').toLowerCase())?25:0;}
   // CCV (25pts)
   if(!minCCV){score+=25;}
   else{
@@ -3840,7 +3844,7 @@ async function exportBriefCSV(){
   const creators=DATA.map(c=>({...c,matchScore:scoreBriefMatch(c)})).filter(c=>c.matchScore>0).sort((a,b)=>b.matchScore-a.matchScore);
   if(!creators.length){showToast('No matches to export');return;}
   const niche=document.getElementById('briefNiche')?.value||'';
-  const geo=document.getElementById('briefGeo')?.value||'';
+  const geo=getSelectedGeoLabel();
   const briefName=[niche,geo].filter(Boolean).join(' — ')||'Campaign';
   showToast('Creating sheet in Google Drive...');
   try{
@@ -4674,11 +4678,11 @@ function agencyColor(name){
 function agencyMatchPct(ag){
   let score=0,max=100;
   const niche=(document.getElementById('briefNiche')?.value||'');
-  const geo=(document.getElementById('briefGeo')?.value||'');
   // Niche 40pts
   if(niche){const k=niche.split('/')[0].trim().toLowerCase();score+=ag.niches.some(n=>n.toLowerCase().includes(k))?40:ag.niches.some(n=>n.toLowerCase().includes('gaming'))?12:0;}else score+=40;
   // Region 35pts
-  if(geo){const gc=BRIEF_GEO_MAP[geo]||[];score+=gc.some(c=>ag.regions.some(r=>r.toLowerCase()===c.toLowerCase()))?35:10;}else score+=35;
+  const gc=getSelectedGeoCountries();
+  if(gc.length){score+=gc.some(c=>ag.regions.some(r=>r.toLowerCase()===c.toLowerCase()))?35:10;}else score+=35;
   // Talent scale 25pts — tier gives bonus
   const tc=ag.talentCount||ag.talent.length||0;
   const tierBonus=ag.tier==='Major'?5:ag.tier==='Mid-Tier'?2:0;
@@ -4753,7 +4757,7 @@ function readActiveBrief(){
     campaignType:document.getElementById('briefCampaignType')?.value||'',
     dealValue:   document.getElementById('briefDealValue')?.value||'',
     platform:    document.getElementById('briefPlatform')?.value||'',
-    geo:         document.getElementById('briefGeo')?.value||'',
+    geo:         getSelectedGeoLabel(),
     minCCV:      document.getElementById('briefMinCCV')?.value||'',
     niche:       document.getElementById('briefNiche')?.value||'',
     notes:       document.getElementById('briefNotes')?.value.trim()||''
@@ -4984,7 +4988,7 @@ function removeAgency(id){
 }
 function matchAgenciesToBrief(){
   const niche=document.getElementById('briefNiche')?.value||'';
-  const geo=document.getElementById('briefGeo')?.value||'';
+  const geo=getSelectedGeoLabel();
   if(!niche&&!geo){alert('Set Brief Builder parameters (niche / geography) first for meaningful match scores.');return;}
   agencyList.sort((a,b)=>agencyMatchPct(b)-agencyMatchPct(a));
   saveAgencies();renderAgencies();
