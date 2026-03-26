@@ -28,6 +28,7 @@ FIELD_MAP = {
     "content_type": "Content Type",
     "twitter": "Twitter Link",
     "instagram": "Instagram Link",
+    "bin": "Bin",
 }
 
 

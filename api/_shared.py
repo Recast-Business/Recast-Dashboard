@@ -79,6 +79,7 @@ ALLOWED_UPDATE_FIELDS = {
     "Twitch Handle", "Twitch CCV", "Kick Handle", "Kick CCV",
     "Platforms", "Country", "Content Type",
     "Twitter Link", "Instagram Link",
+    "Bin",
 }
 
 
@@ -92,7 +93,13 @@ def gsheet_update_field(creator_name: str, col_header: str, value) -> int:
     try:
         headers = sh.row_values(1)
         if col_header not in headers:
-            return 0
+            if col_header == "Bin":
+                # Auto-create Bin column
+                new_col = len(headers) + 1
+                sh.update_cell(1, new_col, "Bin")
+                headers.append("Bin")
+            else:
+                return 0
         col_idx = headers.index(col_header) + 1
         name_col_vals = sh.col_values(1)
         for row_idx, cell_val in enumerate(name_col_vals[1:], start=2):
@@ -364,6 +371,7 @@ def process_records(raw_rows: list) -> list:
             "followUpDate": safe(row.get("Follow-Up Date")),
             "campaign": safe(row.get("Campaign")),
             "pipelineNotes": safe(row.get("Pipeline Notes")),
+            "bin": safe(row.get("Bin")).lower() == "yes",
         })
 
     # ── Deduplicate by name (case-insensitive) ──

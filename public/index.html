@@ -1038,6 +1038,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
       <button class="tab-btn" onclick="switchTab('pipeline',this)">Pipeline</button>
       <button class="tab-btn" onclick="switchTab('analytics',this)">Analytics</button>
       <button class="tab-btn" onclick="switchTab('brief',this)">Brief Builder</button>
+      <button class="tab-btn" onclick="switchTab('bin',this)" style="opacity:.6">🗑 Bin</button>
     </div>
   </div>
   <div class="header-right">
@@ -1668,6 +1669,18 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
 </div>
 
 
+<div class="view" id="view-bin">
+  <div style="padding:24px 0 12px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <h3 style="margin:0;font-size:16px;color:var(--text)">🗑 Deleted Creators</h3>
+      <span id="binCount" style="font-size:12px;color:var(--text2)">0 creators</span>
+    </div>
+    <p style="color:var(--text2);font-size:12px;margin:0 0 16px">Creators moved here can be restored or permanently deleted. Permanent deletion requires confirmation.</p>
+    <div id="binList" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div id="binEmpty" style="text-align:center;padding:40px;color:var(--text2);font-size:13px">No deleted creators — the bin is empty.</div>
+  </div>
+</div>
+
 <div class="bulk-bar" id="bulkBar">
   <span id="bulkCount" style="font-size:12px;color:var(--text2);white-space:nowrap">0 selected</span>
   <select id="bulkStatusSelect" style="padding:5px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font-size:12px;outline:none">
@@ -2039,6 +2052,7 @@ function applyFilters(){
   const hasStatus=msState.status.size>0;
   const casinoFilter=document.querySelector('#chipCasino .chip.active')?.dataset.val||'all';
   filtered=DATA.filter(r=>{
+    if(r.bin)return false;
     if(search&&!r.name.toLowerCase().includes(search))return false;
     if(ccvMin&&getRosterBest30dCCV(r)<ccvMin)return false;
     if(hasPlatform){const p=(r.platforms||'').toLowerCase();if(!platformArr.some(s=>p.includes(s)))return false;}
@@ -2285,6 +2299,7 @@ function switchTab(tab,btn){
   if(tab==='pipeline')renderPipeline();
   if(tab==='analytics')renderAnalytics();
   if(tab==='brief')updateBriefFeed();
+  if(tab==='bin')renderBin();
 }
 
 // ─── Pipeline drag-and-drop ──────────────────────────────────────────────────
@@ -2613,7 +2628,7 @@ function showCreatorDetail(name){
   const actions='<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;margin-top:6px;border-top:1px solid var(--border)">'+
     '<button class="btn btn-sm" onclick="copyOutreachEmail(\''+safeName+'\')" style="font-size:11px">&#x2709; Copy Outreach Email</button>'+
     '<button class="btn btn-sm" onclick="toggleCompare(\''+safeName+'\')" style="font-size:11px" id="compareBtn_'+esc(r.name).replace(/\s/g,'_')+'">'+(_compareList.includes(r.name)?'&#x2714; In Compare':'+ Compare')+'</button>'+
-    '<button class="btn btn-sm" onclick="deleteCreator(\''+safeName+'\')" style="font-size:11px;color:#f87171;border-color:rgba(248,113,113,.3)">&#x1F5D1; Delete</button>'+
+    '<button class="btn btn-sm" onclick="deleteCreator(\''+safeName+'\')" style="font-size:11px;color:#f87171;border-color:rgba(248,113,113,.3)">🗑 Move to Bin</button>'+
   '</div>';
   document.getElementById('creatorModalBody').innerHTML=rows.map(([label,val])=>
     '<div class="creator-modal-row"><span class="creator-modal-label">'+label+'</span><span class="creator-modal-val">'+val+'</span></div>'
@@ -2711,17 +2726,63 @@ function closeCreatorModal(e){
     document.getElementById('creatorModal').classList.remove('open');
 }
 async function deleteCreator(name){
-  if(!confirm('Delete "'+name+'" from the roster? This removes them from the Google Sheet.'))return;
+  if(!confirm('Move "'+name+'" to the bin?'))return;
+  try{
+    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'bin',value:'yes'})});
+    const d=await r.json();
+    if(d.ok&&d.updated){
+      showToast('"'+name+'" moved to bin');
+      document.getElementById('creatorModal').classList.remove('open');
+      const rec=DATA.find(c=>c.name===name);
+      if(rec)rec.bin=true;
+      updateKPIs();renderTable();
+      if(typeof updateBriefFeed==='function')updateBriefFeed();
+    }else{showToast('Could not find "'+name+'" in sheet','error');}
+  }catch(e){showToast('Delete failed: '+e.message,'error');}
+}
+// ─── Bin (soft-delete) ────────────────────────────────────────────────────────
+function renderBin(){
+  const binned=DATA.filter(r=>r.bin);
+  const list=document.getElementById('binList');
+  const empty=document.getElementById('binEmpty');
+  document.getElementById('binCount').textContent=binned.length+' creator'+(binned.length!==1?'s':'');
+  if(!binned.length){list.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  list.innerHTML=binned.map(r=>{
+    const sn=esc(r.name).replace(/'/g,"&#39;");
+    const plat=r.platforms||'—';
+    const tier=r.tier||'—';
+    return'<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">'+
+      '<div style="flex:1;min-width:0">'+
+        '<strong style="color:var(--text);font-size:13px">'+esc(r.name)+'</strong>'+
+        '<span style="margin-left:8px;font-size:11px;color:var(--text2)">'+esc(plat)+' · '+esc(tier)+'</span>'+
+      '</div>'+
+      '<button class="btn btn-sm" onclick="restoreCreator(\''+sn+'\')" style="font-size:11px;color:#4ade80;border-color:rgba(74,222,128,.3)">↩ Restore</button>'+
+      '<button class="btn btn-sm" onclick="permanentDelete(\''+sn+'\')" style="font-size:11px;color:#f87171;border-color:rgba(248,113,113,.3)">✕ Delete Forever</button>'+
+    '</div>';
+  }).join('');
+}
+async function restoreCreator(name){
+  try{
+    const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'bin',value:''})});
+    const d=await r.json();
+    if(d.ok&&d.updated){
+      const rec=DATA.find(c=>c.name===name);
+      if(rec)rec.bin=false;
+      showToast('"'+name+'" restored to roster');
+      renderBin();applyFilters();
+    }else{showToast('Restore failed','error');}
+  }catch(e){showToast('Restore failed: '+e.message,'error');}
+}
+async function permanentDelete(name){
+  if(!confirm('Permanently delete "'+name+'"? This cannot be undone.'))return;
   try{
     const r=await fetch('/api/remove_duplicates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
     const d=await r.json();
     if(d.ok&&d.removed>0){
-      showToast('Deleted "'+name+'" from roster');
-      document.getElementById('creatorModal').classList.remove('open');
       DATA=DATA.filter(c=>c.name!==name);
-      updateKPIs();
-      renderTable();
-      if(typeof updateBriefFeed==='function')updateBriefFeed();
+      showToast('"'+name+'" permanently deleted');
+      renderBin();
     }else{showToast('Could not find "'+name+'" in sheet','error');}
   }catch(e){showToast('Delete failed: '+e.message,'error');}
 }
@@ -2805,19 +2866,19 @@ async function applyBulkStatus(){
 async function bulkDelete(){
   const names=[...selectedRows];
   if(!names.length)return;
-  if(!confirm('Delete '+names.length+' creator'+(names.length>1?'s':'')+' from the roster? This removes them from the Google Sheet.'))return;
-  showToast('Deleting '+names.length+' creators...');
+  if(!confirm('Move '+names.length+' creator'+(names.length>1?'s':'')+' to the bin?'))return;
+  showToast('Moving '+names.length+' creators to bin...');
   let done=0;
   for(const name of names){
     try{
-      const r=await fetch('/api/remove_duplicates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+      const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'bin',value:'yes'})});
       const d=await r.json();
-      if(d.ok&&d.removed>0){DATA=DATA.filter(c=>c.name!==name);done++;}
+      if(d.ok&&d.updated){const rec=DATA.find(c=>c.name===name);if(rec)rec.bin=true;done++;}
     }catch(e){}
   }
   selectedRows.clear();_updateBulkBar();updateKPIs();renderTable();
   if(typeof updateBriefFeed==='function')updateBriefFeed();
-  showToast('Deleted '+done+' of '+names.length+' creators');
+  showToast('Moved '+done+' of '+names.length+' creators to bin');
 }
 function clearBulkSelection(){selectedRows.clear();_updateBulkBar();renderTable();}
 function bulkCompare(){
@@ -3952,6 +4013,7 @@ function toggleBriefCasino(){
   updateBriefFeed();
 }
 function scoreBriefMatch(creator){
+  if(creator.bin)return 0;
   const platform=document.getElementById('briefPlatform').value;
   const minCCV=parseInt(document.getElementById('briefMinCCV').value)||0;
   const niche=document.getElementById('briefNiche').value;
