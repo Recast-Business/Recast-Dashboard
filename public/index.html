@@ -2583,7 +2583,22 @@ function showCreatorDetail(name){
   const rows=[
     ['Tier','<span class="tier-badge '+tierClass(getRosterTier(r))+'">'+esc(getRosterTier(r))+'</span>'],
     ['Platform',esc(r.platforms||'—')+eb('platforms','platforms','Platforms (e.g. Twitch, Kick)')],
-    ['30d CCV',(()=>{const v=getRosterBest30dCCV(r);return v?v.toLocaleString():'—';})()],
+    ['30d CCV',(()=>{
+      const keys=rosterCcv30Keys(r);
+      if(!keys.length)return'—';
+      return keys.map(({platform,handle,key})=>{
+        const v=rosterCcv30[key];
+        const verifyUrl=platform==='twitch'?'https://twitchtracker.com/'+encodeURIComponent(handle):'https://streamscharts.com/channels/'+encodeURIComponent(handle)+'?platform=kick';
+        const chartLink='<a href="'+verifyUrl+'" target="_blank" style="text-decoration:none;opacity:.6;font-size:11px" title="Verify on '+(platform==='twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>';
+        const editBtn='<button onclick="editRosterCCV30(\''+esc(key)+'\')" style="background:none;border:none;cursor:pointer;font-size:10px;opacity:.5;padding:0" title="Edit 30d CCV">\u270F\uFE0F</button>';
+        const btnId='modal_rccv30_'+esc(key).replace(/[^a-zA-Z0-9_]/g,'');
+        const fetchBtn='<button class="btn btn-sm" id="'+btnId+'" onclick="fetchRosterCCV30(\''+esc(handle).replace(/\'/g,"&#39;")+'\',\''+platform+'\',\''+esc(key).replace(/\'/g,"&#39;")+'\',\''+btnId+'\');showCreatorDetail(\''+esc(r.name).replace(/\'/g,"&#39;")+'\')" style="padding:1px 6px;font-size:10px">Fetch</button>';
+        const platLabel='<span style="font-size:10px;opacity:.5;text-transform:uppercase">'+platform+'</span> ';
+        if(typeof v==='number'&&v>0)return'<div style="display:flex;align-items:center;gap:5px">'+platLabel+'<strong>'+v.toLocaleString()+'</strong> '+chartLink+' '+editBtn+'</div>';
+        if(v==='N/A')return'<div style="display:flex;align-items:center;gap:5px">'+platLabel+'— '+chartLink+' '+editBtn+'</div>';
+        return'<div style="display:flex;align-items:center;gap:5px">'+platLabel+fetchBtn+' '+chartLink+' '+editBtn+'</div>';
+      }).join('');
+    })()],
     ['Twitch',(r.twitchHandle?'<a href="https://twitch.tv/'+esc(r.twitchHandle)+'" target="_blank" style="color:#9146ff">'+esc(r.twitchHandle)+'</a> \u00b7 '+ccvFmt(r.twitchCCV):'—')+eb('twitch_handle','twitchHandle','Twitch Handle')],
     ['Kick',(r.kickHandle?'<a href="https://kick.com/'+esc(r.kickHandle)+'" target="_blank" style="color:#53fc18">'+esc(r.kickHandle)+'</a> \u00b7 '+ccvFmt(r.kickCCV):'—')+eb('kick_handle','kickHandle','Kick Handle')],
     ['Country',esc(r.country||'—')+eb('country','country','Country')],
