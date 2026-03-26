@@ -56,9 +56,9 @@ class handler(BaseHTTPRequestHandler):
                 avg = get_ccv30_twitch(handle)
 
             if avg is not None:
-                json_response(self, 200, {"ok": True, "avg_ccv_30d": int(avg), "handle": handle})
+                json_response(self, 200, {"ok": True, "ccv30": int(avg), "handle": handle})
             else:
-                json_response(self, 200, {"ok": False, "avg_ccv_30d": None, "handle": handle})
+                json_response(self, 200, {"ok": False, "ccv30": None, "handle": handle})
         except Exception as e:
             json_response(self, 500, {"error": str(e)})
 

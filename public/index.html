@@ -1122,7 +1122,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
             <th class="col-name" onclick="sortBy('name')">Creator Name <span class="sort-arrow" id="sort-name"></span></th>
             <th onclick="sortBy('platforms')">Platform <span class="sort-arrow" id="sort-platforms"></span></th>
             <th onclick="sortBy('tier')">Tier <span class="sort-arrow" id="sort-tier"></span></th>
-            <th onclick="sortBy('bestCCV')">CCV <span class="sort-arrow" id="sort-bestCCV"></span></th>
+            <th onclick="sortBy('bestCCV')">Live CCV <span class="sort-arrow" id="sort-bestCCV"></span></th>
             <th>30d CCV</th>
             <th onclick="sortBy('country')">Country <span class="sort-arrow" id="sort-country"></span></th>
             <th onclick="sortBy('contentType')">Content Type <span class="sort-arrow" id="sort-contentType"></span></th>
@@ -2560,7 +2560,7 @@ function showCreatorDetail(name){
   const rows=[
     ['Tier','<span class="tier-badge '+tierClass(r.tier)+'">'+esc(r.tier||'—')+'</span>'],
     ['Platform',esc(r.platforms||'—')+eb('platforms','platforms','Platforms (e.g. Twitch, Kick)')],
-    ['CCV (Best)',r.bestCCV?r.bestCCV.toLocaleString():'—'],
+    ['Live CCV',r.bestCCV?r.bestCCV.toLocaleString():'—'],
     ['Twitch',(r.twitchHandle?'<a href="https://twitch.tv/'+esc(r.twitchHandle)+'" target="_blank" style="color:#9146ff">'+esc(r.twitchHandle)+'</a> \u00b7 '+ccvFmt(r.twitchCCV):'—')+eb('twitch_handle','twitchHandle','Twitch Handle')],
     ['Kick',(r.kickHandle?'<a href="https://kick.com/'+esc(r.kickHandle)+'" target="_blank" style="color:#53fc18">'+esc(r.kickHandle)+'</a> \u00b7 '+ccvFmt(r.kickCCV):'—')+eb('kick_handle','kickHandle','Kick Handle')],
     ['Country',esc(r.country||'—')+eb('country','country','Country')],
@@ -3062,6 +3062,8 @@ async function goScout() {
       saveSession({platform, category: catVal === 'all' ? '' : catVal, region: 'all', ccvMin: +ccvMin, ccvMax: +ccvMax}, found.length, added);
       renderHistory();
       showToast('Scouted ' + added + ' new creators');
+      // Auto-fetch 30d CCV for newly scouted creators
+      fetchAll30d();
     }
   } catch (err) {
     briefEl.innerHTML += '<br><span style="color:var(--mega)">Error: ' + err.message + '</span>';
@@ -3105,6 +3107,7 @@ async function refreshScout() {
     briefEl.innerHTML = briefEl.innerHTML.replace('↺ Refreshing...', '');
     briefEl.innerHTML += '<br><span style="color:var(--high)">↺ Refreshed — ' + added + ' new creators added.</span>';
     showToast('Refreshed · ' + added + ' new');
+    if(added>0)fetchAll30d();
   } catch(err) {
     briefEl.innerHTML += '<br><span style="color:var(--mega)">Refresh error: ' + err.message + '</span>';
   } finally {
@@ -3155,7 +3158,7 @@ function startAutoScout() {
         const key = (r.platform + r.handle).toLowerCase();
         if (!existingKeys.has(key)) { scoutList.unshift(r); existingKeys.add(key); added++; }
       });
-      if (added > 0) { saveScout(); renderScout(); showToast('Auto-Scout: +' + added + ' new'); }
+      if (added > 0) { saveScout(); renderScout(); showToast('Auto-Scout: +' + added + ' new'); fetchAll30d(); }
       statusEl.innerHTML = statusEl.innerHTML.replace('<span style="color:var(--text2)">⏳ Fetching...</span>',
         '<span style="color:var(--high)">✓ Found ' + found.length + ' · +' + added + ' new</span>');
     } catch(err) {
