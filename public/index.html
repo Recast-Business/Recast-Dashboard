@@ -1122,8 +1122,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
             <th class="col-name" onclick="sortBy('name')">Creator Name <span class="sort-arrow" id="sort-name"></span></th>
             <th onclick="sortBy('platforms')">Platform <span class="sort-arrow" id="sort-platforms"></span></th>
             <th onclick="sortBy('tier')">Tier <span class="sort-arrow" id="sort-tier"></span></th>
-            <th onclick="sortBy('bestCCV')">Live CCV <span class="sort-arrow" id="sort-bestCCV"></span></th>
-            <th>30d CCV</th>
+            <th style="cursor:pointer;user-select:none" onclick="sortBy('ccv30')">30d CCV <span class="sort-arrow" id="sort-ccv30"></span></th>
             <th onclick="sortBy('country')">Country <span class="sort-arrow" id="sort-country"></span></th>
             <th onclick="sortBy('contentType')">Content Type <span class="sort-arrow" id="sort-contentType"></span></th>
             <th>Twitter</th>
@@ -2025,7 +2024,7 @@ document.addEventListener('click',()=>{
 function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
 const debouncedApplyFilters=debounce(()=>applyFilters(),150);
-let filtered=[...DATA],currentSort={key:'bestCCV',dir:'desc'};
+let filtered=[...DATA],currentSort={key:'name',dir:'asc'};
 let currentPage=0,pageSize=100;
 
 function applyFilters(){
@@ -2041,9 +2040,9 @@ function applyFilters(){
   const casinoFilter=document.querySelector('#chipCasino .chip.active')?.dataset.val||'all';
   filtered=DATA.filter(r=>{
     if(search&&!r.name.toLowerCase().includes(search))return false;
-    if(ccvMin&&r.bestCCV<ccvMin)return false;
+    if(ccvMin&&getRosterBest30dCCV(r)<ccvMin)return false;
     if(hasPlatform){const p=(r.platforms||'').toLowerCase();if(!platformArr.some(s=>p.includes(s)))return false;}
-    if(hasTier&&!msState.tier.has(r.tier))return false;
+    if(hasTier&&!msState.tier.has(getRosterTier(r)))return false;
     if(tierCountries&&!tierCountries.includes(r.country))return false;
     if(hasContent){const cats=r.contentCategories||[];if(!contentArr.some(s=>cats.includes(s)))return false;}
     if(hasStatus&&!msState.status.has(r.outreachStatus))return false;
@@ -2055,19 +2054,40 @@ function applyFilters(){
 }
 function doSort(){
   const{key,dir}=currentSort;
-  filtered.sort((a,b)=>{let va=a[key],vb=b[key];
+  filtered.sort((a,b)=>{
+    let va,vb;
+    if(key==='ccv30'){va=getRosterBest30dCCV(a);vb=getRosterBest30dCCV(b);}
+    else{va=a[key];vb=b[key];}
     if(typeof va==='string')va=va.toLowerCase();if(typeof vb==='string')vb=vb.toLowerCase();
     if(va<vb)return dir==='asc'?-1:1;if(va>vb)return dir==='asc'?1:-1;return 0;});
 }
 function sortBy(key){
   if(currentSort.key===key)currentSort.dir=currentSort.dir==='asc'?'desc':'asc';
-  else{currentSort.key=key;currentSort.dir=key==='bestCCV'?'desc':'asc';}
+  else{currentSort.key=key;currentSort.dir='asc';}
   document.querySelectorAll('.sort-arrow').forEach(el=>el.textContent='');
   const a=document.getElementById('sort-'+key);if(a)a.textContent=currentSort.dir==='asc'?'▲':'▼';
   doSort();renderTable();
 }
 function tierClass(t){const l=(t||'').toLowerCase();const m={mega:'tier-mega',mid:'tier-mid',big:'tier-big',small:'tier-small'};return m[l]||'';}
 function tierEmoji(t){const l=(t||'').toLowerCase();const m={mega:'\uD83D\uDD34',mid:'\uD83D\uDD35',big:'\uD83D\uDFE1',small:'\u26AA'};return m[l]||'';}
+function getRosterBest30dCCV(r){
+  const keys=rosterCcv30Keys(r);
+  let best=0;
+  for(const{key}of keys){const v=rosterCcv30[key];if(typeof v==='number'&&v>best)best=v;}
+  return best;
+}
+function tierFromCcv(platform,ccv){
+  if((platform||'').toLowerCase()==='kick'){
+    if(ccv>=10000)return'Mega';if(ccv>=3000)return'Big';if(ccv>=500)return'Mid';return'Small';
+  }else{
+    if(ccv>=50000)return'Mega';if(ccv>=10000)return'Big';if(ccv>=3000)return'Mid';return'Small';
+  }
+}
+function getRosterTier(r){
+  const best30=getRosterBest30dCCV(r);
+  if(best30>0){const p=(r.platforms||'').toLowerCase().includes('kick')?'kick':'twitch';return tierFromCcv(p,best30);}
+  return r.tier||'—';
+}
 function linkCell(url){if(!url)return '<span style="color:var(--text2)">—</span>';const href=url.startsWith('http')?url:'https://'+url;return '<a class="link-icon" href="'+esc(href)+'" target="_blank">\uD83D\uDD17</a>';}
 function platformBadge(p){if(!p||p==='—')return'<span style="color:var(--text2)">—</span>';const cfg={Twitch:{cls:'twitch',s:'TW'},Kick:{cls:'kick',s:'KI'},YouTube:{cls:'youtube',s:'YT'},TikTok:{cls:'tiktok',s:'TT'}};const q=cfg[p]||{cls:'other',s:p.substring(0,2).toUpperCase()};return'<span class="plat-badge plat-badge-'+q.cls+'">'+q.s+'</span>';}
 function handleLink(platform,handle){if(!handle||handle==='—')return'<span style="color:var(--text2)">—</span>';const h=handle.replace(/^@/,'');let url=platform==='Twitch'?'https://twitch.tv/'+h:platform==='Kick'?'https://kick.com/'+h:null;if(!url)return'<span style="color:var(--text2);font-size:12px">'+esc(handle)+'</span>';return'<a href="'+url+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open '+platform+' channel">'+esc(handle)+'</a>';}
@@ -2182,8 +2202,7 @@ function renderTable(){
     tr.innerHTML='<td class="col-cb"><input type="checkbox" style="accent-color:var(--accent);cursor:pointer" '+(isChecked?'checked':'')+' onchange="toggleRowSelect(\''+esc(r.name)+'\',this)"></td>'+
       '<td class="col-name" title="'+esc(r.name)+' — click for details"><strong style="cursor:pointer;color:var(--text)" onclick="showCreatorDetail(\''+esc(r.name)+'\')" class="creator-name-link">'+hlText(r.name,searchQ)+'</strong> <button class="copy-btn" onclick="copyCreatorInfo(DATA.find(d=>d.name===\''+esc(r.name)+'\'))" title="Copy handle">&#x2398;</button></td>'+
       '<td>'+(()=>{const p=[];if(r.twitchHandle)p.push(platformBadge('Twitch'));if(r.kickHandle)p.push(platformBadge('Kick'));return p.length?p.join(' '):'<span style="color:var(--text2);font-size:11px">'+esc(r.platforms||'—')+'</span>';})()+'</td>'+
-      '<td><span class="tier-badge '+tierClass(r.tier)+'">'+esc(r.tier||'—')+'</span></td>'+
-      '<td style="font-variant-numeric:tabular-nums">'+ccvFmt(r.bestCCV)+'</td>'+
+      '<td><span class="tier-badge '+tierClass(getRosterTier(r))+'">'+esc(getRosterTier(r))+'</span></td>'+
       (()=>{
         const keys=rosterCcv30Keys(r);
         if(!keys.length)return'<td class="ccv30-cell" style="color:var(--text2)">—</td>';
@@ -2211,19 +2230,19 @@ function renderTable(){
   tbody.innerHTML='';tbody.appendChild(frag);
 }
 function exportClipboard(){
-  const h='Creator Name\tPlatform\tTier\tCCV\tCountry\tContent Type\tTwitter\tInstagram\tStatus';
-  const rows=filtered.map(r=>[r.name,r.platforms,r.tier,r.bestCCV,r.country,r.contentType,r.twitter,r.instagram,r.outreachStatus].join('\t'));
+  const h='Creator Name\tPlatform\tTier\t30d CCV\tCountry\tContent Type\tTwitter\tInstagram\tStatus';
+  const rows=filtered.map(r=>[r.name,r.platforms,getRosterTier(r),getRosterBest30dCCV(r)||0,r.country,r.contentType,r.twitter,r.instagram,r.outreachStatus].join('\t'));
   navigator.clipboard.writeText(h+'\n'+rows.join('\n')).then(()=>showToast('Copied '+filtered.length+' rows'));
 }
 function exportCSV(){
   const esc=s=>'"'+(s||'').replace(/"/g,'""')+'"';
-  const h='Creator Name,Platform,Tier,CCV,Country,Content Type,Twitter,Instagram,Status';
-  const rows=filtered.map(r=>[esc(r.name),esc(r.platforms),esc(r.tier),r.bestCCV,esc(r.country),esc(r.contentType),esc(r.twitter),esc(r.instagram),esc(r.outreachStatus)].join(','));
+  const h='Creator Name,Platform,Tier,30d CCV,Country,Content Type,Twitter,Instagram,Status';
+  const rows=filtered.map(r=>[esc(r.name),esc(r.platforms),esc(getRosterTier(r)),getRosterBest30dCCV(r)||0,esc(r.country),esc(r.contentType),esc(r.twitter),esc(r.instagram),esc(r.outreachStatus)].join(','));
   const blob=new Blob([h+'\n'+rows.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='recast_roster_export.csv';a.click();
 }
 function exportExcel(){
-  const rows=filtered.map(r=>({name:r.name,platforms:r.platforms,tier:r.tier,ccv:r.bestCCV||0,country:r.country,contentType:r.contentType,twitter:r.twitter||'',instagram:r.instagram||'',outreachStatus:r.outreachStatus||''}));
+  const rows=filtered.map(r=>({name:r.name,platforms:r.platforms,tier:getRosterTier(r),ccv:getRosterBest30dCCV(r)||0,country:r.country,contentType:r.contentType,twitter:r.twitter||'',instagram:r.instagram||'',outreachStatus:r.outreachStatus||''}));
   if(!rows.length){showToast('No rows to export');return;}
   showToast('Generating Excel...');
   fetch('/api/export_excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})})
@@ -2420,8 +2439,10 @@ function renderPipeline(){
         const ex=plExtra[r.name]||{};
         const plat=(r.twitchHandle?'<span class="plat-badge plat-badge-twitch">TW</span> ':'')+
           (r.kickHandle?'<span class="plat-badge plat-badge-kick">KI</span>':'');
-        const ccv=r.bestCCV?'<span style="font-size:10px;color:var(--text2);font-variant-numeric:tabular-nums">'+ccvFmt(r.bestCCV)+'</span>':'';
-        const tier=r.tier?'<span class="tier-badge '+tierClass(r.tier)+'" style="font-size:9px;padding:1px 5px">'+esc(r.tier)+'</span>':'';
+        const _ccv30=getRosterBest30dCCV(r);
+        const ccv=_ccv30?'<span style="font-size:10px;color:var(--text2);font-variant-numeric:tabular-nums">'+_ccv30.toLocaleString()+'</span>':'';
+        const _rTier=getRosterTier(r);
+        const tier=_rTier&&_rTier!=='—'?'<span class="tier-badge '+tierClass(_rTier)+'" style="font-size:9px;padding:1px 5px">'+esc(_rTier)+'</span>':'';
         const dealHtml=ex.dealValue?'<span class="pl-deal">£'+ex.dealValue.toLocaleString()+'/mo</span>':'';
         if(ex.dealValue)colTotal+=ex.dealValue;
         let followHtml='';
@@ -2464,8 +2485,8 @@ function renderPipeline(){
         return'<tr>'+
           '<td style="'+tdS+'font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.name)+'">'+esc(r.name)+'</td>'+
           '<td style="'+tdS+'">'+plat+'</td>'+
-          '<td style="'+tdS+'"><span class="tier-badge '+tierClass(r.tier)+'" style="font-size:10px;padding:1px 6px">'+esc(r.tier||'—')+'</span></td>'+
-          '<td style="'+tdS+'font-variant-numeric:tabular-nums">'+ccvFmt(r.bestCCV)+'</td>'+
+          '<td style="'+tdS+'"><span class="tier-badge '+tierClass(getRosterTier(r))+'" style="font-size:10px;padding:1px 6px">'+esc(getRosterTier(r))+'</span></td>'+
+          '<td style="'+tdS+'font-variant-numeric:tabular-nums">'+(getRosterBest30dCCV(r)?getRosterBest30dCCV(r).toLocaleString():'—')+'</td>'+
           '<td style="'+tdS+'">'+esc(r.country||'—')+'</td>'+
           '<td style="'+tdS+'"><select class="status-select" style="font-size:11px;color:'+col.color+';border-color:'+col.color+'40" onchange="updateOutreachStatus(\''+esc(r.name)+'\',this.value,this);renderPipeline()">'+_statusOpts(r.outreachStatus)+'</select></td>'+
           '</tr>';
@@ -2530,10 +2551,10 @@ function _renderPipelineSummary(allCols,groups){
 function exportPipelineCSV(){
   const{allCols,groups}=_pipelineGroups(DATA);
   const escC=s=>'"'+(s||'').replace(/"/g,'""')+'"';
-  const header='Stage,Creator Name,Platform,Tier,CCV,Country,Outreach Status';
+  const header='Stage,Creator Name,Platform,Tier,30d CCV,Country,Outreach Status';
   const rows=[];
   allCols.forEach(col=>{(groups[col.key]||[]).forEach(r=>{
-    rows.push([escC(col.label),escC(r.name),escC(r.platforms),escC(r.tier),r.bestCCV,escC(r.country),escC(r.outreachStatus)].join(','));
+    rows.push([escC(col.label),escC(r.name),escC(r.platforms),escC(getRosterTier(r)),getRosterBest30dCCV(r)||0,escC(r.country),escC(r.outreachStatus)].join(','));
   });});
   const blob=new Blob([header+'\n'+rows.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='recast_pipeline_export.csv';a.click();
@@ -2541,10 +2562,10 @@ function exportPipelineCSV(){
 }
 function exportPipelineClipboard(){
   const{allCols,groups}=_pipelineGroups(DATA);
-  const header='Stage\tCreator Name\tPlatform\tTier\tCCV\tCountry\tOutreach Status';
+  const header='Stage\tCreator Name\tPlatform\tTier\t30d CCV\tCountry\tOutreach Status';
   const rows=[];
   allCols.forEach(col=>{(groups[col.key]||[]).forEach(r=>{
-    rows.push([col.label,r.name,r.platforms,r.tier,r.bestCCV,r.country,r.outreachStatus].join('\t'));
+    rows.push([col.label,r.name,r.platforms,getRosterTier(r),getRosterBest30dCCV(r)||0,r.country,r.outreachStatus].join('\t'));
   });});
   navigator.clipboard.writeText(header+'\n'+rows.join('\n')).then(()=>showToast('Pipeline copied to clipboard'));
 }
@@ -2560,9 +2581,9 @@ function showCreatorDetail(name){
   document.getElementById('creatorModalTitle').textContent=r.name;
   const eb=(field,dataKey,label)=>_editBtn(r.name,field,dataKey,label);
   const rows=[
-    ['Tier','<span class="tier-badge '+tierClass(r.tier)+'">'+esc(r.tier||'—')+'</span>'],
+    ['Tier','<span class="tier-badge '+tierClass(getRosterTier(r))+'">'+esc(getRosterTier(r))+'</span>'],
     ['Platform',esc(r.platforms||'—')+eb('platforms','platforms','Platforms (e.g. Twitch, Kick)')],
-    ['Live CCV',r.bestCCV?r.bestCCV.toLocaleString():'—'],
+    ['30d CCV',(()=>{const v=getRosterBest30dCCV(r);return v?v.toLocaleString():'—';})()],
     ['Twitch',(r.twitchHandle?'<a href="https://twitch.tv/'+esc(r.twitchHandle)+'" target="_blank" style="color:#9146ff">'+esc(r.twitchHandle)+'</a> \u00b7 '+ccvFmt(r.twitchCCV):'—')+eb('twitch_handle','twitchHandle','Twitch Handle')],
     ['Kick',(r.kickHandle?'<a href="https://kick.com/'+esc(r.kickHandle)+'" target="_blank" style="color:#53fc18">'+esc(r.kickHandle)+'</a> \u00b7 '+ccvFmt(r.kickCCV):'—')+eb('kick_handle','kickHandle','Kick Handle')],
     ['Country',esc(r.country||'—')+eb('country','country','Country')],
@@ -2585,6 +2606,10 @@ function showCreatorDetail(name){
   document.getElementById('creatorModal').classList.add('open');
 }
 async function editCreatorField(name,apiField,dataKey,label){
+  // Platform edit — show picker that clears handles for removed platforms
+  if(apiField==='platforms'){
+    return editCreatorPlatforms(name);
+  }
   const rec=DATA.find(d=>d.name===name);
   const cur=rec?rec[dataKey]||'':'';
   const val=prompt(label+':',cur);
@@ -2593,11 +2618,62 @@ async function editCreatorField(name,apiField,dataKey,label){
     const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:apiField,value:val.trim()})});
     const d=await r.json();
     if(d.ok&&d.updated){
-      if(rec)rec[dataKey]=val.trim();
+      if(rec){
+        rec[dataKey]=val.trim();
+        // If handle was cleared, also clear its CCV and update platforms locally
+        if(apiField==='twitch_handle'&&!val.trim()){rec.twitchCCV=0;rec.platforms=(rec.platforms||'').replace(/Twitch,?\s*/i,'').replace(/,\s*$/,'').trim()||rec.platforms;}
+        if(apiField==='kick_handle'&&!val.trim()){rec.kickCCV=0;rec.platforms=(rec.platforms||'').replace(/Kick,?\s*/i,'').replace(/,\s*$/,'').trim()||rec.platforms;}
+        // Recalculate bestCCV
+        rec.bestCCV=Math.max(rec.twitchCCV||0,rec.kickCCV||0);
+      }
       showToast(label+' updated');
       showCreatorDetail(name);
       renderTable();
     }else{showToast('Update failed','error');}
+  }catch(e){showToast('Update failed: '+e.message,'error');}
+}
+async function editCreatorPlatforms(name){
+  const rec=DATA.find(d=>d.name===name);
+  if(!rec)return;
+  const hasTwitch=!!rec.twitchHandle;
+  const hasKick=!!rec.kickHandle;
+  // Build a simple dialog
+  const choices=['Twitch','Kick'];
+  const current=[];
+  if(hasTwitch)current.push('Twitch');
+  if(hasKick)current.push('Kick');
+  const result=prompt('Platforms (comma-separated, e.g. "Twitch, Kick" or just "Kick"):\nCurrent: '+current.join(', '),current.join(', '));
+  if(result===null)return;
+  const selected=result.split(',').map(s=>s.trim().toLowerCase());
+  const wantTwitch=selected.includes('twitch');
+  const wantKick=selected.includes('kick');
+  const updates=[];
+  // If removing Twitch
+  if(hasTwitch&&!wantTwitch){
+    updates.push({field:'twitch_handle',dataKey:'twitchHandle',value:''});
+    updates.push({field:'twitch_ccv',dataKey:'twitchCCV',value:''});
+  }
+  // If removing Kick
+  if(hasKick&&!wantKick){
+    updates.push({field:'kick_handle',dataKey:'kickHandle',value:''});
+    updates.push({field:'kick_ccv',dataKey:'kickCCV',value:''});
+  }
+  // Update platforms string
+  const platArr=[];
+  if(wantTwitch)platArr.push('Twitch');
+  if(wantKick)platArr.push('Kick');
+  updates.push({field:'platforms',dataKey:'platforms',value:platArr.join(', ')});
+  try{
+    for(const u of updates){
+      const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:u.field,value:u.value})});
+      const d=await r.json();
+      if(d.ok&&d.updated&&rec)rec[u.dataKey]=u.value;
+    }
+    // Recalculate bestCCV after platform changes
+    if(rec){rec.bestCCV=Math.max(rec.twitchCCV||0,rec.kickCCV||0);}
+    showToast('Platforms updated');
+    showCreatorDetail(name);
+    renderTable();
   }catch(e){showToast('Update failed: '+e.message,'error');}
 }
 function openCreatorModal(c){showCreatorDetail(c.name);}
@@ -2857,16 +2933,16 @@ function renderAnalytics(){
     return barRow(c,n,maxCat,'hsl('+hue+',65%,58%)');
   }).join('');
 
-  const topCreators=[...DATA].sort((a,b)=>b.bestCCV-a.bestCCV).slice(0,12);
+  const topCreators=[...DATA].map(r=>({...r,_ccv30:getRosterBest30dCCV(r),_tier30:getRosterTier(r)})).sort((a,b)=>b._ccv30-a._ccv30).filter(r=>r._ccv30>0).slice(0,12);
   const topCreatorsBody=topCreators.map((r,i)=>{
     const plat=(r.twitchHandle?'<span style="font-size:9px;font-weight:700;color:#9146ff;margin-right:2px">TW</span>':'')+
       (r.kickHandle?'<span style="font-size:9px;font-weight:700;color:#53fc18">KI</span>':'');
     return'<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)">'+
       '<span style="font-size:10px;color:var(--text2);min-width:18px;text-align:right;font-variant-numeric:tabular-nums">'+(i+1)+'</span>'+
-      '<span class="tier-badge '+tierClass(r.tier)+'" style="font-size:9px;padding:1px 5px">'+esc(r.tier)+'</span>'+
+      '<span class="tier-badge '+tierClass(r._tier30)+'" style="font-size:9px;padding:1px 5px">'+esc(r._tier30)+'</span>'+
       '<span style="flex:1;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text)" onclick="showCreatorDetail(\''+esc(r.name)+'\')">'+esc(r.name)+'</span>'+
       plat+
-      '<span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--text2)">'+r.bestCCV.toLocaleString()+'</span>'+
+      '<span style="font-size:11px;font-variant-numeric:tabular-nums;color:var(--text2)">'+r._ccv30.toLocaleString()+'</span>'+
     '</div>';
   }).join('');
 
@@ -2879,7 +2955,7 @@ function renderAnalytics(){
     {label:'1k \u2013 5k',min:1000,max:5000,color:'#3b82f6'},
     {label:'< 1,000',min:0,max:1000,color:'#6b7280'},
   ];
-  const bucketCounts=ccvBuckets.map(b=>({...b,count:DATA.filter(r=>r.bestCCV>=b.min&&r.bestCCV<b.max).length}));
+  const bucketCounts=ccvBuckets.map(b=>({...b,count:DATA.filter(r=>{const v=getRosterBest30dCCV(r);return v>=b.min&&v<b.max;}).length}));
   const maxBucket=Math.max(...bucketCounts.map(b=>b.count),1);
   const ccvDistBody=bucketCounts.map(b=>barRow(b.label,b.count,maxBucket,b.color)).join('');
 
@@ -3245,9 +3321,9 @@ function renderPotential(){
     const igCell=igHandle?'<a href="'+esc(igUrl)+'" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;font-weight:500" title="Open Instagram">@'+esc(igHandle)+'</a>':'<span style="color:var(--text2)">—</span>';
     const _pCcvLink=e.handle?(e.platform==='Twitch'?'https://twitchtracker.com/'+encodeURIComponent(e.handle):'https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick'):'';
     const _pCcvChart=_pCcvLink?' <a href="'+_pCcvLink+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(e.platform==='Twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>':'';
-    const ccv30=e.avg30dCCV!=null&&e.avg30dCCV>0
-      ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'+_pCcvChart
-      :(e.avg30dCCV!=null?'—'
+    const ccv30=e.avg30dCCV!=null&&e.avg30dCCV>=0
+      ?'<span style="font-variant-numeric:tabular-nums;color:'+(e.avg30dCCV>0?'var(--high)':'var(--text2)')+'">'+e.avg30dCCV.toLocaleString()+'</span>'+_pCcvChart
+      :(e.avg30dCCV!=null?'<span style="color:var(--text2);cursor:pointer" onclick="editScoutField('+e.id+',\'avg30dCCV\',\'\')" title="Click to enter 30d CCV manually">—</span>'+_pCcvChart
       :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
         ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="pccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
         :'—'));
@@ -3600,7 +3676,7 @@ function editScoutField(id,field,current){
   const save=()=>{
     const val=inp.value.trim();
     const idx=scoutList.findIndex(e=>e.id===id);
-    if(idx>=0){scoutList[idx][field]=val;saveScout();renderScout();renderPotential();}
+    if(idx>=0){scoutList[idx][field]=field==='avg30dCCV'?(val?parseInt(val,10)||0:null):val;saveScout();renderScout();renderPotential();}
   };
   inp.onblur=save;
   inp.onkeydown=e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape'){inp.value=current||'';inp.blur();}};
@@ -3665,9 +3741,9 @@ function renderScout(){
     const starIcon=e.potential?'\u2605':'\u2606';
     const _ccvLink=e.handle?(e.platform==='Twitch'?'https://twitchtracker.com/'+encodeURIComponent(e.handle):'https://streamscharts.com/channels/'+encodeURIComponent(e.handle)+'?platform=kick'):'';
     const _ccvChart=_ccvLink?' <a href="'+_ccvLink+'" target="_blank" style="text-decoration:none;opacity:.5;font-size:10px" title="Verify on '+(e.platform==='Twitch'?'TwitchTracker':'StreamCharts')+'">&#128202;</a>':'';
-    const ccv30cell=e.avg30dCCV!=null&&e.avg30dCCV>0
-      ?'<span style="font-variant-numeric:tabular-nums;color:var(--high)">'+e.avg30dCCV.toLocaleString()+'</span>'+_ccvChart
-      :(e.avg30dCCV!=null?'—'
+    const ccv30cell=e.avg30dCCV!=null&&e.avg30dCCV>=0
+      ?'<span style="font-variant-numeric:tabular-nums;color:'+(e.avg30dCCV>0?'var(--high)':'var(--text2)')+'">'+e.avg30dCCV.toLocaleString()+'</span>'+_ccvChart
+      :(e.avg30dCCV!=null?'<span style="color:var(--text2);cursor:pointer" onclick="editScoutField('+e.id+',\'avg30dCCV\',\'\')" title="Click to enter 30d CCV manually">—</span>'+_ccvChart
       :(e.handle&&(e.platform==='Twitch'||e.platform==='Kick')
         ?'<button class="btn btn-sm" style="padding:2px 6px;font-size:10px" id="ccv30btn-'+e.id+'" onclick="fetchCCV30('+e.id+',\''+e.platform+'\',\''+esc(e.handle).replace(/'/g,"&#39;")+'\')" title="Fetch 30-day avg CCV">Fetch</button>'
         :'—'));
@@ -3792,7 +3868,7 @@ function init(){
   buildMultiSelect('content','ms-content',[...contentSet].sort());
   buildMultiSelect('status','ms-status',statuses);
   applyFilters();
-  document.getElementById('sort-bestCCV').textContent='▼';
+  const _sortArrow=document.getElementById('sort-name');if(_sortArrow)_sortArrow.textContent='▲';
   // If localStorage is empty, try restoring from server backup
   if(scoutList.length===0&&sessionHistory.length===0){
     // restore-scout removed — using localStorage only
@@ -3850,8 +3926,9 @@ function scoreBriefMatch(creator){
   const platform=document.getElementById('briefPlatform').value;
   const minCCV=parseInt(document.getElementById('briefMinCCV').value)||0;
   const niche=document.getElementById('briefNiche').value;
-  // Hard exclude: no CCV data at all
-  if(!creator.bestCCV)return 0;
+  // Hard exclude: no 30d CCV data at all
+  const _best30=getRosterBest30dCCV(creator);
+  if(!_best30)return 0;
   let score=0;
   // Platform match (25pts) — hard filter when specific platform selected
   if(!platform){score+=25;}
@@ -3868,7 +3945,7 @@ function scoreBriefMatch(creator){
   // CCV (25pts)
   if(!minCCV){score+=25;}
   else{
-    const ccv=creator.bestCCV||0;
+    const ccv=_best30||0;
     if(ccv>=minCCV*2)score+=25;
     else if(ccv>=minCCV)score+=20;
     else if(ccv>=minCCV*0.7)score+=12;
@@ -3904,7 +3981,7 @@ function updateBriefFeed(){
   creators=creators.filter(c=>c.matchScore>0);
   // Sort
   if(sortMode==='match')creators.sort((a,b)=>b.matchScore-a.matchScore);
-  else if(sortMode==='ccv')creators.sort((a,b)=>(b.bestCCV||0)-(a.bestCCV||0));
+  else if(sortMode==='ccv')creators.sort((a,b)=>(getRosterBest30dCCV(b)||0)-(getRosterBest30dCCV(a)||0));
   else if(sortMode==='name')creators.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   countEl.textContent=creators.length+' matching creators';
   if(creators.length===0){feed.innerHTML='<div class="brief-empty">No creators match this brief. Adjust your criteria.</div>';return;}
@@ -3918,8 +3995,9 @@ function updateBriefFeed(){
     card.style.animationDelay=(i*0.03)+'s';
     const pctColor=c.matchScore>=75?'var(--high)':c.matchScore>=50?'var(--elite)':'var(--text2)';
     const initial=(c.name||'?').charAt(0).toUpperCase();
-    const tc=tierColors[c.tier]||'var(--text2)';
-    const tb=tierBg[c.tier]||'rgba(107,114,128,.14)';
+    const _bTier=getRosterTier(c);
+    const tc=tierColors[_bTier]||'var(--text2)';
+    const tb=tierBg[_bTier]||'rgba(107,114,128,.14)';
     const ac=avatarColors[initial.charCodeAt(0)%avatarColors.length];
     const platforms=(c.platforms||'').split(',').map(p=>p.trim()).filter(Boolean);
     const platBadges=platforms.map(p=>{
@@ -3938,14 +4016,14 @@ function updateBriefFeed(){
         '<div class="brief-card-info">'+
           '<div class="brief-card-name" title="'+c.name+'">'+c.name+'</div>'+
           '<div class="brief-card-badges">'+platBadges+
-            '<span class="brief-badge brief-badge-tier" style="background:'+tb+';color:'+tc+';border-color:'+tc+'">'+c.tier+'</span>'+
+            '<span class="brief-badge brief-badge-tier" style="background:'+tb+';color:'+tc+';border-color:'+tc+'">'+_bTier+'</span>'+
             signedBadge+pipelineBadge+
           '</div>'+
         '</div>'+
       '</div>'+
       '<div class="brief-card-meta">'+
         '<span>&#127758; '+(c.country||'Unknown')+'</span>'+
-        '<span>&#128250; '+(c.bestCCV?c.bestCCV.toLocaleString():'-')+' CCV</span>'+
+        '<span>&#128250; '+(getRosterBest30dCCV(c)?getRosterBest30dCCV(c).toLocaleString():'-')+' 30d CCV</span>'+
       '</div>'+
       (cats?'<div class="brief-card-tags">'+cats+'</div>':'')+
       (statusBadge?statusBadge:'');
@@ -3964,7 +4042,7 @@ async function exportBriefCSV(){
   const briefName=[niche,geo].filter(Boolean).join(' — ')||'Campaign';
   showToast('Creating sheet in Google Drive...');
   try{
-    const rows=creators.map(c=>({matchScore:c.matchScore,name:c.name,platforms:c.platforms,tier:c.tier,ccv:c.bestCCV||0,country:c.country,content:(c.contentCategories||[]).join('; '),outreachStatus:c.outreachStatus||''}));
+    const rows=creators.map(c=>({matchScore:c.matchScore,name:c.name,platforms:c.platforms,tier:getRosterTier(c),ccv:getRosterBest30dCCV(c)||0,country:c.country,content:(c.contentCategories||[]).join('; '),outreachStatus:c.outreachStatus||''}));
     const res=await fetch('/api/export_brief',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows,briefName})});
     const d=await res.json();
     if(d.ok){
@@ -4125,7 +4203,7 @@ function cmdKSearch(q){
   // Search roster
   (typeof DATA!=='undefined'?DATA:[]).forEach(c=>{
     if((c.name||'').toLowerCase().includes(ql)||(c.country||'').toLowerCase().includes(ql)||(c.platforms||'').toLowerCase().includes(ql)){
-      results.push({name:c.name,meta:c.tier+' · '+(c.bestCCV||0)+' CCV · '+(c.country||''),tab:'Roster',color:'var(--accent)',action:()=>{closeCmdK();switchTab('roster',document.querySelector('.tab-btn'));document.getElementById('searchInput').value=c.name;applyFilters();}});
+      results.push({name:c.name,meta:getRosterTier(c)+' · '+(getRosterBest30dCCV(c)||0)+' 30d CCV · '+(c.country||''),tab:'Roster',color:'var(--accent)',action:()=>{closeCmdK();switchTab('roster',document.querySelector('.tab-btn'));document.getElementById('searchInput').value=c.name;applyFilters();}});
     }
   });
   // Search scout (localStorage)
@@ -4255,7 +4333,7 @@ async function fetchExtras(){
 function startExtrasPoll(){
   if(_extrasPollTimer)return;
   fetchExtras();
-  _extrasPollTimer=setInterval(fetchExtras,5000);
+  _extrasPollTimer=setInterval(fetchExtras,30000);
 }
 function stopExtrasPoll(){clearInterval(_extrasPollTimer);_extrasPollTimer=null;}
 let _plEditName='';
@@ -4316,12 +4394,13 @@ function copyOutreachEmail(name){
   const senderName=auth.name||'The Recast Team';
   const platform=r.twitchHandle?'Twitch':r.kickHandle?'Kick':'streaming';
   const handle=r.twitchHandle||r.kickHandle||'';
-  const ccv=r.bestCCV?r.bestCCV.toLocaleString():'';
+  const ccv30=getRosterBest30dCCV(r);
+  const ccvStr=ccv30?ccv30.toLocaleString():'';
   const template=`Hi${handle?' @'+handle:''},
 
 I'm ${senderName} from Recast — we work with top ${platform} creators to connect them with premium casino and gambling brand deals.
 
-${ccv?`With your ${ccv} average viewers, `:''}we think you'd be a great fit for some of the exclusive campaigns we manage.
+${ccvStr?`With your ${ccvStr} average viewers, `:''}we think you'd be a great fit for some of the exclusive campaigns we manage.
 
 Would you be open to a quick chat about potential opportunities? No commitment needed — just a conversation.
 
@@ -4363,8 +4442,8 @@ function openCompareModal(){
     const ex=plExtra[name]||{};
     const rows=[
       ['Platform',r.platforms||'—'],
-      ['Tier',r.tier||'—'],
-      ['Best CCV',r.bestCCV?r.bestCCV.toLocaleString():'—'],
+      ['Tier',getRosterTier(r)],
+      ['30d CCV',getRosterBest30dCCV(r)?getRosterBest30dCCV(r).toLocaleString():'—'],
       ['Country',r.country||'—'],
       ['Content',r.contentType||'—'],
       ['Status',r.outreachStatus||'Not Contacted'],

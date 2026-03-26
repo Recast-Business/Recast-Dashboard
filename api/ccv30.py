@@ -16,7 +16,16 @@ def get_ccv30_twitch(handle):
     if r.status_code != 200:
         return None
     data = r.json()
-    return data.get("avg_viewers") or data.get("avg_viewers_30d")
+    avg = data.get("avg_viewers")
+    if avg is not None:
+        return avg
+    avg = data.get("avg_viewers_30d")
+    if avg is not None:
+        return avg
+    # User exists on TwitchTracker but no viewer data → inactive, return 0
+    if data:
+        return 0
+    return None
 
 
 def get_ccv30_kick(handle):
