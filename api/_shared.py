@@ -103,10 +103,20 @@ def gsheet_update_field(creator_name: str, col_header: str, value) -> int:
                 return 0
         col_idx = headers.index(col_header) + 1
         name_col_vals = sh.col_values(1)
+        # Normalize the search name
+        search_name = creator_name.strip()
+        search_lower = search_name.lower()
+        # First pass: exact match (after strip)
         for row_idx, cell_val in enumerate(name_col_vals[1:], start=2):
-            if str(cell_val).strip() == creator_name:
-                sh.update_cell(row_idx, col_idx, value or "")
+            if str(cell_val).strip() == search_name:
+                sh.update_cell(row_idx, col_idx, value if value is not None else "")
                 return 1
+        # Second pass: case-insensitive fallback
+        for row_idx, cell_val in enumerate(name_col_vals[1:], start=2):
+            if str(cell_val).strip().lower() == search_lower:
+                sh.update_cell(row_idx, col_idx, value if value is not None else "")
+                return 1
+        print(f"[GSheets] Name not found: '{search_name}' (searched {len(name_col_vals)-1} rows)")
         return 0
     except Exception as e:
         print(f"[GSheets] Update failed: {e}")

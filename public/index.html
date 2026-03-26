@@ -2956,17 +2956,19 @@ async function bulkDelete(){
   if(!names.length)return;
   if(!confirm('Move '+names.length+' creator'+(names.length>1?'s':'')+' to the bin?'))return;
   showToast('Moving '+names.length+' creators to bin...');
-  let done=0;
+  let done=0;const failed=[];
   for(const name of names){
     try{
       const r=await fetch('/api/update_creator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,field:'bin',value:'yes'})});
       const d=await r.json();
       if(d.ok&&d.updated){const rec=DATA.find(c=>c.name===name);if(rec)rec.bin=true;done++;}
-    }catch(e){}
+      else{failed.push(name);console.warn('[BulkDelete] API returned updated=0 for:',JSON.stringify(name),'response:',d);}
+    }catch(e){failed.push(name);console.error('[BulkDelete] Failed for:',name,e);}
   }
-  selectedRows.clear();_updateBulkBar();updateKPIs();renderTable();
+  selectedRows.clear();_updateBulkBar();updateKPIs();renderTable();renderBin();
   if(typeof updateBriefFeed==='function')updateBriefFeed();
-  showToast('Moved '+done+' of '+names.length+' creators to bin');
+  if(done===names.length){showToast('Moved '+done+' creator'+(done>1?'s':'')+' to bin');}
+  else{showToast('Moved '+done+' of '+names.length+' — failed: '+failed.join(', '),'warn');}
 }
 function clearBulkSelection(){selectedRows.clear();_updateBulkBar();renderTable();}
 function bulkCompare(){

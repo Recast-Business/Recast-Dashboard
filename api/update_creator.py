@@ -47,7 +47,12 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             col_header = FIELD_MAP.get(field, field)
+            if col_header not in FIELD_MAP.values() and field not in FIELD_MAP:
+                json_response(self, 400, {"error": f"unknown field '{field}'"})
+                return
             updated = gsheet_update_field(name, col_header, value)
+            if not updated:
+                print(f"[UpdateCreator] No match for name='{name}' field='{col_header}' value='{value}'")
             json_response(self, 200, {"ok": True, "updated": updated})
         except Exception as e:
             json_response(self, 500, {"error": str(e)})
