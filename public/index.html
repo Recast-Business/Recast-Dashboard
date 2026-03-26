@@ -2201,7 +2201,7 @@ function renderTable(){
     const notesVal=r.notes?('<span class="notes-cell" onclick="editNote(\''+esc(r.name)+'\')" title="'+esc(r.notes)+'">'+esc(truncate(r.notes,30))+'</span>'):('<span class="notes-cell" onclick="editNote(\''+esc(r.name)+'\')" style="opacity:.3">+ add</span>');
     tr.innerHTML='<td class="col-cb"><input type="checkbox" style="accent-color:var(--accent);cursor:pointer" '+(isChecked?'checked':'')+' onchange="toggleRowSelect(\''+esc(r.name)+'\',this)"></td>'+
       '<td class="col-name" title="'+esc(r.name)+' — click for details"><strong style="cursor:pointer;color:var(--text)" onclick="showCreatorDetail(\''+esc(r.name)+'\')" class="creator-name-link">'+hlText(r.name,searchQ)+'</strong> <button class="copy-btn" onclick="copyCreatorInfo(DATA.find(d=>d.name===\''+esc(r.name)+'\'))" title="Copy handle">&#x2398;</button></td>'+
-      '<td>'+(()=>{const p=[];if(r.twitchHandle)p.push(platformBadge('Twitch'));if(r.kickHandle)p.push(platformBadge('Kick'));return p.length?p.join(' '):'<span style="color:var(--text2);font-size:11px">'+esc(r.platforms||'—')+'</span>';})()+'</td>'+
+      '<td>'+(()=>{const p=[];const plat=(r.platforms||'').toLowerCase();if(r.twitchHandle||plat.includes('twitch'))p.push(platformBadge('Twitch'));if(r.kickHandle||plat.includes('kick'))p.push(platformBadge('Kick'));return p.length?p.join(' '):'<span style="color:var(--text2);font-size:11px">'+esc(r.platforms||'—')+'</span>';})()+'</td>'+
       '<td><span class="tier-badge '+tierClass(getRosterTier(r))+'">'+esc(getRosterTier(r))+'</span></td>'+
       (()=>{
         const keys=rosterCcv30Keys(r);
@@ -2657,6 +2657,20 @@ async function editCreatorPlatforms(name){
   if(hasKick&&!wantKick){
     updates.push({field:'kick_handle',dataKey:'kickHandle',value:''});
     updates.push({field:'kick_ccv',dataKey:'kickCCV',value:''});
+  }
+  // If adding Twitch (had no handle before)
+  if(!hasTwitch&&wantTwitch){
+    const h=prompt('Enter Twitch handle for '+name+':');
+    if(h&&h.trim()){
+      updates.push({field:'twitch_handle',dataKey:'twitchHandle',value:h.trim()});
+    }
+  }
+  // If adding Kick (had no handle before)
+  if(!hasKick&&wantKick){
+    const h=prompt('Enter Kick handle for '+name+':');
+    if(h&&h.trim()){
+      updates.push({field:'kick_handle',dataKey:'kickHandle',value:h.trim()});
+    }
   }
   // Update platforms string
   const platArr=[];
