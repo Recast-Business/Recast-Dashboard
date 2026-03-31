@@ -7,6 +7,7 @@ Body (optional): {"limit": 50, "mode": "current"|"30d"}
 from http.server import BaseHTTPRequestHandler
 import requests
 from api._shared import _get_gsheet, json_response, read_body, tier_from_ccv
+from api.ccv30 import get_ccv30_twitch, get_ccv30_kick
 
 TWITCH_HEADERS = {
     "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
@@ -98,8 +99,6 @@ def _kick_batch_ccv(handles):
 
 def _backfill_30d(sh, headers, all_values, batch_limit):
     """Backfill 30-day average CCV using TwitchTracker / Kick API."""
-    from api.ccv30 import get_ccv30_twitch, get_ccv30_kick
-
     col = {h: i for i, h in enumerate(headers)}
     twitch_handle_idx = col.get("Twitch Handle")
     kick_handle_idx = col.get("Kick Handle")
