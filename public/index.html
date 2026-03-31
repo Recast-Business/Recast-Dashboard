@@ -4091,9 +4091,16 @@ function scoreBriefMatch(creator){
     else if(platform==='Kick'){if(!cp.includes('kick'))return 0;score+=25;}
   }
   // Geography (25pts) — hard filter: must match selected region
+  // "EN" country tag counts as Tier 1 (English-speaking)
   const geoCountries=getSelectedGeoCountries();
   if(!geoCountries.length){score+=25;}
-  else{if(!geoCountries.some(c=>c.toLowerCase()===(creator.country||'').toLowerCase()))return 0;score+=25;}
+  else{
+    const cc=(creator.country||'').toLowerCase().trim();
+    const geoMatch=geoCountries.some(c=>c.toLowerCase()===cc);
+    const enMatch=cc==='en'&&geoCountries.some(c=>['USA','UK','Canada','Australia','New Zealand','Ireland','South Africa'].includes(c));
+    if(!geoMatch&&!enMatch)return 0;
+    score+=25;
+  }
   // CCV (25pts) — hard filter: must meet minimum
   if(!minCCV){score+=25;}
   else{
