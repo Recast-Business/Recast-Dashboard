@@ -200,7 +200,7 @@ html.light .logout-chip:hover{background:rgba(220,38,38,0.18)}
 .ms-trigger .ms-arrow{font-size:9px;color:var(--text2);transition:.2s}
 .ms-trigger.open .ms-arrow{transform:rotate(180deg)}
 .ms-trigger.has-value{border-color:rgba(59,130,246,0.35);background:rgba(59,130,246,0.08)}
-.ms-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--glass-bg-heavy);backdrop-filter:blur(80px) saturate(200%);-webkit-backdrop-filter:blur(80px) saturate(200%);border:1px solid var(--glass-border);border-top-color:var(--glass-border-top);border-radius:var(--radius-md);z-index:500;box-shadow:var(--glass-shadow-elevated);margin-top:4px;display:none;flex-direction:column;overflow:visible}
+.ms-dropdown{position:fixed;background:var(--glass-bg-heavy);backdrop-filter:blur(80px) saturate(200%);-webkit-backdrop-filter:blur(80px) saturate(200%);border:1px solid var(--glass-border);border-top-color:var(--glass-border-top);border-radius:var(--radius-md);z-index:9999;box-shadow:var(--glass-shadow-elevated);display:none;flex-direction:column;overflow:hidden;width:240px}
 .ms-dropdown.open{display:flex}
 .ms-search{padding:8px;border-bottom:1px solid rgba(255,255,255,0.06)}
 .ms-search input{width:100%;padding:6px 10px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);background:rgba(255,255,255,0.04);color:var(--text);font-size:12px;outline:none;transition:border-color .2s}
@@ -2002,15 +2002,15 @@ function filterDropdown(key,q){
 function toggleDropdown(key){
   const dd=document.getElementById('ms-dd-'+key),trigger=document.getElementById('ms-trigger-'+key);
   const isOpen=dd.classList.contains('open');
-  document.querySelectorAll('.ms-dropdown.open').forEach(d=>{d.classList.remove('open');});
+  document.querySelectorAll('.ms-dropdown.open').forEach(d=>d.classList.remove('open'));
   document.querySelectorAll('.ms-trigger.open').forEach(t=>t.classList.remove('open'));
-  // Restore sidebar overflow when closing
-  document.querySelectorAll('.sidebar,.scout-sidebar,.brief-sidebar').forEach(s=>s.style.overflow='');
   if(!isOpen){
     dd.classList.add('open');trigger.classList.add('open');
-    // Temporarily disable sidebar overflow so dropdown isn't clipped
-    const sidebar=dd.closest('.sidebar,.scout-sidebar,.brief-sidebar');
-    if(sidebar)sidebar.style.overflow='visible';
+    // Position the fixed dropdown below the trigger
+    const rect=trigger.getBoundingClientRect();
+    dd.style.top=(rect.bottom+4)+'px';
+    dd.style.left=rect.left+'px';
+    dd.style.width=rect.width+'px';
     const si=dd.querySelector('input');if(si)setTimeout(()=>si.focus(),50);
   }
 }
