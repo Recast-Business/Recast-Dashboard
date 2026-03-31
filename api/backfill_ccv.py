@@ -160,24 +160,25 @@ def _backfill_30d(sh, headers, all_values, batch_limit):
             except Exception:
                 continue
 
-    # Write to sheet ONLY if the 30d CCV columns exist
+    # Write to sheet using batch updates (1 API call per batch, not per cell)
     cells_updated = 0
     if twitch_30d_idx is not None or kick_30d_idx is not None:
-        for row_num, handle in twitch_needs:
-            if handle in twitch_results and twitch_30d_idx is not None:
-                try:
-                    sh.update_cell(row_num, twitch_30d_idx + 1, twitch_results[handle])
-                    cells_updated += 1
-                except Exception as e:
-                    print(f"[Backfill30d] Failed row {row_num}: {e}")
-
-        for row_num, handle in kick_needs:
-            if handle in kick_results and kick_30d_idx is not None:
-                try:
-                    sh.update_cell(row_num, kick_30d_idx + 1, kick_results[handle])
-                    cells_updated += 1
-                except Exception as e:
-                    print(f"[Backfill30d] Failed row {row_num}: {e}")
+        import gspread
+        batch_cells = []
+        if twitch_30d_idx is not None:
+            for row_num, handle in twitch_needs:
+                if handle in twitch_results:
+                    batch_cells.append(gspread.Cell(row_num, twitch_30d_idx + 1, twitch_results[handle]))
+        if kick_30d_idx is not None:
+            for row_num, handle in kick_needs:
+                if handle in kick_results:
+                    batch_cells.append(gspread.Cell(row_num, kick_30d_idx + 1, kick_results[handle]))
+        if batch_cells:
+            try:
+                sh.update_cells(batch_cells, value_input_option="USER_ENTERED")
+                cells_updated = len(batch_cells)
+            except Exception as e:
+                print(f"[Backfill30d] Batch update failed: {e}")
 
     return {
         "ok": True,
@@ -269,12 +270,14 @@ class handler(BaseHTTPRequestHandler):
                     if kick_tier_idx is not None:
                         updates.append({"row": row_num, "col": kick_tier_idx + 1, "val": tier})
 
-            for u in updates:
+            import gspread
+            batch_cells = [gspread.Cell(u["row"], u["col"], u["val"]) for u in updates]
+            if batch_cells:
                 try:
-                    sh.update_cell(u["row"], u["col"], u["val"])
-                    updated += 1
+                    sh.update_cells(batch_cells, value_input_option="USER_ENTERED")
+                    updated = len(batch_cells)
                 except Exception as e:
-                    print(f"[Backfill] Failed row {u['row']} col {u['col']}: {e}")
+                    print(f"[Backfill] Batch update failed: {e}")
 
             json_response(self, 200, {
                 "ok": True,
