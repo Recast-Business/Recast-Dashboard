@@ -2795,21 +2795,36 @@ async function deleteCreator(name){
 // ─── Bin removed — deleteCreator now permanently removes from sheet ──────────
 function renderBin(){} // no-op stub
 async function fetchAllCCV(){
+  // Client-side batching: call /api/ccv30 per creator, 5 at a time
+  // Avoids Vercel 60s timeout. Resumes where it left off (skips already-fetched).
+  const toFetch=[];
+  DATA.forEach(r=>{
+    const keys=rosterCcv30Keys(r);
+    keys.forEach(({platform,handle,key})=>{
+      if(rosterCcv30[key]===undefined)toFetch.push({name:r.name,platform,handle,key});
+    });
+  });
+  if(!toFetch.length){showToast('All creators already have 30d CCV data');return;}
   const btn=document.getElementById('fetchAllCCVBtn');
-  if(btn){btn.disabled=true;btn.textContent='\u23F3 Fetching 30d CCV...';}
-  try{
-    const r=await fetch('/api/backfill_ccv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:100,mode:'30d'})});
-    const d=await r.json();
-    if(d.ok){
-      // Update localStorage cache with returned values
-      if(d.twitch_values){Object.entries(d.twitch_values).forEach(([h,v])=>{rosterCcv30[h+'_twitch']=v;});}
-      if(d.kick_values){Object.entries(d.kick_values).forEach(([h,v])=>{rosterCcv30[h+'_kick']=v;});}
-      saveRosterCcv30();
-      showToast('30d CCV fetched: '+d.twitch_found+' Twitch, '+d.kick_found+' Kick found ('+d.cells_updated+' cells updated)');
-      setTimeout(()=>location.reload(),1500);
-    }else{showToast('Fetch failed: '+(d.error||'unknown'),'error');}
-  }catch(e){showToast('Fetch failed: '+e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='\uD83D\uDCCA Fetch All 30d CCV';}}
+  if(btn){btn.disabled=true;}
+  let done=0,found=0;const total=toFetch.length;const BATCH=5;
+  if(btn)btn.textContent='\u23F3 0/'+total;
+  for(let i=0;i<toFetch.length;i+=BATCH){
+    const batch=toFetch.slice(i,i+BATCH);
+    await Promise.allSettled(batch.map(async({name,platform,handle,key})=>{
+      try{
+        const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(15000)});
+        const d=await res.json();
+        rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';
+        if(d.ccv30!=null){found++;saveCcv30ToSheet(name,platform,d.ccv30);}
+      }catch(e){/* skip, leave undefined so it can be retried */}
+      done++;
+    }));
+    saveRosterCcv30();renderTable();
+    if(btn)btn.textContent='\u23F3 '+done+'/'+total;
+  }
+  if(btn){btn.disabled=false;btn.textContent='\uD83D\uDCCA Fetch All 30d CCV';}
+  showToast('Done \u2014 got 30d CCV for '+found+'/'+total+' creators');
 }
 
 // ─── Search highlight ─────────────────────────────────────────────────────────
