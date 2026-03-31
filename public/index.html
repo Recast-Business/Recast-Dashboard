@@ -2807,7 +2807,7 @@ async function fetchAllCCV(){
   if(!toFetch.length){showToast('All creators already have 30d CCV data');return;}
   const btn=document.getElementById('fetchAllCCVBtn');
   if(btn){btn.disabled=true;}
-  let done=0,found=0;const total=toFetch.length;const BATCH=5;
+  let done=0,found=0;const total=toFetch.length;const BATCH=3;
   if(btn)btn.textContent='\u23F3 0/'+total;
   for(let i=0;i<toFetch.length;i+=BATCH){
     const batch=toFetch.slice(i,i+BATCH);
@@ -2823,6 +2823,8 @@ async function fetchAllCCV(){
     }));
     saveRosterCcv30();renderTable();
     if(btn)btn.textContent='\u23F3 '+done+'/'+total;
+    // Delay between batches to avoid TwitchTracker rate limiting
+    if(i+BATCH<toFetch.length)await new Promise(r=>setTimeout(r,1500));
   }
   if(btn){btn.disabled=false;btn.textContent='\uD83D\uDCCA Fetch All 30d CCV';}
   showToast('Done \u2014 got 30d CCV for '+found+'/'+total+' creators');
