@@ -98,26 +98,18 @@ def _kick_batch_ccv(handles):
 
 
 def _backfill_30d(sh, headers, all_values, batch_limit):
-    """Backfill 30-day average CCV using TwitchTracker / Kick API."""
+    """Backfill 30-day average CCV using TwitchTracker / Kick API.
+    Fetches data for all creators with handles. Writes to sheet only if
+    the 30d CCV columns already exist (avoids exceeding grid limits).
+    Always returns the values so the frontend can cache them in localStorage."""
     col = {h: i for i, h in enumerate(headers)}
     twitch_handle_idx = col.get("Twitch Handle")
     kick_handle_idx = col.get("Kick Handle")
-    twitch_30d_idx = col.get("Twitch 30d CCV")
-    kick_30d_idx = col.get("Kick 30d CCV")
-    tier_idx = col.get("Tier Size")
-    kick_tier_idx = col.get("Tier Size_2") or col.get("Kick Tier Size")
+    twitch_30d_idx = col.get("Twitch 30d CCV")  # None if column doesn't exist
+    kick_30d_idx = col.get("Kick 30d CCV")       # None if column doesn't exist
 
-    # Auto-create 30d CCV columns if they don't exist
-    if twitch_30d_idx is None:
-        twitch_30d_idx = len(headers)
-        sh.update_cell(1, twitch_30d_idx + 1, "Twitch 30d CCV")
-        headers.append("Twitch 30d CCV")
-    if kick_30d_idx is None:
-        kick_30d_idx = len(headers)
-        sh.update_cell(1, kick_30d_idx + 1, "Kick 30d CCV")
-        headers.append("Kick 30d CCV")
-
-    twitch_needs = []
+    # Collect all handles that need fetching
+    twitch_needs = []  # (row_num, handle)
     kick_needs = []
 
     for i, row in enumerate(all_values[1:], start=2):
@@ -125,20 +117,30 @@ def _backfill_30d(sh, headers, all_values, batch_limit):
             break
         if twitch_handle_idx is not None:
             th = (row[twitch_handle_idx] if twitch_handle_idx < len(row) else "").strip()
-            tc = (row[twitch_30d_idx] if twitch_30d_idx < len(row) else "").strip()
-            if th and (not tc or tc == "0"):
-                twitch_needs.append((i, th.lower()))
+            # If 30d column exists, only fetch if empty; otherwise fetch all
+            if th:
+                if twitch_30d_idx is not None:
+                    tc = (row[twitch_30d_idx] if twitch_30d_idx < len(row) else "").strip()
+                    if not tc or tc == "0":
+                        twitch_needs.append((i, th.lower()))
+                else:
+                    twitch_needs.append((i, th.lower()))
         if kick_handle_idx is not None:
             kh = (row[kick_handle_idx] if kick_handle_idx < len(row) else "").strip()
-            kc = (row[kick_30d_idx] if kick_30d_idx < len(row) else "").strip()
-            if kh and (not kc or kc == "0"):
-                kick_needs.append((i, kh.lower()))
+            if kh:
+                if kick_30d_idx is not None:
+                    kc = (row[kick_30d_idx] if kick_30d_idx < len(row) else "").strip()
+                    if not kc or kc == "0":
+                        kick_needs.append((i, kh.lower()))
+                else:
+                    kick_needs.append((i, kh.lower()))
 
+    # Deduplicate handles before fetching
+    seen_twitch = set()
     twitch_results = {}
-    kick_results = {}
-
     for _, handle in twitch_needs:
-        if handle not in twitch_results:
+        if handle not in seen_twitch:
+            seen_twitch.add(handle)
             try:
                 avg = get_ccv30_twitch(handle)
                 if avg is not None:
@@ -146,8 +148,11 @@ def _backfill_30d(sh, headers, all_values, batch_limit):
             except Exception:
                 continue
 
+    seen_kick = set()
+    kick_results = {}
     for _, handle in kick_needs:
-        if handle not in kick_results:
+        if handle not in seen_kick:
+            seen_kick.add(handle)
             try:
                 avg = get_ccv30_kick(handle)
                 if avg is not None:
@@ -155,30 +160,24 @@ def _backfill_30d(sh, headers, all_values, batch_limit):
             except Exception:
                 continue
 
-    updates = []
-    for row_num, handle in twitch_needs:
-        if handle in twitch_results:
-            ccv = twitch_results[handle]
-            updates.append({"row": row_num, "col": twitch_30d_idx + 1, "val": ccv})
-            tier = tier_from_ccv("twitch", ccv)
-            if tier_idx is not None:
-                updates.append({"row": row_num, "col": tier_idx + 1, "val": tier})
-
-    for row_num, handle in kick_needs:
-        if handle in kick_results:
-            ccv = kick_results[handle]
-            updates.append({"row": row_num, "col": kick_30d_idx + 1, "val": ccv})
-            tier = tier_from_ccv("kick", ccv)
-            if kick_tier_idx is not None:
-                updates.append({"row": row_num, "col": kick_tier_idx + 1, "val": tier})
-
+    # Write to sheet ONLY if the 30d CCV columns exist
     cells_updated = 0
-    for u in updates:
-        try:
-            sh.update_cell(u["row"], u["col"], u["val"])
-            cells_updated += 1
-        except Exception as e:
-            print(f"[Backfill30d] Failed row {u['row']} col {u['col']}: {e}")
+    if twitch_30d_idx is not None or kick_30d_idx is not None:
+        for row_num, handle in twitch_needs:
+            if handle in twitch_results and twitch_30d_idx is not None:
+                try:
+                    sh.update_cell(row_num, twitch_30d_idx + 1, twitch_results[handle])
+                    cells_updated += 1
+                except Exception as e:
+                    print(f"[Backfill30d] Failed row {row_num}: {e}")
+
+        for row_num, handle in kick_needs:
+            if handle in kick_results and kick_30d_idx is not None:
+                try:
+                    sh.update_cell(row_num, kick_30d_idx + 1, kick_results[handle])
+                    cells_updated += 1
+                except Exception as e:
+                    print(f"[Backfill30d] Failed row {row_num}: {e}")
 
     return {
         "ok": True,
