@@ -2802,6 +2802,7 @@ async function fetchAllCCV(){
     const keys=rosterCcv30Keys(r);
     keys.forEach(({platform,handle,key})=>{
       const v=rosterCcv30[key];
+      if(platform==='kick')return; // Kick 30d CCV must be entered manually
       if(v===undefined||v==='N/A')toFetch.push({name:r.name,platform,handle,key});
     });
   });
