@@ -3624,10 +3624,6 @@ async function fetchCCV30(id,platform,handle){
     const r=await fetch('/api/ccv30?platform='+platform.toLowerCase()+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await r.json();
     let ccv=d.ccv30;
-    // If backend failed and platform is Kick (or could be Kick), try browser-side
-    if(ccv==null){
-      ccv=await _browserKickCCV(handle);
-    }
     const idx=scoutList.findIndex(e=>e.id===id);
     if(idx>=0){scoutList[idx].avg30dCCV=ccv!=null?ccv:-1;saveScout();renderScout();renderPotential();}
     if(ccv==null)showToast('30d CCV not available for '+handle);
@@ -3648,7 +3644,6 @@ async function fetchAll30d(){
       const r=await fetch('/api/ccv30?platform='+e.platform.toLowerCase()+'&handle='+encodeURIComponent(e.handle),{signal:AbortSignal.timeout(12000)});
       const d=await r.json();
       let ccv=d.ccv30;
-      if(ccv==null)ccv=await _browserKickCCV(e.handle);
       const idx=scoutList.findIndex(x=>x.id===e.id);
       if(idx>=0)scoutList[idx].avg30dCCV=ccv!=null?ccv:-1;
       return true;
