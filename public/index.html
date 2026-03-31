@@ -4082,14 +4082,13 @@ function scoreBriefMatch(creator){
   const geoCountries=getSelectedGeoCountries();
   if(!geoCountries.length){score+=25;}
   else{score+=geoCountries.some(c=>c.toLowerCase()===(creator.country||'').toLowerCase())?25:0;}
-  // CCV (25pts)
+  // CCV (25pts) — hard filter: must meet minimum
   if(!minCCV){score+=25;}
   else{
     const ccv=_best30||0;
+    if(ccv<minCCV)return 0;
     if(ccv>=minCCV*2)score+=25;
-    else if(ccv>=minCCV)score+=20;
-    else if(ccv>=minCCV*0.7)score+=12;
-    else if(ccv>=minCCV*0.5)score+=6;
+    else score+=20;
   }
   // Content niche (25pts) — hard filter: if niche selected and no match, exclude
   if(!niche){score+=25;}
