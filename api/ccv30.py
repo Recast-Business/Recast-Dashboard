@@ -66,9 +66,11 @@ def _get_ccv30_streamcharts(handle, platform="kick"):
 
 
 def get_ccv30_kick(handle):
-    """Server-side Kick 30d CCV lookup via StreamCharts only.
-    No Kick API fallback — it returns live CCV, not 30d average."""
-    return _get_ccv30_streamcharts(handle, "kick")
+    """Kick 30d CCV is not available via any server-side API.
+    StreamCharts and Kick both block serverless requests.
+    Returns None — Kick 30d CCV must be entered manually via the dashboard.
+    Future: StreamCharts API subscription ($9/mo) would enable automated fetching."""
+    return None
 
 
 class handler(BaseHTTPRequestHandler):
