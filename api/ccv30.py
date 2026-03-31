@@ -66,37 +66,9 @@ def _get_ccv30_streamcharts(handle, platform="kick"):
 
 
 def get_ccv30_kick(handle):
-    """Server-side Kick CCV lookup. Tries StreamCharts first (most accurate),
-    then Kick API. Never estimates from followers."""
-    # 1. StreamCharts — most accurate 30d average
-    avg = _get_ccv30_streamcharts(handle, "kick")
-    if avg:
-        return avg
-    # 2. Kick API — often blocked by Cloudflare
-    try:
-        import cloudscraper
-        scraper = cloudscraper.create_scraper()
-    except ImportError:
-        scraper = requests.Session()
-    headers = {
-        "Accept": "application/json",
-        "Referer": "https://kick.com",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    }
-    for base in ("https://web.kick.com/api/v2", "https://kick.com/api/v2", "https://kick.com/api/v1"):
-        try:
-            r = scraper.get(f"{base}/channels/{handle}", headers=headers, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                avg = data.get("recent_average_viewers")
-                if avg:
-                    return avg
-                ls = data.get("livestream")
-                if ls and ls.get("viewer_count"):
-                    return ls["viewer_count"]
-        except Exception:
-            continue
-    return None
+    """Server-side Kick 30d CCV lookup via StreamCharts only.
+    No Kick API fallback — it returns live CCV, not 30d average."""
+    return _get_ccv30_streamcharts(handle, "kick")
 
 
 class handler(BaseHTTPRequestHandler):

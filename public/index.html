@@ -2179,8 +2179,6 @@ async function fetchRosterCCV30(handle,platform,key,btnId){
     const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await res.json();
     let ccv=d.ccv30;
-    // For Kick: server is often blocked by Cloudflare, use browser-side fallback
-    if(ccv==null&&platform==='kick'){ccv=await _browserKickCCV(handle);}
     rosterCcv30[key]=ccv!=null?ccv:'N/A';saveRosterCcv30();renderTable();
     if(ccv!=null){
       const rec=DATA.find(r=>(platform==='twitch'?r.twitchHandle:r.kickHandle||'').toLowerCase()===handle.toLowerCase());
@@ -2815,12 +2813,9 @@ async function fetchAllCCV(){
     const batch=toFetch.slice(i,i+BATCH);
     await Promise.allSettled(batch.map(async({name,platform,handle,key})=>{
       try{
-        // Try server-side first
         const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(15000)});
         const d=await res.json();
         let ccv=d.ccv30;
-        // For Kick: server is often blocked by Cloudflare, use browser-side fallback
-        if(ccv==null&&platform==='kick'){ccv=await _browserKickCCV(handle);}
         rosterCcv30[key]=ccv!=null?ccv:'N/A';
         if(ccv!=null){found++;saveCcv30ToSheet(name,platform,ccv);}
       }catch(e){/* skip, leave undefined so it can be retried */}
