@@ -2909,6 +2909,8 @@ async function bulkDelete(){
       if(d.ok&&d.removed>0){DATA=DATA.filter(c=>c.name!==name);done++;}
       else{failed.push(name);console.warn('[BulkDelete] API returned removed=0 for:',JSON.stringify(name),'response:',d);}
     }catch(e){failed.push(name);console.error('[BulkDelete] Failed for:',name,e);}
+    // Delay between deletes to avoid Google Sheets rate limiting
+    if(names.indexOf(name)<names.length-1)await new Promise(r=>setTimeout(r,500));
   }
   selectedRows.clear();_updateBulkBar();applyFilters();
   if(typeof updateBriefFeed==='function')updateBriefFeed();
