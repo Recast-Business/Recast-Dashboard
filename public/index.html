@@ -4043,9 +4043,9 @@ function init(){
 // ─── Brief Builder ──────────────────────────────────────────────────────────
 const BRIEF_GEO_MAP={
   'US Only':['USA'],'UK Only':['UK'],
-  'Tier 1':['USA','UK','Canada','Australia','New Zealand'],
-  'Tier 2':['Germany','France','Netherlands','Sweden','Denmark','Norway','Finland','Belgium','Switzerland','Austria','Japan','South Korea','Singapore'],
-  'Tier 3':['Spain','Italy','Brazil','Mexico','Argentina','Colombia','Peru','Poland','Czech Republic','Turkey','Saudi Arabia','UAE','Russia','Philippines','Vietnam']
+  'Tier 1':['USA','UK','Canada','Australia','New Zealand','Ireland','South Africa'],
+  'Tier 2':['Germany','France','Netherlands','Sweden','Denmark','Norway','Finland','Belgium','Switzerland','Austria','Japan','South Korea','Singapore','Italy','Spain','Portugal','Greece','Israel','Hong Kong','Taiwan','UAE','Qatar','Kuwait','Saudi Arabia'],
+  'Tier 3':['Brazil','Mexico','Argentina','Colombia','Peru','Poland','Czech Republic','Romania','Hungary','Turkey','Russia','Ukraine','Egypt','Morocco','India','Indonesia','Malaysia','Thailand','Philippines','Vietnam','Nigeria']
 };
 function toggleBriefGeo(el){el.classList.toggle('active');debouncedBriefUpdate();}
 function getSelectedGeos(){return [...document.querySelectorAll('#briefGeoChips .brief-geo-chip.active')].map(c=>c.dataset.val);}
@@ -4078,10 +4078,10 @@ function scoreBriefMatch(creator){
     else if(platform==='Twitch'){if(!cp.includes('twitch'))return 0;score+=25;}
     else if(platform==='Kick'){if(!cp.includes('kick'))return 0;score+=25;}
   }
-  // Geography (25pts)
+  // Geography (25pts) — hard filter: must match selected region
   const geoCountries=getSelectedGeoCountries();
   if(!geoCountries.length){score+=25;}
-  else{score+=geoCountries.some(c=>c.toLowerCase()===(creator.country||'').toLowerCase())?25:0;}
+  else{if(!geoCountries.some(c=>c.toLowerCase()===(creator.country||'').toLowerCase()))return 0;score+=25;}
   // CCV (25pts) — hard filter: must meet minimum
   if(!minCCV){score+=25;}
   else{
