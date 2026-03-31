@@ -4061,8 +4061,8 @@ function scoreBriefMatch(creator){
   const platform=document.getElementById('briefPlatform').value;
   const minCCV=parseInt(document.getElementById('briefMinCCV').value)||0;
   const niche=document.getElementById('briefNiche').value;
-  // Use 30d CCV if available, otherwise fall back to regular CCV
-  const _best30=getRosterBest30dCCV(creator)||creator.bestCCV||0;
+  // Hard exclude: no 30d CCV data at all
+  const _best30=getRosterBest30dCCV(creator);
   if(!_best30)return 0;
   let score=0;
   // Platform match (25pts) — hard filter when specific platform selected
