@@ -2178,13 +2178,15 @@ async function fetchRosterCCV30(handle,platform,key,btnId){
   try{
     const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
     const d=await res.json();
-    rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';saveRosterCcv30();renderTable();
-    // Save to Google Sheet so it syncs across all logins
-    if(d.ccv30!=null){
+    let ccv=d.ccv30;
+    // For Kick: server is often blocked by Cloudflare, use browser-side fallback
+    if(ccv==null&&platform==='kick'){ccv=await _browserKickCCV(handle);}
+    rosterCcv30[key]=ccv!=null?ccv:'N/A';saveRosterCcv30();renderTable();
+    if(ccv!=null){
       const rec=DATA.find(r=>(platform==='twitch'?r.twitchHandle:r.kickHandle||'').toLowerCase()===handle.toLowerCase());
-      if(rec)saveCcv30ToSheet(rec.name,platform,d.ccv30);
+      if(rec)saveCcv30ToSheet(rec.name,platform,ccv);
     }
-    if(d.ccv30==null)showToast('30d CCV not available for '+handle);
+    if(ccv==null)showToast('30d CCV not available for '+handle);
   }catch(e){
     if(btn){btn.textContent='\uD83D\uDCCA';btn.disabled=false;}
     showToast('Could not fetch 30d CCV for '+handle);
@@ -2813,10 +2815,14 @@ async function fetchAllCCV(){
     const batch=toFetch.slice(i,i+BATCH);
     await Promise.allSettled(batch.map(async({name,platform,handle,key})=>{
       try{
+        // Try server-side first
         const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(15000)});
         const d=await res.json();
-        rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';
-        if(d.ccv30!=null){found++;saveCcv30ToSheet(name,platform,d.ccv30);}
+        let ccv=d.ccv30;
+        // For Kick: server is often blocked by Cloudflare, use browser-side fallback
+        if(ccv==null&&platform==='kick'){ccv=await _browserKickCCV(handle);}
+        rosterCcv30[key]=ccv!=null?ccv:'N/A';
+        if(ccv!=null){found++;saveCcv30ToSheet(name,platform,ccv);}
       }catch(e){/* skip, leave undefined so it can be retried */}
       done++;
     }));
@@ -3605,14 +3611,13 @@ async function exportPotentialToMasterList(){
   }
 }
 async function _browserKickCCV(handle){
+  // Browser-side Kick fetch — only returns real data, never estimates
   try{
     const r=await fetch('https://kick.com/api/v2/channels/'+encodeURIComponent(handle),{signal:AbortSignal.timeout(10000)});
     if(!r.ok)return null;
     const d=await r.json();
     if(d.recent_average_viewers)return d.recent_average_viewers;
     if(d.livestream&&d.livestream.viewer_count)return d.livestream.viewer_count;
-    // Estimate from followers
-    if(d.followers_count)return Math.max(1,Math.round(d.followers_count*0.02));
   }catch(e){}
   return null;
 }

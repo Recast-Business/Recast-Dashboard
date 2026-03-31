@@ -29,6 +29,10 @@ def get_ccv30_twitch(handle):
 
 
 def get_ccv30_kick(handle):
+    """Server-side Kick CCV lookup. Only returns real data (recent_average_viewers
+    or live viewer_count). Never estimates from followers — that produces wrong numbers.
+    Note: Kick's API is heavily Cloudflare-protected, so this often returns None.
+    The frontend has a browser-side fallback that works more reliably."""
     try:
         import cloudscraper
         scraper = cloudscraper.create_scraper()
@@ -39,29 +43,9 @@ def get_ccv30_kick(handle):
         "Referer": "https://kick.com",
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     }
-    # Try web.kick.com first (more reliable from serverless environments)
-    try:
-        url = f"https://web.kick.com/api/v2/channels/{handle}"
-        r = scraper.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            avg = data.get("recent_average_viewers")
-            if avg:
-                return avg
-            ls = data.get("livestream")
-            if ls and ls.get("viewer_count"):
-                return ls["viewer_count"]
-            # Estimate from followers if no viewer data
-            followers = data.get("followers_count", 0)
-            if followers:
-                return max(int(followers * 0.02), 1)
-    except Exception:
-        pass
-    # Fallback to kick.com API
-    for ver in ("v2", "v1"):
+    for base in ("https://web.kick.com/api/v2", "https://kick.com/api/v2", "https://kick.com/api/v1"):
         try:
-            url = f"https://kick.com/api/{ver}/channels/{handle}"
-            r = scraper.get(url, headers=headers, timeout=10)
+            r = scraper.get(f"{base}/channels/{handle}", headers=headers, timeout=10)
             if r.status_code == 200:
                 data = r.json()
                 avg = data.get("recent_average_viewers")
@@ -70,9 +54,6 @@ def get_ccv30_kick(handle):
                 ls = data.get("livestream")
                 if ls and ls.get("viewer_count"):
                     return ls["viewer_count"]
-                followers = data.get("followers_count", 0)
-                if followers:
-                    return max(int(followers * 0.02), 1)
         except Exception:
             continue
     return None
