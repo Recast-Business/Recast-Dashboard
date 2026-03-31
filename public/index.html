@@ -2798,7 +2798,7 @@ async function fetchAllCCV(){
   const btn=document.getElementById('fetchAllCCVBtn');
   if(btn){btn.disabled=true;btn.textContent='\u23F3 Fetching 30d CCV...';}
   try{
-    const r=await fetch('/api/backfill_ccv30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:100})});
+    const r=await fetch('/api/backfill_ccv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:100,mode:'30d'})});
     const d=await r.json();
     if(d.ok){
       // Update localStorage cache with returned values
