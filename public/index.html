@@ -2795,13 +2795,14 @@ async function deleteCreator(name){
 // ─── Bin removed — deleteCreator now permanently removes from sheet ──────────
 function renderBin(){} // no-op stub
 async function fetchAllCCV(){
-  // Client-side batching: call /api/ccv30 per creator, 5 at a time
-  // Avoids Vercel 60s timeout. Resumes where it left off (skips already-fetched).
+  // Client-side batching: call /api/ccv30 per creator, 3 at a time
+  // Retries N/A entries too (previously rate-limited). Skips only successful fetches.
   const toFetch=[];
   DATA.forEach(r=>{
     const keys=rosterCcv30Keys(r);
     keys.forEach(({platform,handle,key})=>{
-      if(rosterCcv30[key]===undefined)toFetch.push({name:r.name,platform,handle,key});
+      const v=rosterCcv30[key];
+      if(v===undefined||v==='N/A')toFetch.push({name:r.name,platform,handle,key});
     });
   });
   if(!toFetch.length){showToast('All creators already have 30d CCV data');return;}
