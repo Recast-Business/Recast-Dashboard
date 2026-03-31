@@ -2254,7 +2254,7 @@ function renderTable(){
       '<td><span class="tier-badge '+tierClass(getRosterTier(r))+'">'+esc(getRosterTier(r))+'</span></td>'+
       (()=>{
         const keys=rosterCcv30Keys(r);
-        if(!keys.length)return'<td class="ccv30-cell" style="color:var(--text2)">—</td>';
+        if(!keys.length)return'<td class="ccv30-cell"><span style="color:var(--text2);cursor:pointer;font-size:10px" onclick="showCreatorDetail(\''+sn+'\')" title="Add a Twitch/Kick handle first to fetch 30d CCV">No handle — click name to edit</span></td>';
         const parts=keys.map(({platform,handle,key})=>{
           const v=rosterCcv30[key];
           const verifyUrl=platform==='twitch'?'https://twitchtracker.com/'+encodeURIComponent(handle):'https://streamscharts.com/channels/'+encodeURIComponent(handle)+'?platform=kick';
