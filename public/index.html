@@ -1044,7 +1044,7 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
     <div class="team-presence" id="teamPresence"></div>
     <span class="header-update"><span class="sync-dot"></span><span id="updateDate"></span></span>
     <button class="btn" style="color:#4ade80;border-color:rgba(74,222,128,.3);font-weight:600" onclick="openAddCreatorModal()">+ Add Creator</button>
-    <button class="btn" style="color:#f59e0b;border-color:rgba(245,158,11,.3)" onclick="backfillCCV()" title="Fetch CCV for creators with Twitch/Kick handles but missing CCV data">&#x26A1; Backfill CCV</button>
+    <button class="btn" id="fetchAllCCVBtn" style="color:#f59e0b;border-color:rgba(245,158,11,.3)" onclick="fetchAllCCV()" title="Fetch 30-day avg CCV for all creators (Twitch + Kick)">&#x1F4CA; Fetch All 30d CCV</button>
     <button class="btn btn-accent" onclick="exportClipboard()">Copy to Clipboard</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">&#9790;</button>
     <button class="logout-chip" onclick="handleLogout()">Logout</button>
@@ -2191,23 +2191,27 @@ async function fetchRosterCCV30(handle,platform,key,btnId){
   }
 }
 async function fetchAllRosterCCV30(){
-  // Only Twitch creators — Kick has no historical CCV API
-  const toFetch=filtered.filter(r=>{const k=rosterCcv30Key(r);return k&&r.twitchHandle&&rosterCcv30[k]===undefined;});
-  if(!toFetch.length){showToast('All visible Twitch creators already have 30d CCV data');return;}
+  // Fetch 30d CCV for both Twitch and Kick creators missing data
+  const toFetch=[];
+  filtered.forEach(r=>{
+    const keys=rosterCcv30Keys(r);
+    keys.forEach(({platform,handle,key})=>{
+      if(rosterCcv30[key]===undefined)toFetch.push({name:r.name,platform,handle,key});
+    });
+  });
+  if(!toFetch.length){showToast('All visible creators already have 30d CCV data');return;}
   const btn=document.getElementById('fetchAll30dRosterBtn');
   if(btn){btn.textContent='\u23F3 Fetching...';btn.disabled=true;}
-  showToast('Fetching 30d CCV for '+toFetch.length+' Twitch creators...');
+  showToast('Fetching 30d CCV for '+toFetch.length+' creators (Twitch + Kick)...');
   let done=0;const BATCH=5;
   for(let i=0;i<toFetch.length;i+=BATCH){
     const batch=toFetch.slice(i,i+BATCH);
-    await Promise.allSettled(batch.map(async r=>{
-      const handle=r.twitchHandle;
-      const key=rosterCcv30Key(r);
+    await Promise.allSettled(batch.map(async ({name,platform,handle,key})=>{
       try{
-        const res=await fetch('/api/ccv30?platform=twitch&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
+        const res=await fetch('/api/ccv30?platform='+platform+'&handle='+encodeURIComponent(handle),{signal:AbortSignal.timeout(12000)});
         const d=await res.json();
         rosterCcv30[key]=d.ccv30!=null?d.ccv30:'N/A';
-        if(d.ccv30!=null){done++;saveCcv30ToSheet(r.name,'twitch',d.ccv30);}
+        if(d.ccv30!=null){done++;saveCcv30ToSheet(name,platform,d.ccv30);}
       }catch(e){/* leave undefined so button stays visible */}
     }));
     saveRosterCcv30();renderTable();
@@ -2790,19 +2794,22 @@ async function deleteCreator(name){
 }
 // ─── Bin removed — deleteCreator now permanently removes from sheet ──────────
 function renderBin(){} // no-op stub
-async function backfillCCV(){
-  const btn=event?.target;
-  if(btn){btn.disabled=true;btn.textContent='⏳ Fetching CCV...';}
+async function fetchAllCCV(){
+  const btn=document.getElementById('fetchAllCCVBtn');
+  if(btn){btn.disabled=true;btn.textContent='\u23F3 Fetching 30d CCV...';}
   try{
-    const r=await fetch('/api/backfill_ccv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:50})});
+    const r=await fetch('/api/backfill_ccv30',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:100})});
     const d=await r.json();
     if(d.ok){
-      showToast('CCV backfilled: '+d.twitch_found+' Twitch, '+d.kick_found+' Kick found ('+d.cells_updated+' cells updated)');
-      // Refresh data
+      // Update localStorage cache with returned values
+      if(d.twitch_values){Object.entries(d.twitch_values).forEach(([h,v])=>{rosterCcv30[h+'_twitch']=v;});}
+      if(d.kick_values){Object.entries(d.kick_values).forEach(([h,v])=>{rosterCcv30[h+'_kick']=v;});}
+      saveRosterCcv30();
+      showToast('30d CCV fetched: '+d.twitch_found+' Twitch, '+d.kick_found+' Kick found ('+d.cells_updated+' cells updated)');
       setTimeout(()=>location.reload(),1500);
-    }else{showToast('Backfill failed: '+(d.error||'unknown'),'error');}
-  }catch(e){showToast('Backfill failed: '+e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='⚡ Backfill CCV';}}
+    }else{showToast('Fetch failed: '+(d.error||'unknown'),'error');}
+  }catch(e){showToast('Fetch failed: '+e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='\uD83D\uDCCA Fetch All 30d CCV';}}
 }
 
 // ─── Search highlight ─────────────────────────────────────────────────────────

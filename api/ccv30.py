@@ -39,6 +39,25 @@ def get_ccv30_kick(handle):
         "Referer": "https://kick.com",
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     }
+    # Try web.kick.com first (more reliable from serverless environments)
+    try:
+        url = f"https://web.kick.com/api/v2/channels/{handle}"
+        r = scraper.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            avg = data.get("recent_average_viewers")
+            if avg:
+                return avg
+            ls = data.get("livestream")
+            if ls and ls.get("viewer_count"):
+                return ls["viewer_count"]
+            # Estimate from followers if no viewer data
+            followers = data.get("followers_count", 0)
+            if followers:
+                return max(int(followers * 0.02), 1)
+    except Exception:
+        pass
+    # Fallback to kick.com API
     for ver in ("v2", "v1"):
         try:
             url = f"https://kick.com/api/{ver}/channels/{handle}"
@@ -48,21 +67,14 @@ def get_ccv30_kick(handle):
                 avg = data.get("recent_average_viewers")
                 if avg:
                     return avg
-                # Fallback: if live, use current viewer count
                 ls = data.get("livestream")
                 if ls and ls.get("viewer_count"):
                     return ls["viewer_count"]
+                followers = data.get("followers_count", 0)
+                if followers:
+                    return max(int(followers * 0.02), 1)
         except Exception:
             continue
-    # Try web API as last resort
-    try:
-        url = f"https://web.kick.com/api/v2/channels/{handle}"
-        r = scraper.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get("recent_average_viewers") or (data.get("livestream") or {}).get("viewer_count")
-    except Exception:
-        pass
     return None
 
 
