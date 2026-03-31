@@ -1,7 +1,7 @@
 """GET /api/ccv30?platform=twitch&handle=username — 30-day average CCV lookup."""
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
-import json, requests
+import json, re, requests
 from api._shared import json_response
 
 
@@ -28,11 +28,51 @@ def get_ccv30_twitch(handle):
     return None
 
 
+def _get_ccv30_streamcharts(handle, platform="kick"):
+    """Scrape 30-day average viewers from StreamCharts HTML page.
+    Works for both Kick and Twitch channels. The data is server-side rendered
+    in a tooltip: 'Average Viewers ... 30d: 16 669'"""
+    try:
+        import cloudscraper
+        scraper = cloudscraper.create_scraper(
+            browser={"browser": "chrome", "platform": "linux", "mobile": False}
+        )
+    except ImportError:
+        scraper = requests.Session()
+    url = f"https://streamscharts.com/channels/{handle}"
+    if platform == "kick":
+        url += "?platform=kick"
+    try:
+        r = scraper.get(url, headers={
+            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        }, timeout=15)
+        if r.status_code != 200:
+            return None
+        # Pattern: tooltip contains "Average Viewers" followed by "30d: <number>"
+        match = re.search(r"Average\s*Viewers.*?30d:\s*([\d\s,]+)", r.text, re.DOTALL | re.IGNORECASE)
+        if match:
+            num_str = match.group(1).replace(" ", "").replace(",", "").strip()
+            return int(num_str) if num_str.isdigit() else None
+        # Fallback: look for the visible avg viewers number (in stats block)
+        match = re.search(r"Average\s*Viewers\s*</.*?>([\d\s,]+)<", r.text, re.DOTALL | re.IGNORECASE)
+        if match:
+            num_str = match.group(1).replace(" ", "").replace(",", "").strip()
+            return int(num_str) if num_str.isdigit() else None
+    except Exception:
+        pass
+    return None
+
+
 def get_ccv30_kick(handle):
-    """Server-side Kick CCV lookup. Only returns real data (recent_average_viewers
-    or live viewer_count). Never estimates from followers — that produces wrong numbers.
-    Note: Kick's API is heavily Cloudflare-protected, so this often returns None.
-    The frontend has a browser-side fallback that works more reliably."""
+    """Server-side Kick CCV lookup. Tries StreamCharts first (most accurate),
+    then Kick API. Never estimates from followers."""
+    # 1. StreamCharts — most accurate 30d average
+    avg = _get_ccv30_streamcharts(handle, "kick")
+    if avg:
+        return avg
+    # 2. Kick API — often blocked by Cloudflare
     try:
         import cloudscraper
         scraper = cloudscraper.create_scraper()
