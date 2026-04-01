@@ -1455,10 +1455,10 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
             <button class="btn btn-sm" onclick="matchAgenciesToBrief()" style="color:#f59e0b;border-color:rgba(245,158,11,.3);font-size:11px" title="Sort by match against active brief">🎯 Match to Brief</button>
             <button class="btn btn-sm" onclick="exportAgenciesCSV()" style="font-size:11px">Export CSV</button>
             <button class="btn btn-accent btn-sm" onclick="openAgencyModal()" style="font-size:11px">+ Add Agency</button>
-            <span id="agencyArrow" style="font-size:10px;color:var(--text2);margin-left:4px">▲</span>
+            <span id="agencyArrow" onclick="event.stopPropagation();toggleAgencyTracker()" style="font-size:10px;color:var(--text2);margin-left:4px;cursor:pointer;padding:4px 8px">▼</span>
           </div>
         </div>
-        <div id="agencyBody">
+        <div id="agencyBody" style="display:none">
           <div class="agency-search-row">
             <input type="text" id="agencySearch" placeholder="Search agencies, talent, niches, regions..." oninput="renderAgencies()">
           </div>
@@ -4851,7 +4851,7 @@ function saveAutoScoutSettings(){
   }));
 }
 // ═══════════════════ AGENCY TRACKER ═══════════════════
-let agencyList=[], agencyNicheFilter='all', agencyTierFilter='all', agencyTypeFilter='all', editingAgencyId=null, agencyBodyOpen=true;
+let agencyList=[], agencyNicheFilter='all', agencyTierFilter='all', agencyTypeFilter='all', editingAgencyId=null, agencyBodyOpen=false;
 const AGENCY_DB_VERSION=3;
 
 const AGENCY_SAMPLES=[
