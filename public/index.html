@@ -1823,6 +1823,7 @@ async function loadRosterFromAPI() {
     if (d.ok && d.data) {
       DATA = d.data;
       loadCcv30FromSheet();
+      rebuildFilterChips();
       const _rl2=document.getElementById('rosterLoading');if(_rl2)_rl2.remove();
       if(typeof refreshRosterNames==='function')refreshRosterNames();
       applyFilters();
@@ -2064,10 +2065,17 @@ function clearTierChips(){
   document.querySelectorAll('#chipTier button').forEach(b=>b.classList.remove('active'));
   applyFilters();
 }
+function rebuildFilterChips(){
+  const contentSet=new Set();
+  DATA.forEach(r=>{if(r.contentCategories)r.contentCategories.forEach(c=>contentSet.add(c))});
+  const statuses=[...new Set(DATA.map(r=>r.outreachStatus).filter(Boolean))].sort();
+  buildContentChips([...contentSet].sort());
+  buildStatusChips(statuses);
+}
 function buildContentChips(options){
   const el=document.getElementById('chipContent');el.innerHTML='';
   options.forEach(opt=>{
-    const btn=document.createElement('button');btn.className='chip';btn.dataset.val=opt;
+    const btn=document.createElement('button');btn.className='chip'+(msState.content.has(opt)?' active':'');btn.dataset.val=opt;
     btn.textContent=opt;btn.style.cssText='padding:3px 9px;font-size:10px';
     btn.onclick=()=>toggleContentChip(btn);el.appendChild(btn);
   });
@@ -2089,7 +2097,7 @@ function clearContentChips(){
 function buildStatusChips(options){
   const el=document.getElementById('chipStatus');el.innerHTML='';
   options.forEach(opt=>{
-    const btn=document.createElement('button');btn.className='chip';btn.dataset.val=opt;
+    const btn=document.createElement('button');btn.className='chip'+(msState.status.has(opt)?' active':'');btn.dataset.val=opt;
     btn.textContent=opt;btn.style.cssText='padding:3px 9px;font-size:10px';
     btn.onclick=()=>toggleStatusChip(btn);el.appendChild(btn);
   });
