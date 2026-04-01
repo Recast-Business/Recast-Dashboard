@@ -1088,12 +1088,12 @@ html.light .cmd-k-overlay{background:rgba(0,0,0,0.10)}
         </div>
       </div>
       <div class="filter-group">
-        <div class="filter-label"><span>Content Type</span><span class="clear-filter" id="clear-content" onclick="clearMs('content')">Clear</span></div>
-        <div id="ms-content"></div>
+        <div class="filter-label"><span>Content Type</span><span class="clear-filter" id="clear-content" onclick="clearContentChips()">Clear</span></div>
+        <div class="chip-group chip-wrap" id="chipContent"></div>
       </div>
       <div class="filter-group">
-        <div class="filter-label"><span>Outreach Status</span><span class="clear-filter" id="clear-status" onclick="clearMs('status')">Clear</span></div>
-        <div id="ms-status"></div>
+        <div class="filter-label"><span>Outreach Status</span><span class="clear-filter" id="clear-status" onclick="clearStatusChips()">Clear</span></div>
+        <div class="chip-group chip-wrap" id="chipStatus"></div>
       </div>
       <div class="filter-group">
         <div class="filter-label"><span>Casino / Slots</span></div>
@@ -2064,6 +2064,50 @@ function clearTierChips(){
   document.querySelectorAll('#chipTier button').forEach(b=>b.classList.remove('active'));
   applyFilters();
 }
+function buildContentChips(options){
+  const el=document.getElementById('chipContent');el.innerHTML='';
+  options.forEach(opt=>{
+    const btn=document.createElement('button');btn.className='chip';btn.dataset.val=opt;
+    btn.textContent=opt;btn.style.cssText='padding:3px 9px;font-size:10px';
+    btn.onclick=()=>toggleContentChip(btn);el.appendChild(btn);
+  });
+}
+function toggleContentChip(btn){
+  const val=btn.dataset.val;
+  if(msState.content.has(val)){msState.content.delete(val);btn.classList.remove('active');}
+  else{msState.content.add(val);btn.classList.add('active');}
+  const clearBtn=document.getElementById('clear-content');
+  if(clearBtn)clearBtn.classList.toggle('visible',msState.content.size>0);
+  applyFilters();
+}
+function clearContentChips(){
+  msState.content.clear();
+  document.querySelectorAll('#chipContent .chip').forEach(b=>b.classList.remove('active'));
+  document.getElementById('clear-content').classList.remove('visible');
+  applyFilters();
+}
+function buildStatusChips(options){
+  const el=document.getElementById('chipStatus');el.innerHTML='';
+  options.forEach(opt=>{
+    const btn=document.createElement('button');btn.className='chip';btn.dataset.val=opt;
+    btn.textContent=opt;btn.style.cssText='padding:3px 9px;font-size:10px';
+    btn.onclick=()=>toggleStatusChip(btn);el.appendChild(btn);
+  });
+}
+function toggleStatusChip(btn){
+  const val=btn.dataset.val;
+  if(msState.status.has(val)){msState.status.delete(val);btn.classList.remove('active');}
+  else{msState.status.add(val);btn.classList.add('active');}
+  const clearBtn=document.getElementById('clear-status');
+  if(clearBtn)clearBtn.classList.toggle('visible',msState.status.size>0);
+  applyFilters();
+}
+function clearStatusChips(){
+  msState.status.clear();
+  document.querySelectorAll('#chipStatus .chip').forEach(b=>b.classList.remove('active'));
+  document.getElementById('clear-status').classList.remove('visible');
+  applyFilters();
+}
 document.addEventListener('click',()=>{
   document.querySelectorAll('.ms-dropdown.open').forEach(d=>d.classList.remove('open'));
   document.querySelectorAll('.ms-trigger.open').forEach(t=>t.classList.remove('open'));
@@ -2315,7 +2359,9 @@ function exportExcel(){
 }
 function resetFilters(){
   document.getElementById('searchInput').value='';document.getElementById('filterCCV').value='';
-  ['platform','content','status'].forEach(k=>clearMs(k));
+  clearMs('platform');
+  clearContentChips();
+  clearStatusChips();
   clearTierChips();
   clearRosterRegion();
   selectCasinoFilter(document.querySelector('#chipCasino .chip[data-val="all"]'));
@@ -4017,8 +4063,8 @@ function init(){
   DATA.forEach(r=>{if(r.contentCategories)r.contentCategories.forEach(c=>contentSet.add(c))});
   const statuses=[...new Set(DATA.map(r=>r.outreachStatus).filter(Boolean))].sort();
   buildMultiSelect('platform','ms-platform',platforms);
-  buildMultiSelect('content','ms-content',[...contentSet].sort());
-  buildMultiSelect('status','ms-status',statuses);
+  buildContentChips([...contentSet].sort());
+  buildStatusChips(statuses);
   applyFilters();
   const _sortArrow=document.getElementById('sort-name');if(_sortArrow)_sortArrow.textContent='▲';
   // If localStorage is empty, try restoring from server backup
