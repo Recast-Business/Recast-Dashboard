@@ -8,25 +8,26 @@ from api._shared import json_response, read_body, existing_names_in_gsheet
 
 # ── Category slug maps ────────────────────────────────────────────────────────
 
-KICK_CAT_SLUGS = {
-    "FPS / Shooter":       ["apex-legends", "valorant", "call-of-duty-warzone", "counter-strike-2", "call-of-duty-black-ops-6"],
-    "Battle Royale":       ["fortnite", "pubg-battlegrounds"],
-    "MOBA / Strategy":     ["league-of-legends", "dota-2"],
-    "RPG / Souls-Like":    ["elden-ring", "diablo-iv", "path-of-exile-2", "baldurs-gate-3"],
-    "MMO / RP":            ["world-of-warcraft", "grand-theft-auto-v", "final-fantasy-xiv"],
-    "Gacha / Anime":       ["genshin-impact", "honkai-star-rail", "wuthering-waves"],
-    "Minecraft / Sandbox": ["minecraft"],
-    "Sports / Esports":    ["ea-sports-fc-25", "nba-2k25", "rocket-league"],
-    "Fighting Games":      ["street-fighter-6", "mortal-kombat-1", "tekken-8"],
-    "Just Chatting":       ["just-chatting"],
-    "IRL / Lifestyle":     ["irl", "travel-outdoor"],
-    "Slots / Casino":      ["slots"],
-    "Variety / Gaming":    ["just-chatting"],
-    "Talk / Podcast":      ["just-chatting", "podcast"],
-    "Creative / Art":      ["art", "music"],
-    "VTuber":              ["vtubers", "just-chatting"],
+# Kick category IDs — the only reliable filter param on Kick's livestreams API
+KICK_CAT_IDS = {
+    "FPS / Shooter":       [64, 754, 1552, 84],         # VALORANT, Warzone, CS2, Tarkov
+    "Battle Royale":       [3, 53],                       # Fortnite, PUBG
+    "MOBA / Strategy":     [5, 14],                       # League, Dota 2
+    "RPG / Souls-Like":    [1239],                        # Baldur's Gate 3
+    "MMO / RP":            [8],                           # GTA V
+    "Gacha / Anime":       [2124],                        # Wuthering Waves
+    "Minecraft / Sandbox": [10],                          # Minecraft
+    "Sports / Esports":    [11216, 75],                   # EA FC 26, Sports
+    "Fighting Games":      [],
+    "Just Chatting":       [15],                          # Just Chatting
+    "IRL / Lifestyle":     [8549],                        # IRL
+    "Slots / Casino":      [28, 30],                      # Slots & Casino, Poker
+    "Variety / Gaming":    [15],                          # Just Chatting
+    "Talk / Podcast":      [15],                          # Just Chatting
+    "Creative / Art":      [32],                          # Art
+    "VTuber":              [15],                          # Just Chatting
 }
-KICK_ALL_SLUGS = ["just-chatting", "grand-theft-auto-v", "fortnite", "slots", "apex-legends", "valorant", "minecraft", "league-of-legends", "irl"]
+KICK_ALL_IDS = [15, 8, 3, 28, 64, 10, 5, 8549]  # Just Chatting, GTA, Fortnite, Slots, VALORANT, Minecraft, League, IRL
 
 TWITCH_GAME_NAMES = {
     "FPS / Shooter":       ["Apex Legends", "VALORANT", "Call of Duty: Warzone", "Counter-Strike 2", "Call of Duty: Black Ops 6"],
@@ -70,8 +71,8 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
     if quick:
         lang_codes = lang_codes[:3]
 
-    slugs = KICK_CAT_SLUGS.get(category, []) if category else [None]
-    max_slugs = 2 if quick else len(slugs)
+    cat_ids = KICK_CAT_IDS.get(category, []) if category else [None]
+    max_cats = 2 if quick else len(cat_ids)
     max_pages = 1 if quick else 3
 
     headers = {
@@ -85,14 +86,14 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
     seen = set()
 
     for lang_code in lang_codes:
-        for slug in slugs[:max_slugs]:
+        for cat_id in cat_ids[:max_cats]:
             cursor = None
             pages_fetched = 0
             while pages_fetched < max_pages:
                 try:
                     qparts = [f"sort=viewer_count_desc", f"language={lang_code}", "limit=24"]
-                    if slug:
-                        qparts.append(f"subcategory={slug}")
+                    if cat_id:
+                        qparts.append(f"category_id={cat_id}")
                     if cursor:
                         qparts.append(f"after={cursor}")
                     url = "https://web.kick.com/api/v1/livestreams?" + "&".join(qparts)
@@ -127,7 +128,7 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
                         if allowed_codes and language and language not in allowed_codes:
                             continue
                         cat_info = s.get("category") or {}
-                        content = cat_info.get("name") or (category or slug or "")
+                        content = cat_info.get("name") or (category or "")
                         results.append({
                             "id": int(datetime.now().timestamp() * 1000) + len(results),
                             "name": name, "platform": "Kick", "handle": handle,
