@@ -72,8 +72,8 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
         lang_codes = lang_codes[:3]
 
     cat_ids = KICK_CAT_IDS.get(category, []) if category else [None]
-    max_cats = 2 if quick else len(cat_ids)
-    max_pages = 1 if quick else 3
+    max_cats = len(cat_ids)  # always check all category IDs
+    max_pages = 2 if quick else 4
 
     headers = {
         "Accept": "application/json",
@@ -85,13 +85,18 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
     results = []
     seen = set()
 
-    for lang_code in lang_codes:
+    # If user selected specific languages, filter by those;
+    # otherwise fetch ALL languages (like Kick's website does)
+    fetch_langs = lang_codes if languages else [None]  # None = no language filter
+    for lang_code in fetch_langs:
         for cat_id in cat_ids[:max_cats]:
             cursor = None
             pages_fetched = 0
             while pages_fetched < max_pages:
                 try:
-                    qparts = [f"sort=viewer_count_desc", f"language={lang_code}", "limit=24"]
+                    qparts = ["sort=viewer_count_desc", "limit=100"]
+                    if lang_code:
+                        qparts.append(f"language={lang_code}")
                     if cat_id:
                         qparts.append(f"category_id={cat_id}")
                     if cursor:
@@ -132,10 +137,10 @@ def scrape_kick(category, ccv_min, ccv_max, languages, limit, quick, roster_name
                         results.append({
                             "id": int(datetime.now().timestamp() * 1000) + len(results),
                             "name": name, "platform": "Kick", "handle": handle,
-                            "ccv": ccv, "country": "", "language": language or lang_code,
+                            "ccv": ccv, "country": "", "language": language or (lang_code or ""),
                             "countryKnown": False, "content": content,
                             "twitter": "", "instagram": "",
-                            "source": f"Kick/{lang_code}", "inRoster": False,
+                            "source": f"Kick/{lang_code or 'all'}", "inRoster": False,
                             "date": datetime.now().strftime("%d/%m/%Y"),
                         })
                     except Exception:
