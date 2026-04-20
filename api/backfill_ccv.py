@@ -6,7 +6,10 @@ Body (optional): {"limit": 50, "mode": "current"|"30d"}
 """
 from http.server import BaseHTTPRequestHandler
 import requests
-from api._shared import _get_gsheet, json_response, read_body, tier_from_ccv
+from api._shared import (
+    _get_gsheet, json_response, read_body, tier_from_ccv,
+    require_auth, cors_headers,
+)
 from api.ccv30 import get_ccv30_twitch, get_ccv30_kick
 
 TWITCH_HEADERS = {
@@ -195,6 +198,8 @@ def _backfill_30d(sh, headers, all_values, batch_limit):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "finance")):
+            return
         try:
             body = read_body(self)
             batch_limit = min(int(body.get("limit") or 50), 200)
@@ -295,7 +300,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

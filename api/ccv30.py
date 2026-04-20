@@ -2,7 +2,7 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 import json, re, requests
-from api._shared import json_response
+from api._shared import json_response, require_auth, cors_headers
 
 
 def get_ccv30_twitch(handle):
@@ -75,6 +75,8 @@ def get_ccv30_kick(handle):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         qs = parse_qs(urlparse(self.path).query)
         platform = (qs.get("platform", [""])[0] or "").lower()
         handle = (qs.get("handle", [""])[0] or "").strip()
@@ -103,7 +105,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

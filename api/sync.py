@@ -15,7 +15,9 @@ Presence:
 """
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from api._shared import json_response, read_body, _get_gsheet
+from api._shared import (
+    json_response, read_body, _get_gsheet, require_auth, cors_headers,
+)
 import json, time
 
 
@@ -63,6 +65,8 @@ class handler(BaseHTTPRequestHandler):
         return (qs.get("type", [""])[0] or "").lower()
 
     def do_GET(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         sync_type = self._get_type()
         try:
             if sync_type == "agency":
@@ -104,6 +108,8 @@ class handler(BaseHTTPRequestHandler):
             json_response(self, 500, {"error": str(e)})
 
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         sync_type = self._get_type()
         try:
             body = read_body(self)
@@ -148,7 +154,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

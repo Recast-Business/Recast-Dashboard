@@ -5,7 +5,9 @@ Creates a standalone spreadsheet shared with the team, in the same Drive folder.
 from http.server import BaseHTTPRequestHandler
 from datetime import datetime
 import json, os, tempfile
-from api._shared import json_response, read_body, SPREADSHEET_ID
+from api._shared import (
+    json_response, read_body, SPREADSHEET_ID, require_auth, cors_headers,
+)
 
 SHARE_EMAILS = [
     "partners@shadowoperator.ai",
@@ -89,6 +91,8 @@ def _create_brief_sheet(rows, brief_name=""):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         try:
             body = read_body(self)
             rows = body.get("rows") or []
@@ -109,7 +113,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

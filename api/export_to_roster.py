@@ -6,11 +6,14 @@ from datetime import datetime
 from api._shared import (
     json_response, read_body, tier_from_ccv,
     existing_names_in_gsheet, gsheet_headers, gsheet_append_row,
+    require_auth, cors_headers,
 )
 
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         try:
             body = read_body(self)
             creators = body.get("creators") or []
@@ -92,7 +95,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

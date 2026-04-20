@@ -3,7 +3,10 @@ Body (optional): {"name": "exact name to delete"}
 No body: removes all duplicate rows, keeping first occurrence.
 """
 from http.server import BaseHTTPRequestHandler
-from api._shared import _get_gsheet, _find_name_col, json_response, read_body
+from api._shared import (
+    _get_gsheet, _find_name_col, json_response, read_body,
+    require_auth, cors_headers,
+)
 
 
 def _get_name_col_index(headers):
@@ -16,6 +19,9 @@ def _get_name_col_index(headers):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        # Destructive op — admin + finance only.
+        if not require_auth(self, required_roles=("admin", "finance")):
+            return
         try:
             body = read_body(self)
             sh = _get_gsheet()
@@ -88,7 +94,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

@@ -1,10 +1,15 @@
 """GET /api/roster — Read all creators from Google Sheets and return as JSON."""
 from http.server import BaseHTTPRequestHandler
-from api._shared import gsheet_all_records, process_records, json_response
+from api._shared import (
+    gsheet_all_records, process_records, json_response,
+    require_auth, cors_headers,
+)
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         try:
             raw = gsheet_all_records()
             if raw is None:
@@ -17,7 +22,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

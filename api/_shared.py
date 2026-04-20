@@ -562,14 +562,45 @@ def process_records(raw_rows: list) -> list:
 
 # ── JSON Response Helper ──────────────────────────────────────────────────────
 
+# ── CORS: lock to the production origin + localhost dev ──────────────────────
+# Allowed origins list (add additional preview deployment URLs via env).
+_ALLOWED_ORIGINS = {
+    "https://recast-dashboard.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+}
+_extra = os.environ.get("ALLOWED_ORIGINS", "")
+if _extra:
+    for o in _extra.split(","):
+        o = o.strip()
+        if o:
+            _ALLOWED_ORIGINS.add(o)
+
+
+def _origin_allowed(handler) -> str:
+    origin = handler.headers.get("Origin", "")
+    if origin in _ALLOWED_ORIGINS:
+        return origin
+    # Fall back to production origin for non-browser callers (server-to-server).
+    return "https://recast-dashboard.vercel.app"
+
+
+def cors_headers(handler) -> None:
+    origin = _origin_allowed(handler)
+    handler.send_header("Access-Control-Allow-Origin", origin)
+    handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    handler.send_header(
+        "Access-Control-Allow-Headers", "Content-Type, Authorization, apikey"
+    )
+    handler.send_header("Vary", "Origin")
+
+
 def json_response(handler, status, data):
     """Send a JSON response from a BaseHTTPRequestHandler."""
     body = json.dumps(data, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
-    handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    cors_headers(handler)
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
@@ -582,3 +613,83 @@ def read_body(handler) -> dict:
         return {}
     raw = handler.rfile.read(length)
     return json.loads(raw)
+
+
+# ── Supabase JWT auth + role check ────────────────────────────────────────────
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+
+def _verify_supabase_jwt(token: str):
+    """Call Supabase Auth API to verify the JWT. Returns user dict or None."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+    try:
+        import requests as _rq
+        r = _rq.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "apikey": SUPABASE_ANON_KEY,
+            },
+            timeout=6,
+        )
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"[auth] verify failed: {e}")
+    return None
+
+
+def _user_role(user_id: str):
+    """Look up the user's role in the profiles table using the service key."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY or not user_id:
+        return None
+    try:
+        import requests as _rq
+        r = _rq.get(
+            f"{SUPABASE_URL}/rest/v1/profiles",
+            params={"id": f"eq.{user_id}", "select": "role"},
+            headers={
+                "apikey": SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            },
+            timeout=6,
+        )
+        if r.status_code == 200:
+            rows = r.json()
+            if rows:
+                return (rows[0].get("role") or "").strip() or None
+    except Exception as e:
+        print(f"[auth] role lookup failed: {e}")
+    return None
+
+
+def require_auth(handler, required_roles=None):
+    """Verify Bearer token + (optionally) role. On failure, writes 401/403 and
+    returns None. On success returns a dict {id, email, role}. Call as the
+    first line of every handler that touches data."""
+    auth_header = handler.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        json_response(handler, 401, {"error": "missing bearer token"})
+        return None
+    token = auth_header[7:].strip()
+    if not token:
+        json_response(handler, 401, {"error": "empty token"})
+        return None
+
+    user = _verify_supabase_jwt(token)
+    if not user or not user.get("id"):
+        json_response(handler, 401, {"error": "invalid token"})
+        return None
+
+    role = _user_role(user["id"])
+    if required_roles:
+        allowed = {r.strip() for r in required_roles}
+        if role not in allowed:
+            json_response(handler, 403, {"error": "forbidden", "role": role})
+            return None
+
+    return {"id": user["id"], "email": user.get("email"), "role": role}

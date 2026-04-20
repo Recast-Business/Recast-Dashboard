@@ -4,7 +4,7 @@ Returns: {"results": {"hasanabi": {"twitter": "...", "instagram": "..."}, ...}}
 """
 from http.server import BaseHTTPRequestHandler
 import json, requests
-from api._shared import json_response, read_body
+from api._shared import json_response, read_body, require_auth, cors_headers
 
 TWITCH_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -113,6 +113,8 @@ def _fetch_kick_socials(handles):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "partner", "finance")):
+            return
         try:
             body = read_body(self)
             creators = body.get("creators") or []
@@ -155,7 +157,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

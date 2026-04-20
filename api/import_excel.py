@@ -6,6 +6,7 @@ import base64, io
 from api._shared import (
     json_response, read_body,
     existing_names_in_gsheet, gsheet_headers, gsheet_append_rows,
+    require_auth, cors_headers,
 )
 
 COL_MAP = {
@@ -26,6 +27,8 @@ MAX_IMPORT_SIZE = 10 * 1024 * 1024  # 10 MB
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "finance")):
+            return
         try:
             body = read_body(self)
             file_b64 = body.get("file_b64", "")
@@ -97,7 +100,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()

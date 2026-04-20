@@ -10,7 +10,9 @@ Supported fields and their Google Sheets column headers:
   pipeline_notes  -> "Pipeline Notes"
 """
 from http.server import BaseHTTPRequestHandler
-from api._shared import gsheet_update_field, json_response, read_body
+from api._shared import (
+    gsheet_update_field, json_response, read_body, require_auth, cors_headers,
+)
 
 FIELD_MAP = {
     "outreach_status": "Outreach Status",
@@ -36,6 +38,8 @@ FIELD_MAP = {
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not require_auth(self, required_roles=("admin", "finance", "partner")):
+            return
         try:
             body = read_body(self)
             name = (body.get("name") or "").strip()
@@ -59,7 +63,5 @@ class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        cors_headers(self)
         self.end_headers()
