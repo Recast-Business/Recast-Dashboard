@@ -328,14 +328,19 @@ def _upload_to_drive_and_share(docx_bytes, filename, share_email):
             ),
             resumable=False,
         )
+        file_body = {
+            "name": filename,
+            # Google Docs MIME type — converts .docx into a native Doc
+            "mimeType": "application/vnd.google-apps.document",
+        }
+        folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+        if folder_id:
+            file_body["parents"] = [folder_id]
+
         file = (
             drive.files()
             .create(
-                body={
-                    "name": filename,
-                    # Google Docs MIME type — converts .docx into a native Doc
-                    "mimeType": "application/vnd.google-apps.document",
-                },
+                body=file_body,
                 media_body=media,
                 fields="id,webViewLink",
                 supportsAllDrives=True,
