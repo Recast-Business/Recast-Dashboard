@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Loader2, RefreshCw, Trash2, UserCheck, X, Zap } from "lucide-react";
+import { FileText, Loader2, RefreshCw, Trash2, UserCheck, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { CreatorTable, type CreatorRow } from "@/components/roster/CreatorTable";
 import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
+import { GenerateBriefDialog } from "@/components/leads/GenerateBriefDialog";
 import {
   useCreators,
   useSetCreatorSigned,
@@ -48,6 +49,12 @@ export function LeadsPage() {
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [pendingStatus, setPendingStatus] = React.useState<string>("");
+  const [briefOpen, setBriefOpen] = React.useState(false);
+
+  const selectedCreators = React.useMemo(
+    () => (data ?? []).filter((c) => selected.has(c.id)),
+    [data, selected],
+  );
 
   async function onBackfill() {
     try {
@@ -192,6 +199,14 @@ export function LeadsPage() {
           <Button
             type="button"
             size="sm"
+            variant="default"
+            onClick={() => setBriefOpen(true)}
+          >
+            <FileText className="mr-1 h-3.5 w-3.5" /> Generate Brief
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant="ghost"
             className="ml-auto"
             onClick={() => setSelected(new Set())}
@@ -200,6 +215,12 @@ export function LeadsPage() {
           </Button>
         </div>
       )}
+
+      <GenerateBriefDialog
+        open={briefOpen}
+        onOpenChange={setBriefOpen}
+        creators={selectedCreators as CreatorRow[]}
+      />
 
       <CreatorTable
         rows={(data ?? []) as CreatorRow[]}
