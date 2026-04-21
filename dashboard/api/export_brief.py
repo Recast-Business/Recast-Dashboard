@@ -1,10 +1,10 @@
-"""POST /api/export_brief — Build a SPORTFIVE-style brief as a Google Doc.
+"""POST /api/export_brief — Build a creator-assessment brief as a Google Doc.
 
 Body:
   {
-    "partner": "SPORTFIVE",
-    "campaign": "World Betting Cup",
-    "criteria": "Team-based tournament ... Focus geos ...",
+    "partner": "Brand or agency name",
+    "campaign": "Campaign title",
+    "criteria": "Free-form description of requirements, geos, CCV range, etc.",
     "month_year": "April 2026",          # optional, defaults to today
     "creator_ids": ["uuid", "uuid", ...], # from Leads selection
     "statuses": {"uuid": "Qualified — Shortlist", ...}  # optional per-creator
@@ -12,7 +12,7 @@ Body:
 
 Auth: admin + finance. Uses the logged-in user's email as the share target.
 Upload:
-  1. python-docx builds the .docx in-memory matching the SPORTFIVE layout
+  1. python-docx builds the .docx in-memory using Recast's standard brief layout
   2. Drive API v3 uploads + converts to Google Doc
   3. Drive API shares with the caller's email (writer)
   4. Returns {ok, url}

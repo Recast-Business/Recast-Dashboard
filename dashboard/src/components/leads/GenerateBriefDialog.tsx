@@ -135,7 +135,7 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
                 required
                 value={partner}
                 onChange={(e) => setPartner(e.target.value)}
-                placeholder="e.g. SPORTFIVE"
+                placeholder="Brand or agency name"
               />
             </div>
             <div className="space-y-2">
@@ -145,7 +145,7 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
                 required
                 value={campaign}
                 onChange={(e) => setCampaign(e.target.value)}
-                placeholder="e.g. World Betting Cup"
+                placeholder="Campaign name"
               />
             </div>
           </div>
@@ -158,7 +158,7 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
               value={criteria}
               onChange={(e) => setCriteria(e.target.value)}
               rows={4}
-              placeholder="Team-based tournament running alongside the FIFA World Cup. Focus geos: LATAM, Canada, Europe. Active Kick presence required. CCV range…"
+              placeholder="Describe the campaign requirements: focus geographies, platform preferences, CCV range, content style, scheduling windows, and any creator attributes that matter."
               className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </div>
