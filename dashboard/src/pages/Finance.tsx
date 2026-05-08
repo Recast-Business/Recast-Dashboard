@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DivisionView } from "@/components/finance/DivisionView";
-import { HousePlaceholder } from "@/components/finance/HousePlaceholder";
+import { HouseSection } from "@/components/finance/HouseSection";
 import { VendorSection } from "@/components/finance/VendorSection";
 import type { Division } from "@/types/finance";
 
@@ -53,7 +53,7 @@ export function FinancePage() {
         ))}
 
         <TabsContent value="house">
-          <HousePlaceholder year={year} />
+          <HouseSection year={year} />
         </TabsContent>
 
         <TabsContent value="vendors">
