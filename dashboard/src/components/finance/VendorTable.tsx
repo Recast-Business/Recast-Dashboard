@@ -57,8 +57,9 @@ interface CellTarget {
 
 /**
  * Spreadsheet-style wide layout: vendor metadata + 12-month grid in one row.
- * Banking columns stay hidden (Reveal still happens via the row-expanded
- * BankingPanel) — never decrypt sensitive data in a list view.
+ * Sensitive bank/card numbers are intentionally NOT collected — only the
+ * friendly account_profile label (e.g. "Chase business credit card") and the
+ * monthly amount.
  */
 export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) {
   const upsert = useUpsertVendorPayment();
@@ -189,7 +190,7 @@ export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) 
         </Table>
       </div>
       <div className="text-[11px] text-muted-foreground">
-        Click any month to toggle paid · Shift-click or right-click for full edit · Banking details live on the Card view (Reveal-on-demand for audit).
+        Click any month to toggle paid · Shift-click or right-click for full edit (amount, date, invoice URL, notes).
       </div>
 
       {editingCell && (

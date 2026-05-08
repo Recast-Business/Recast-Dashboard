@@ -5,16 +5,19 @@ import { AuthProvider } from "@/auth/AuthProvider";
 import { queryClient } from "@/lib/queryClient";
 import { router } from "@/router";
 import { ConfirmProvider } from "@/hooks/useConfirm";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 export function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ConfirmProvider>
-          <RouterProvider router={router} />
-          <Toaster richColors position="bottom-right" />
-        </ConfirmProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ConfirmProvider>
+            <RouterProvider router={router} />
+            <Toaster richColors position="bottom-right" />
+          </ConfirmProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

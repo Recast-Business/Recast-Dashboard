@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { useDeleteVendor } from "@/hooks/useVendors";
 import { useConfirm } from "@/hooks/useConfirm";
 import { MonthlyPaymentGrid } from "@/components/finance/MonthlyPaymentGrid";
-import { BankingPanel } from "@/components/finance/BankingPanel";
 import type { Vendor, VendorPayment, PaymentMethod } from "@/types/finance";
 
 const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -102,8 +101,6 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
               Click a month to toggle paid · Shift-click or right-click for full edit (amount, date, invoice URL, notes)
             </div>
           </div>
-
-          <BankingPanel vendorId={vendor.id} />
 
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={onEdit}>

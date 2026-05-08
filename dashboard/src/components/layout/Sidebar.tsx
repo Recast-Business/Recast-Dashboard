@@ -15,6 +15,7 @@ import { canAccess } from "@/auth/useRole";
 import type { UserRole } from "@/types/database";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 interface NavItem {
   to: string;
@@ -69,9 +70,12 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t p-3">
-        <div className="truncate px-3 pb-2 text-xs text-muted-foreground">
-          {user?.email}
+      <div className="space-y-2 border-t p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 truncate px-3 text-xs text-muted-foreground">
+            {user?.email}
+          </div>
+          <ThemeToggle />
         </div>
         <Button
           variant="ghost"
