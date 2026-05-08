@@ -3,8 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/pages/Login";
 import { UnauthorizedPage } from "@/pages/Unauthorized";
-import { CampaignsPage } from "@/pages/Campaigns";
-import { FinancePage } from "@/pages/Finance";
+import { RebuildingPage } from "@/pages/Rebuilding";
 import { RosterPage } from "@/pages/Roster";
 import { LeadsPage } from "@/pages/Leads";
 import { PotentialPage } from "@/pages/Potential";
@@ -29,7 +28,10 @@ export const router = createBrowserRouter([
         path: "campaigns",
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance"]}>
-            <CampaignsPage />
+            <RebuildingPage
+              section="Campaigns"
+              detail="The campaign tracker is being rebuilt with per-creator commission overrides, view-based CPM, and per-campaign payment history. New version lands shortly."
+            />
           </ProtectedRoute>
         ),
       },
@@ -37,7 +39,10 @@ export const router = createBrowserRouter([
         path: "finance",
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance"]}>
-            <FinancePage />
+            <RebuildingPage
+              section="Finance"
+              detail="Finance is being split into OnlyFans, Telegram, eFuse, and Frazier's House sub-sections, with vendors, talents and monthly payment grids. Coming back soon."
+            />
           </ProtectedRoute>
         ),
       },
