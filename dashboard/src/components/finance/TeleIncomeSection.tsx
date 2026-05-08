@@ -14,7 +14,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { TeleDealDialog } from "@/components/finance/TeleDealDialog";
 import { TelePeriodCellDialog } from "@/components/finance/TelePeriodCellDialog";
 import type { PaymentStatusV2, TelePeriodPerformance } from "@/types/finance";
-import { cn, formatUSD } from "@/lib/utils";
+import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -203,20 +203,25 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
                   key={month}
                   type="button"
                   onClick={() => setEditingMonth(month)}
+                  title={
+                    p?.gross_revenue != null && Number(p.gross_revenue) > 0
+                      ? formatUSD(p.gross_revenue, { decimals: 2 })
+                      : undefined
+                  }
                   className={cn(
-                    "flex flex-col items-stretch rounded-md border px-1.5 py-1 text-left transition hover:border-primary/50",
+                    "flex flex-col items-stretch gap-1 rounded-md border px-2 py-2 text-left transition hover:border-primary/50",
                     STATUS_STYLES[status],
                   )}
                 >
-                  <div className="flex items-center justify-between text-[10px] font-medium">
+                  <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider">
                     <span>{label}</span>
                     {p?.qualified_for_mg && p?.mg_top_up > 0 && (
-                      <span className="rounded bg-amber-200 px-1 text-[8px] text-amber-950">MG</span>
+                      <span className="rounded bg-amber-200 px-1 text-[9px] text-amber-950">MG</span>
                     )}
                   </div>
-                  <div className="truncate text-[11px]">
+                  <div className="text-sm font-semibold tabular-nums">
                     {p?.gross_revenue != null && Number(p.gross_revenue) > 0
-                      ? formatUSD(p.gross_revenue, { decimals: 0 })
+                      ? formatUSDCompact(Number(p.gross_revenue))
                       : "—"}
                   </div>
                 </button>

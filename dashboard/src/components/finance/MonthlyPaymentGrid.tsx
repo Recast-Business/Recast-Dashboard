@@ -3,8 +3,7 @@ import { toast } from "sonner";
 import { useUpsertVendorPayment } from "@/hooks/useVendorPayments";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import type { VendorPayment, PaymentStatusV2 } from "@/types/finance";
-import { cn } from "@/lib/utils";
-import { formatUSD } from "@/lib/utils";
+import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -67,15 +66,19 @@ export function MonthlyPaymentGrid({ vendorId, year, payments }: Props) {
                 e.preventDefault();
                 setOpenMonth(month);
               }}
-              title={`Click: toggle paid/unpaid · Shift-click or right-click: edit details`}
+              title={
+                cell?.amount != null
+                  ? `${formatUSD(cell.amount, { decimals: 2 })} · click to toggle, right-click to edit`
+                  : "Click: toggle paid · Right-click: edit details"
+              }
               className={cn(
-                "flex flex-col items-stretch rounded-md border px-1.5 py-1 text-left transition hover:border-primary/50",
+                "flex flex-col items-stretch gap-1 rounded-md border px-2 py-2 text-left transition hover:border-primary/50",
                 STATUS_STYLES[status],
               )}
             >
-              <div className="text-[10px] font-medium">{label}</div>
-              <div className="truncate text-[11px]">
-                {cell?.amount != null ? formatUSD(cell.amount, { decimals: 0 }) : "—"}
+              <div className="text-[11px] font-medium uppercase tracking-wider">{label}</div>
+              <div className="text-sm font-semibold tabular-nums">
+                {cell?.amount != null ? formatUSDCompact(Number(cell.amount)) : "—"}
               </div>
             </button>
           );

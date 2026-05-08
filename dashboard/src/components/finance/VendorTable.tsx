@@ -20,7 +20,7 @@ import type {
   Vendor,
   VendorPayment,
 } from "@/types/finance";
-import { cn, formatUSD } from "@/lib/utils";
+import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -147,15 +147,17 @@ export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) 
                             e.preventDefault();
                             setEditingCell({ vendorId: v.id, month });
                           }}
-                          title="Click: toggle paid · Shift-click or right-click: edit details"
+                          title={
+                            cell?.amount != null
+                              ? `${formatUSD(cell.amount, { decimals: 2 })} · click to toggle, right-click to edit`
+                              : "Click: toggle paid · Right-click: edit details"
+                          }
                           className={cn(
-                            "block w-full rounded px-1 py-1 text-center transition hover:ring-2 hover:ring-primary/40",
+                            "block w-full rounded px-1 py-1.5 text-center font-semibold tabular-nums transition hover:ring-2 hover:ring-primary/40",
                             STATUS_STYLES[status],
                           )}
                         >
-                          <div className="text-[10px]">
-                            {cell?.amount != null ? formatUSD(cell.amount, { decimals: 0 }) : "—"}
-                          </div>
+                          {cell?.amount != null ? formatUSDCompact(Number(cell.amount)) : "—"}
                         </button>
                       </TableCell>
                     );
