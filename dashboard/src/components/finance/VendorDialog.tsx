@@ -52,7 +52,8 @@ const DIVISIONS: { value: Division | "none"; label: string }[] = [
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  defaultDivision: Division;
+  /** When undefined, the dialog opens with no preselected division (user picks). */
+  defaultDivision?: Division;
   defaultKind: VendorKind;
   vendor: Vendor | null;       // null = creating
 }
@@ -64,7 +65,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
   const [form, setForm] = React.useState<VendorInput>({
     name: "",
     kind: defaultKind,
-    division: defaultDivision,
+    division: defaultDivision ?? null,
     payment_method: null,
     contact_name: "",
     contact_email: "",
@@ -93,7 +94,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       setForm({
         name: "",
         kind: defaultKind,
-        division: defaultDivision,
+        division: defaultDivision ?? null,
         payment_method: null,
         contact_name: "",
         contact_email: "",

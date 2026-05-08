@@ -16,15 +16,32 @@ type ViewMode = "cards" | "table";
 const VIEW_STORAGE_KEY = "recast.finance.vendorViewMode";
 
 interface Props {
-  division: Division;
+  /** When undefined, lists vendors across all divisions (used by the top-level Vendors tab). */
+  division?: Division;
   kind: VendorKind;
   title: string;
   description: string;
   year: number;
+  /** Show a division filter dropdown when listing across divisions. */
+  showDivisionFilter?: boolean;
 }
 
-export function VendorSection({ division, kind, title, description, year }: Props) {
-  const { data, isLoading, error } = useVendors({ division, kind });
+type DivisionFilter = "all" | "none" | Division;
+
+export function VendorSection({ division, kind, title, description, year, showDivisionFilter }: Props) {
+  // When `division` is fixed by the parent, the in-page filter is hidden + ignored.
+  // When the section is top-level (no fixed division), this dropdown decides what to query.
+  const [divisionFilter, setDivisionFilter] = React.useState<DivisionFilter>("all");
+
+  const queryDivision: Division | null | undefined =
+    division ??
+    (divisionFilter === "all"
+      ? undefined
+      : divisionFilter === "none"
+      ? null
+      : divisionFilter);
+
+  const { data, isLoading, error } = useVendors({ division: queryDivision, kind });
   const [search, setSearch] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Vendor | null>(null);
@@ -73,6 +90,25 @@ export function VendorSection({ division, kind, title, description, year }: Prop
           </Button>
         </div>
       </div>
+
+      {showDivisionFilter && !division && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Division:</span>
+          {(["all", "onlyfans", "telegram", "efuse", "none"] as DivisionFilter[]).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDivisionFilter(d)}
+              className={cn(
+                "rounded-md border px-2 py-1 capitalize transition",
+                divisionFilter === d ? "bg-foreground text-background" : "hover:bg-muted",
+              )}
+            >
+              {d === "all" ? "All" : d === "none" ? "Org-wide" : d === "onlyfans" ? "OnlyFans" : d === "telegram" ? "Telegram" : "eFuse"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <Input
         placeholder="Search by name, contact, profile, notes…"

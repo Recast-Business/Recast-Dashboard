@@ -2,6 +2,7 @@ import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DivisionView } from "@/components/finance/DivisionView";
 import { HousePlaceholder } from "@/components/finance/HousePlaceholder";
+import { VendorSection } from "@/components/finance/VendorSection";
 import type { Division } from "@/types/finance";
 
 const DIVISIONS: { value: Division; label: string }[] = [
@@ -20,15 +21,15 @@ export function FinancePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Finance</h1>
           <p className="text-sm text-muted-foreground">
-            Vendors, talents, and household ledgers across each Recast division.
-            Year-by-year payment grid with full audit trail on banking access.
+            Vendors, talents, and household ledgers across Recast. Year-by-year
+            payment grid with full audit trail on banking access.
           </p>
         </div>
         <YearSelector value={year} onChange={setYear} />
       </div>
 
       <Tabs defaultValue="onlyfans" className="space-y-4">
-        <TabsList className="h-10">
+        <TabsList className="h-10 flex-wrap">
           {DIVISIONS.map((d) => (
             <TabsTrigger key={d.value} value={d.value} className="px-4">
               {d.label}
@@ -36,6 +37,12 @@ export function FinancePage() {
           ))}
           <TabsTrigger value="house" className="px-4">
             Frazier's House
+          </TabsTrigger>
+          <TabsTrigger value="vendors" className="px-4">
+            Vendors
+          </TabsTrigger>
+          <TabsTrigger value="credit_cards" className="px-4">
+            Credit cards
           </TabsTrigger>
         </TabsList>
 
@@ -47,6 +54,26 @@ export function FinancePage() {
 
         <TabsContent value="house">
           <HousePlaceholder year={year} />
+        </TabsContent>
+
+        <TabsContent value="vendors">
+          <VendorSection
+            kind="vendor"
+            title="Vendors"
+            description="Companies, contractors and recurring bills Recast pays — across all divisions and the org as a whole."
+            year={year}
+            showDivisionFilter
+          />
+        </TabsContent>
+
+        <TabsContent value="credit_cards">
+          <VendorSection
+            kind="credit_card_account"
+            title="Credit cards"
+            description="Cards Recast uses to pay vendors. Tag transactions to a card for analytics and audits."
+            year={year}
+            showDivisionFilter
+          />
         </TabsContent>
       </Tabs>
     </div>
