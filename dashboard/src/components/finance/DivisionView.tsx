@@ -1,5 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VendorSection } from "@/components/finance/VendorSection";
+import { OFIncomeSection } from "@/components/finance/OFIncomeSection";
+import { TeleIncomeSection } from "@/components/finance/TeleIncomeSection";
 import type { Division } from "@/types/finance";
 
 interface Props {
@@ -8,14 +10,29 @@ interface Props {
 }
 
 export function DivisionView({ division, year }: Props) {
+  // OF and Telegram have an extra "Income" tab as the first (default) tab
+  const hasIncome = division === "onlyfans" || division === "telegram";
+  const defaultTab = hasIncome ? "income" : "vendor";
+
   return (
-    <Tabs defaultValue="vendor" className="space-y-4">
+    <Tabs defaultValue={defaultTab} className="space-y-4">
       <TabsList>
+        {hasIncome && <TabsTrigger value="income">Income</TabsTrigger>}
         <TabsTrigger value="vendor">Vendors</TabsTrigger>
         <TabsTrigger value="talent_we_pay">Talents we pay</TabsTrigger>
         <TabsTrigger value="talent_that_pays_us">Talents paying us</TabsTrigger>
         <TabsTrigger value="credit_card_account">Credit cards</TabsTrigger>
       </TabsList>
+
+      {hasIncome && (
+        <TabsContent value="income">
+          {division === "onlyfans" ? (
+            <OFIncomeSection year={year} />
+          ) : (
+            <TeleIncomeSection year={year} />
+          )}
+        </TabsContent>
+      )}
 
       <TabsContent value="vendor">
         <VendorSection

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2, UserMinus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { CreatorTable, type CreatorRow } from "@/components/roster/CreatorTable";
 import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
-import { useCreators, useUpdateContractTerms } from "@/hooks/useCreators";
+import {
+  useBulkDeleteCreators,
+  useCreators,
+  useSetCreatorSigned,
+  useUpdateContractTerms,
+} from "@/hooks/useCreators";
+import { useConfirm } from "@/hooks/useConfirm";
 import { useAuth } from "@/auth/AuthProvider";
 
 export function RosterPage() {
@@ -21,6 +28,41 @@ export function RosterPage() {
   const canEdit = role === "admin";
   const { data, isLoading, error } = useCreators("signed");
   const [editTarget, setEditTarget] = React.useState<CreatorRow | null>(null);
+  const setSigned = useSetCreatorSigned();
+  const del = useBulkDeleteCreators();
+  const confirm = useConfirm();
+
+  async function onUnsign(c: CreatorRow) {
+    const ok = await confirm({
+      title: `Move ${c.name} back to Leads?`,
+      description: "Unsigning keeps the creator's profile but moves them out of the Roster.",
+      confirmLabel: "Unsign",
+    });
+    if (!ok) return;
+    try {
+      await setSigned.mutateAsync({ id: c.id, signed: false });
+      toast.success(`${c.name} moved back to Leads`);
+    } catch (e) {
+      toast.error(`Failed: ${(e as Error).message}`);
+    }
+  }
+
+  async function onDelete(c: CreatorRow) {
+    const ok = await confirm({
+      title: `Delete ${c.name}?`,
+      description:
+        "Permanently removes the creator from the Roster, the dashboard, and the master Google Sheet. Cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync([c.id]);
+      toast.success(`${c.name} deleted`);
+    } catch (e) {
+      toast.error(`Delete failed: ${(e as Error).message}`);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -72,6 +114,36 @@ export function RosterPage() {
             </div>
           ),
         }}
+        rowAction={
+          canEdit
+            ? (c) => (
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => onUnsign(c)}
+                    title="Move back to Leads"
+                    disabled={setSigned.isPending}
+                  >
+                    <UserMinus className="mr-1 h-3 w-3" /> Unsign
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    onClick={() => onDelete(c)}
+                    title="Permanently delete"
+                    disabled={del.isPending}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              )
+            : undefined
+        }
       />
 
       {editTarget && (
