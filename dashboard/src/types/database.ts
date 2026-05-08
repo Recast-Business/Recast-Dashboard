@@ -1,7 +1,7 @@
 // Placeholder until `supabase gen types typescript --project-id <id>` is run
 // against the real project. Shape below matches migrations 0001–0007.
 
-export type UserRole = "admin" | "partner" | "finance";
+export type UserRole = "admin" | "partner" | "finance" | "operator";
 export type CampaignStatus =
   | "active"
   | "pending"

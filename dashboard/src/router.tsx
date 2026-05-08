@@ -19,7 +19,7 @@ export const router = createBrowserRouter([
   { path: "/unauthorized", element: <UnauthorizedPage /> },
   {
     element: (
-      <ProtectedRoute allow={["admin", "partner", "finance"]}>
+      <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
         <AppShell />
       </ProtectedRoute>
     ),
@@ -28,7 +28,7 @@ export const router = createBrowserRouter([
       {
         path: "campaigns",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
             <CampaignsPage />
           </ProtectedRoute>
         ),
@@ -44,7 +44,7 @@ export const router = createBrowserRouter([
       {
         path: "roster",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
             <RosterPage />
           </ProtectedRoute>
         ),
@@ -52,7 +52,7 @@ export const router = createBrowserRouter([
       {
         path: "leads",
         element: (
-          <ProtectedRoute allow={["admin", "partner"]}>
+          <ProtectedRoute allow={["admin", "partner", "operator"]}>
             <LeadsPage />
           </ProtectedRoute>
         ),
@@ -60,7 +60,7 @@ export const router = createBrowserRouter([
       {
         path: "potential",
         element: (
-          <ProtectedRoute allow={["admin", "partner"]}>
+          <ProtectedRoute allow={["admin", "partner", "operator"]}>
             <PotentialPage />
           </ProtectedRoute>
         ),
@@ -68,7 +68,7 @@ export const router = createBrowserRouter([
       {
         path: "creators/:id",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
             <CreatorProfilePage />
           </ProtectedRoute>
         ),
@@ -76,7 +76,7 @@ export const router = createBrowserRouter([
       {
         path: "scout",
         element: (
-          <ProtectedRoute allow={["admin", "partner"]}>
+          <ProtectedRoute allow={["admin", "partner", "operator"]}>
             <ScoutPage />
           </ProtectedRoute>
         ),
@@ -84,7 +84,7 @@ export const router = createBrowserRouter([
       {
         path: "briefs",
         element: (
-          <ProtectedRoute allow={["admin", "partner"]}>
+          <ProtectedRoute allow={["admin", "partner", "operator"]}>
             <BriefsPage />
           </ProtectedRoute>
         ),

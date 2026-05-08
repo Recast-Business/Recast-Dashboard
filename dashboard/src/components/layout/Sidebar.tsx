@@ -26,12 +26,12 @@ interface NavItem {
 
 const ITEMS: NavItem[] = [
   { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
-  { to: "/campaigns", label: "Campaigns", icon: LayoutGrid, allow: ["admin", "partner", "finance"] },
-  { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner"] },
-  { to: "/roster", label: "Roster", icon: Users, allow: ["admin", "partner", "finance"] },
-  { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner"] },
-  { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner"] },
-  { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner"] },
+  { to: "/campaigns", label: "Campaigns", icon: LayoutGrid, allow: ["admin", "partner", "finance", "operator"] },
+  { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner", "operator"] },
+  { to: "/roster", label: "Roster", icon: Users, allow: ["admin", "partner", "finance", "operator"] },
+  { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"] },
+  { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"] },
+  { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
   { to: "/activity", label: "Activity", icon: Activity, allow: ["admin", "partner", "finance"] },
 ];
 

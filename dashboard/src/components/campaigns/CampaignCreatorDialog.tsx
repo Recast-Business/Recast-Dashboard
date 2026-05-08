@@ -26,6 +26,7 @@ import {
   type CampaignCreatorInput,
 } from "@/hooks/useCampaignCreators";
 import { useCreators } from "@/hooks/useCreators";
+import { useViewCampaignFinancials } from "@/auth/useRole";
 import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
 import type { CampaignCreatorV2 } from "@/types/finance";
 import type { DealType } from "@/lib/finance/campaign-calc";
@@ -45,6 +46,7 @@ export function CampaignCreatorDialog({
   const update = useUpdateCampaignCreator();
   const { data: creators, isLoading: creatorsLoading } = useCreators("signed");
   const [addCreatorOpen, setAddCreatorOpen] = React.useState(false);
+  const seeFinancials = useViewCampaignFinancials();
 
   const [creatorId, setCreatorId] = React.useState("");
   const [dealType, setDealType] = React.useState<DealType>("cpm");
@@ -179,7 +181,7 @@ export function CampaignCreatorDialog({
                 </SelectContent>
               </Select>
             </div>
-            {showCpm && (
+            {seeFinancials && showCpm && (
               <div className="grid gap-1.5">
                 <Label htmlFor="cc-cpm">CPM rate ($/1k views)</Label>
                 <Input
@@ -192,7 +194,7 @@ export function CampaignCreatorDialog({
                 />
               </div>
             )}
-            {showFlat && (
+            {seeFinancials && showFlat && (
               <div className="grid gap-1.5">
                 <Label htmlFor="cc-flat">Flat amount ($)</Label>
                 <Input
@@ -207,29 +209,35 @@ export function CampaignCreatorDialog({
             )}
           </div>
 
-          <div className="rounded-md border bg-muted/20 p-3 space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={overrideOn}
-                onChange={(e) => setOverrideOn(e.target.checked)}
-              />
-              Override commission % for this creator
-              <span className="ml-auto text-xs text-muted-foreground">
-                campaign default: {defaultCommissionPct}%
-              </span>
-            </label>
-            {overrideOn && (
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={overridePct}
-                onChange={(e) => setOverridePct(e.target.value)}
-              />
-            )}
-          </div>
+          {seeFinancials ? (
+            <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={overrideOn}
+                  onChange={(e) => setOverrideOn(e.target.checked)}
+                />
+                Override commission % for this creator
+                <span className="ml-auto text-xs text-muted-foreground">
+                  campaign default: {defaultCommissionPct}%
+                </span>
+              </label>
+              {overrideOn && (
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={overridePct}
+                  onChange={(e) => setOverridePct(e.target.value)}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="rounded-md border bg-muted/10 p-3 text-xs text-muted-foreground">
+              Rate, flat amount, and commission % are managed by Finance.
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">

@@ -24,6 +24,7 @@ import {
   useUpdateCampaign,
   type CampaignInput,
 } from "@/hooks/useCampaigns";
+import { useViewCampaignFinancials } from "@/auth/useRole";
 import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 
 const TYPE_OPTIONS = [
@@ -52,6 +53,7 @@ interface Props {
 export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
   const add = useAddCampaign();
   const update = useUpdateCampaign();
+  const seeFinancials = useViewCampaignFinancials();
 
   const [name, setName] = React.useState("");
   const [brand, setBrand] = React.useState("");
@@ -176,18 +178,27 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="c-pct">Default commission %</Label>
-              <Input
-                id="c-pct"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={defaultPct}
-                onChange={(e) => setDefaultPct(e.target.value)}
-              />
-            </div>
+            {seeFinancials ? (
+              <div className="grid gap-1.5">
+                <Label htmlFor="c-pct">Default commission %</Label>
+                <Input
+                  id="c-pct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={defaultPct}
+                  onChange={(e) => setDefaultPct(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="grid gap-1.5">
+                <Label className="text-muted-foreground">Default commission %</Label>
+                <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-xs text-muted-foreground">
+                  Hidden by your role
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

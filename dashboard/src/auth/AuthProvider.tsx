@@ -7,6 +7,9 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   role: UserRole | null;
+  /** Per-profile flag — controls whether an operator sees campaign $ figures.
+   *  Always true for admin / finance / partner; only meaningful for operator. */
+  viewCampaignFinancials: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -16,6 +19,7 @@ const AuthContext = React.createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = React.useState<Session | null>(null);
   const [role, setRole] = React.useState<UserRole | null>(null);
+  const [viewCampaignFinancials, setViewCampaignFinancials] = React.useState(true);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -47,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     supabase
       .from("profiles")
-      .select("role")
+      .select("role, view_campaign_financials")
       .eq("id", session.user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -55,8 +59,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error("Failed to load profile role:", error);
           setRole(null);
+          setViewCampaignFinancials(true);
         } else {
-          setRole((data?.role as UserRole) ?? null);
+          const r = (data?.role as UserRole) ?? null;
+          setRole(r);
+          // Operators get whatever the flag says; everyone else always sees financials.
+          if (r === "operator") {
+            setViewCampaignFinancials(!!data?.view_campaign_financials);
+          } else {
+            setViewCampaignFinancials(true);
+          }
         }
         setLoading(false);
       });
@@ -74,10 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       user: session?.user ?? null,
       role,
+      viewCampaignFinancials,
       loading,
       signOut,
     }),
-    [session, role, loading, signOut],
+    [session, role, viewCampaignFinancials, loading, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

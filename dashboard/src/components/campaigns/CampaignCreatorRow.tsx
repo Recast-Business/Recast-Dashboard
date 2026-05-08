@@ -7,6 +7,7 @@ import {
   type CampaignCreatorRow as CCRow,
 } from "@/hooks/useCampaignCreators";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useViewCampaignFinancials } from "@/auth/useRole";
 import { CampaignPeriodCellDialog } from "@/components/campaigns/CampaignPeriodCellDialog";
 import type { CampaignPayment, PaymentStatusV2 } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function CampaignCreatorRow({
   const [editingMonth, setEditingMonth] = React.useState<number | null>(null);
   const del = useDeleteCampaignCreator();
   const confirm = useConfirm();
+  const seeFinancials = useViewCampaignFinancials();
 
   const totals = React.useMemo(() => {
     let gross = 0, paidCount = 0;
@@ -46,12 +48,19 @@ export function CampaignCreatorRow({
   }, [payments]);
 
   const effectivePct = cc.commission_pct != null ? cc.commission_pct : defaultCommissionPct;
-  const dealLabel =
-    cc.deal_type === "cpm"
+  // Operators with view_campaign_financials=false see only the deal *type*,
+  // not the rates / flat amount / commission %.
+  const dealLabel = seeFinancials
+    ? cc.deal_type === "cpm"
       ? `CPM · $${cc.cpm_rate ?? 0}/1k`
       : cc.deal_type === "flat_fee"
       ? `Flat · ${formatUSD(cc.flat_amount ?? 0, { decimals: 0 })}`
-      : `Hybrid · $${cc.cpm_rate ?? 0}/1k + ${formatUSD(cc.flat_amount ?? 0, { decimals: 0 })}`;
+      : `Hybrid · $${cc.cpm_rate ?? 0}/1k + ${formatUSD(cc.flat_amount ?? 0, { decimals: 0 })}`
+    : cc.deal_type === "cpm"
+    ? "CPM"
+    : cc.deal_type === "flat_fee"
+    ? "Flat fee"
+    : "Hybrid";
 
   async function onDelete() {
     const ok = await confirm({
@@ -83,17 +92,19 @@ export function CampaignCreatorRow({
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
               {dealLabel}
             </span>
-            <span
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider",
-                cc.commission_pct != null
-                  ? "bg-amber-100 text-amber-900"
-                  : "bg-muted text-muted-foreground",
-              )}
-              title={cc.commission_pct != null ? "Per-creator override" : "Inherited from campaign default"}
-            >
-              {effectivePct}% to Recast{cc.commission_pct != null ? " (override)" : ""}
-            </span>
+            {seeFinancials && (
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider",
+                  cc.commission_pct != null
+                    ? "bg-amber-100 text-amber-900"
+                    : "bg-muted text-muted-foreground",
+                )}
+                title={cc.commission_pct != null ? "Per-creator override" : "Inherited from campaign default"}
+              >
+                {effectivePct}% to Recast{cc.commission_pct != null ? " (override)" : ""}
+              </span>
+            )}
           </div>
           {(cc.start_date || cc.end_date) && (
             <div className="mt-0.5 text-[11px] text-muted-foreground">
@@ -102,11 +113,15 @@ export function CampaignCreatorRow({
           )}
         </div>
         <div className="hidden items-center gap-2 text-xs sm:flex">
-          <span className="text-muted-foreground">Gross YTD</span>
-          <span className="font-semibold tabular-nums">
-            {formatUSD(totals.gross, { decimals: 0 })}
-          </span>
-          <span className="text-muted-foreground">·</span>
+          {seeFinancials && (
+            <>
+              <span className="text-muted-foreground">Gross YTD</span>
+              <span className="font-semibold tabular-nums">
+                {formatUSD(totals.gross, { decimals: 0 })}
+              </span>
+              <span className="text-muted-foreground">·</span>
+            </>
+          )}
           <span className="text-muted-foreground">{totals.paidCount}/12 paid</span>
         </div>
       </button>
@@ -127,9 +142,9 @@ export function CampaignCreatorRow({
                   type="button"
                   onClick={() => setEditingMonth(month)}
                   title={
-                    p?.amount != null
+                    seeFinancials && p?.amount != null
                       ? `${formatUSD(p.amount, { decimals: 2 })} · ${status} · click to edit`
-                      : "Click to enter metrics"
+                      : `${status} · click to edit`
                   }
                   className={cn(
                     "flex flex-col items-stretch gap-1 rounded-md border px-2 py-2 text-left transition hover:border-primary/50",
@@ -138,8 +153,12 @@ export function CampaignCreatorRow({
                 >
                   <div className="text-[11px] font-medium uppercase tracking-wider">{label}</div>
                   <div className="text-sm font-semibold tabular-nums">
-                    {p?.amount != null && Number(p.amount) > 0
-                      ? formatUSDCompact(Number(p.amount))
+                    {seeFinancials
+                      ? p?.amount != null && Number(p.amount) > 0
+                        ? formatUSDCompact(Number(p.amount))
+                        : "—"
+                      : status === "paid"
+                      ? "✓"
                       : "—"}
                   </div>
                 </button>

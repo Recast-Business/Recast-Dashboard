@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useUpsertCampaignPayment } from "@/hooks/useCampaignPayments";
+import { useViewCampaignFinancials } from "@/auth/useRole";
 import { calcCampaignDeal, type DealType } from "@/lib/finance/campaign-calc";
 import { formatUSD } from "@/lib/utils";
 import type { CampaignCreatorV2, CampaignPayment, PaymentStatusV2 } from "@/types/finance";
@@ -51,6 +52,7 @@ export function CampaignPeriodCellDialog({
   year, month, existing,
 }: Props) {
   const upsert = useUpsertCampaignPayment();
+  const seeFinancials = useViewCampaignFinancials();
 
   // Local working copies of the metrics for THIS month. We don't update
   // the rolling totals on campaign_creators from here — those reflect
@@ -160,45 +162,49 @@ export function CampaignPeriodCellDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="cp-paid">Paid date</Label>
-              <DatePicker id="cp-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
-            </div>
-          </div>
+          {seeFinancials && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      <SelectItem value="partial">Partial</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cp-paid">Paid date</Label>
+                  <DatePicker id="cp-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
+                </div>
+              </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="cp-inv">Invoice URL</Label>
-            <div className="flex gap-2">
-              <Input
-                id="cp-inv"
-                type="url"
-                value={invoiceUrl}
-                onChange={(e) => setInvoiceUrl(e.target.value)}
-              />
-              {invoiceUrl && (
-                <Button type="button" size="icon" variant="outline" asChild title="Open invoice">
-                  <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="cp-inv">Invoice URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="cp-inv"
+                    type="url"
+                    value={invoiceUrl}
+                    onChange={(e) => setInvoiceUrl(e.target.value)}
+                  />
+                  {invoiceUrl && (
+                    <Button type="button" size="icon" variant="outline" asChild title="Open invoice">
+                      <a href={invoiceUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="grid gap-1.5">
             <Label htmlFor="cp-notes">Notes</Label>
@@ -211,29 +217,46 @@ export function CampaignPeriodCellDialog({
             />
           </div>
 
-          {/* Live calc preview */}
+          {/* Live calc preview — operators without financial visibility see only CTR */}
           <div className="rounded-md border bg-muted/30 p-3 text-xs">
             <div className="mb-1 font-medium uppercase tracking-wider text-muted-foreground">
-              Calculation
+              {seeFinancials ? "Calculation" : "Metrics"}
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-              {preview.cpm_gross > 0 && (
+              {seeFinancials && preview.cpm_gross > 0 && (
                 <Stat label="CPM gross" value={formatUSD(preview.cpm_gross, { decimals: 2 })} />
               )}
-              {preview.flat_gross > 0 && (
+              {seeFinancials && preview.flat_gross > 0 && (
                 <Stat label="Flat gross" value={formatUSD(preview.flat_gross, { decimals: 2 })} />
               )}
-              <Stat label="Total gross" value={formatUSD(preview.gross, { decimals: 2 })} emphasised />
+              {seeFinancials && (
+                <Stat
+                  label="Total gross"
+                  value={formatUSD(preview.gross, { decimals: 2 })}
+                  emphasised
+                />
+              )}
               {preview.views > 0 && <Stat label="CTR" value={`${preview.ctr_pct}%`} />}
-              <Stat
-                label={`Recast commission (${preview.effective_commission_pct}%)`}
-                value={formatUSD(preview.recast_commission, { decimals: 2 })}
-              />
-              <Stat
-                label="Creator take-home"
-                value={formatUSD(preview.creator_take_home, { decimals: 2 })}
-                emphasised
-              />
+              {seeFinancials && (
+                <>
+                  <Stat
+                    label={`Recast commission (${preview.effective_commission_pct}%)`}
+                    value={formatUSD(preview.recast_commission, { decimals: 2 })}
+                  />
+                  <Stat
+                    label="Creator take-home"
+                    value={formatUSD(preview.creator_take_home, { decimals: 2 })}
+                    emphasised
+                  />
+                </>
+              )}
+              {!seeFinancials && (
+                <>
+                  <dt className="col-span-2 text-muted-foreground">
+                    Financial figures hidden by your role.
+                  </dt>
+                </>
+              )}
             </dl>
           </div>
         </div>

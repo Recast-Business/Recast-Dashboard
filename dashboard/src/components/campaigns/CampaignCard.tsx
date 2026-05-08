@@ -11,6 +11,7 @@ import {
 } from "@/hooks/useCampaignPayments";
 import { useDeleteCampaign } from "@/hooks/useCampaigns";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useViewCampaignFinancials } from "@/auth/useRole";
 import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
 import { CampaignCreatorDialog } from "@/components/campaigns/CampaignCreatorDialog";
 import { CampaignCreatorRow } from "@/components/campaigns/CampaignCreatorRow";
@@ -38,6 +39,7 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
   const [addingCreator, setAddingCreator] = React.useState(false);
   const del = useDeleteCampaign();
   const confirm = useConfirm();
+  const seeFinancials = useViewCampaignFinancials();
 
   const { data: creators, isLoading } = useCampaignCreators(expanded ? campaign.id : null);
   const ccIds = React.useMemo(() => (creators ?? []).map((c) => c.id), [creators]);
@@ -99,17 +101,22 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
             )}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {campaign.start_date ?? "—"} → {campaign.end_date ?? "—"} · default {campaign.default_commission_pct}% to Recast
+            {campaign.start_date ?? "—"} → {campaign.end_date ?? "—"}
+            {seeFinancials && (
+              <> · default {campaign.default_commission_pct}% to Recast</>
+            )}
           </div>
         </div>
-        <div className="hidden items-center gap-3 text-xs sm:flex">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Gross YTD</span>
-            <span className="text-base font-semibold tabular-nums">
-              {formatUSD(ytdGross, { decimals: 0 })}
-            </span>
+        {seeFinancials && (
+          <div className="hidden items-center gap-3 text-xs sm:flex">
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Gross YTD</span>
+              <span className="text-base font-semibold tabular-nums">
+                {formatUSD(ytdGross, { decimals: 0 })}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </button>
 
       {expanded && (
