@@ -6,6 +6,7 @@ import {
   useBankingList,
   useDeleteBanking,
 } from "@/hooks/useBanking";
+import { useConfirm } from "@/hooks/useConfirm";
 import { BankingDialog } from "@/components/finance/BankingDialog";
 import { BankingRevealedView } from "@/components/finance/BankingRevealedView";
 
@@ -17,12 +18,19 @@ interface Props {
 export function BankingPanel({ vendorId, creatorId }: Props) {
   const { data: items, isLoading } = useBankingList({ vendorId, creatorId });
   const del = useDeleteBanking();
+  const confirm = useConfirm();
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [revealedId, setRevealedId] = React.useState<string | null>(null);
 
   async function onDelete(id: string) {
-    if (!confirm("Delete this banking record? This is logged in the audit trail.")) return;
+    const ok = await confirm({
+      title: "Delete banking record?",
+      description: "This is logged in the audit trail and cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(id);
       toast.success("Banking record deleted");

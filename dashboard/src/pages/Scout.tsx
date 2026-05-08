@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/auth/AuthProvider";
+import { useConfirm } from "@/hooks/useConfirm";
 
 type Platform = "" | "twitch" | "kick";
 
@@ -137,6 +138,7 @@ function resultKey(r: ScoutResult): string {
 
 export function ScoutPage() {
   const { role } = useAuth();
+  const confirm = useConfirm();
   const isAdmin = role === "admin";
 
   // Form state
@@ -265,13 +267,12 @@ export function ScoutPage() {
     if (!selected.size) return;
     const picks = results.filter((r) => selected.has(resultKey(r)));
     if (!picks.length) return;
-    if (
-      !confirm(
-        `Add ${picks.length} creator${picks.length === 1 ? "" : "s"} to Leads?\n` +
-          "They'll land in the dashboard Leads table AND append to the master Google Sheet.",
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Add ${picks.length} ${picks.length === 1 ? "creator" : "creators"} to Leads?`,
+      description: "They'll land in the dashboard Leads table and append to the master Google Sheet.",
+      confirmLabel: "Add to Leads",
+    });
+    if (!ok) return;
 
     setExporting(true);
     try {
@@ -356,7 +357,12 @@ export function ScoutPage() {
   }
 
   async function onRemoveDuplicates() {
-    if (!confirm("Remove duplicate rows from the master Google Sheet?")) return;
+    const ok = await confirm({
+      title: "Remove duplicate rows?",
+      description: "Scans the master Google Sheet and removes rows with duplicate Twitch/Kick handles. Keeps the oldest of each.",
+      confirmLabel: "Remove duplicates",
+    });
+    if (!ok) return;
     setDedupe(true);
     try {
       const res = await apiFetch("/api/remove_duplicates", {
@@ -387,12 +393,12 @@ export function ScoutPage() {
       toast.info("Scrape Socials only works on Twitch handles. Select some first.");
       return;
     }
-    if (
-      !confirm(
-        `Scrape Twitter/Instagram from Twitch panels for ${twitchOnly.length} creator${twitchOnly.length === 1 ? "" : "s"}?`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Scrape socials for ${twitchOnly.length} ${twitchOnly.length === 1 ? "creator" : "creators"}?`,
+      description: "Pulls Twitter/Instagram handles from Twitch panel descriptions. Takes 1-2 seconds per creator.",
+      confirmLabel: "Scrape",
+    });
+    if (!ok) return;
     setScraping(true);
     try {
       const res = await apiFetch("/api/scrape_socials", {

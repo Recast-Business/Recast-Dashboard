@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDeleteVendor } from "@/hooks/useVendors";
+import { useConfirm } from "@/hooks/useConfirm";
 import { MonthlyPaymentGrid } from "@/components/finance/MonthlyPaymentGrid";
 import { BankingPanel } from "@/components/finance/BankingPanel";
 import type { Vendor, VendorPayment, PaymentMethod } from "@/types/finance";
@@ -30,6 +31,7 @@ interface Props {
 export function VendorRow({ vendor, year, payments, onEdit }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   const del = useDeleteVendor();
+  const confirm = useConfirm();
 
   const paidCount = React.useMemo(
     () => Object.values(payments).filter((p) => p.status === "paid").length,
@@ -41,7 +43,13 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
   );
 
   async function onDelete() {
-    if (!confirm(`Delete "${vendor.name}"? This wipes all monthly payment history.`)) return;
+    const ok = await confirm({
+      title: `Delete ${vendor.name}?`,
+      description: "This wipes all monthly payment history and the linked banking records. Cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       await del.mutateAsync(vendor.id);
       toast.success(`${vendor.name} deleted`);

@@ -22,6 +22,7 @@ import {
   useBulkSetOutreachStatus,
 } from "@/hooks/useCreators";
 import { useAuth } from "@/auth/AuthProvider";
+import { useConfirm } from "@/hooks/useConfirm";
 
 const OUTREACH_STATUSES = [
   "Not Contacted",
@@ -46,6 +47,7 @@ export function LeadsPage() {
   const bulkSign = useBulkSign();
   const bulkDelete = useBulkDeleteCreators();
   const bulkStatus = useBulkSetOutreachStatus();
+  const confirm = useConfirm();
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [pendingStatus, setPendingStatus] = React.useState<string>("");
@@ -81,14 +83,19 @@ export function LeadsPage() {
       );
       return;
     }
-    if (
-      !confirm(
-        `Fetch live 30-day CCV from TwitchTracker for ${targets.length} leads?\n` +
-          `This hits the API once per creator (1-2 minutes).\n` +
-          `Existing values stay put when TwitchTracker returns 0 or no data.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Fetch CCV for ${targets.length} ${targets.length === 1 ? "lead" : "leads"}?`,
+      description: (
+        <>
+          Pulls live 30-day CCV from TwitchTracker (1-2 minutes — one API
+          call per creator).
+          <br />
+          Existing values are kept if TwitchTracker returns 0 or no data.
+        </>
+      ),
+      confirmLabel: "Fetch",
+    });
+    if (!ok) return;
     try {
       const result = await fetchAll.mutateAsync({
         creators: targets.map((c) => ({
@@ -109,24 +116,25 @@ export function LeadsPage() {
 
   async function onBulkSign() {
     if (!selected.size) return;
-    if (
-      !confirm(
-        `Sign ${selected.size} lead${selected.size === 1 ? "" : "s"} to the Roster?`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Sign ${selected.size} ${selected.size === 1 ? "lead" : "leads"} to the Roster?`,
+      description: "Selected leads will move from Leads to Roster and be flagged as signed.",
+      confirmLabel: "Sign",
+    });
+    if (!ok) return;
     await bulkSign.mutateAsync([...selected]);
     setSelected(new Set());
   }
 
   async function onBulkDelete() {
     if (!selected.size) return;
-    if (
-      !confirm(
-        `Permanently delete ${selected.size} lead${selected.size === 1 ? "" : "s"}? This cannot be undone.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Delete ${selected.size} ${selected.size === 1 ? "lead" : "leads"}?`,
+      description: "This permanently removes them from the dashboard and the Google Sheet. Cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
     await bulkDelete.mutateAsync([...selected]);
     setSelected(new Set());
   }
