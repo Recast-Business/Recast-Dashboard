@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/pages/Login";
 import { UnauthorizedPage } from "@/pages/Unauthorized";
 import { RebuildingPage } from "@/pages/Rebuilding";
+import { FinancePage } from "@/pages/Finance";
 import { RosterPage } from "@/pages/Roster";
 import { LeadsPage } from "@/pages/Leads";
 import { PotentialPage } from "@/pages/Potential";
@@ -38,11 +39,8 @@ export const router = createBrowserRouter([
       {
         path: "finance",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
-            <RebuildingPage
-              section="Finance"
-              detail="Finance is being split into OnlyFans, Telegram, eFuse, and Frazier's House sub-sections, with vendors, talents and monthly payment grids. Coming back soon."
-            />
+          <ProtectedRoute allow={["admin", "finance"]}>
+            <FinancePage />
           </ProtectedRoute>
         ),
       },
