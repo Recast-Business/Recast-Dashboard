@@ -222,6 +222,9 @@ function BedroomsRentPanel({
                     const month = i + 1;
                     const cell = cells[month];
                     const status = cell?.status ?? "unpaid";
+                    // Always show the expected rent amount up-front. Cell colour
+                    // indicates whether it's been paid yet (or is overdue/partial).
+                    const displayAmount = cell?.amount != null ? Number(cell.amount) : r.monthly_rent;
                     return (
                       <TableCell key={month} className="p-1">
                         <button
@@ -237,21 +240,13 @@ function BedroomsRentPanel({
                             e.preventDefault();
                             setEditingCell({ resident: r, month });
                           }}
-                          title={
-                            cell?.amount != null
-                              ? `${formatUSD(cell.amount, { decimals: 2 })} · click toggle, right-click edit`
-                              : "Click: toggle paid · Right-click: edit"
-                          }
+                          title={`${formatUSD(displayAmount, { decimals: 2 })} · ${status} · click to toggle, right-click for full edit`}
                           className={cn(
                             "block w-full rounded px-1 py-1.5 text-center font-semibold tabular-nums transition hover:ring-2 hover:ring-primary/40",
                             STATUS_STYLES[status],
                           )}
                         >
-                          {cell?.amount != null
-                            ? formatUSDCompact(Number(cell.amount))
-                            : status === "paid"
-                            ? formatUSDCompact(r.monthly_rent)
-                            : "—"}
+                          {formatUSDCompact(displayAmount)}
                         </button>
                       </TableCell>
                     );
