@@ -30,6 +30,33 @@ export function useCampaignCreators(campaignId: string | null) {
   });
 }
 
+/**
+ * Bulk variant — one query for many campaign IDs at once. Used by the
+ * Finance → eFuse summary view to compute per-campaign totals without
+ * spawning N queries.
+ *
+ * Returns a map { campaignId → CampaignCreatorRow[] }.
+ */
+export function useCampaignCreatorsByCampaigns(campaignIds: string[]) {
+  return useQuery({
+    queryKey: ["campaign-creators", "v2", "by-campaigns", campaignIds.join(",")],
+    enabled: campaignIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campaign_creators")
+        .select("*, creator:creators(id, name)")
+        .in("campaign_id", campaignIds);
+      if (error) throw error;
+      const map: Record<string, CampaignCreatorRow[]> = {};
+      for (const row of (data ?? []) as CampaignCreatorRow[]) {
+        map[row.campaign_id] ??= [];
+        map[row.campaign_id].push(row);
+      }
+      return map;
+    },
+  });
+}
+
 export interface CampaignCreatorInput {
   campaign_id: string;
   creator_id: string;

@@ -2,7 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VendorSection } from "@/components/finance/VendorSection";
 import { OFIncomeSection } from "@/components/finance/OFIncomeSection";
 import { TeleIncomeSection } from "@/components/finance/TeleIncomeSection";
-import { EFuseIncomePlaceholder } from "@/components/finance/HousePlaceholder";
+import { EFuseIncomeSummary } from "@/components/finance/EFuseIncomeSummary";
 import type { Division } from "@/types/finance";
 
 interface Props {
@@ -25,7 +25,7 @@ export function DivisionView({ division, year }: Props) {
         ) : division === "telegram" ? (
           <TeleIncomeSection year={year} />
         ) : (
-          <EFuseIncomePlaceholder year={year} />
+          <EFuseIncomeSummary year={year} />
         )}
       </TabsContent>
 
