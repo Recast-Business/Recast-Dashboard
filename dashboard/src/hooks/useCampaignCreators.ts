@@ -1,121 +1,152 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { applyManualOverrides, computeEarnings } from "@/lib/earnings/calculate";
-import type { DealComponent, ManualInputs } from "@/types/deal";
-import type { PaymentStatus } from "@/types/database";
+import { calcCampaignDeal, type DealType } from "@/lib/finance/campaign-calc";
+import type { CampaignCreatorV2 } from "@/types/finance";
 
-export interface CampaignCreatorRow {
-  id: string;
-  campaign_id: string;
-  creator_id: string;
-  deal_structure: DealComponent[];
-  manual_inputs: ManualInputs;
-  cached_earnings: number;
-  cached_commission: number;
-  payment_status: PaymentStatus;
-  payment_due_date: string | null;
-  creator: {
-    id: string;
-    name: string;
-    twitch_handle: string | null;
-    kick_handle: string | null;
-    tier: string | null;
-  } | null;
+/**
+ * Replaces the legacy hook of the same name. The old hook used the
+ * pre-Phase-A `deal_components` JSON model and the now-deleted
+ * `applyManualOverrides` earnings engine. The new model is one row per
+ * (campaign, creator) with deal_type + per-creator commission override.
+ */
+
+export interface CampaignCreatorRow extends CampaignCreatorV2 {
+  creator?: { id: string; name: string } | null;
 }
 
 export function useCampaignCreators(campaignId: string | null) {
   return useQuery({
-    queryKey: ["campaign-creators", campaignId],
+    queryKey: ["campaign-creators", "v2", campaignId],
     enabled: !!campaignId,
-    queryFn: async (): Promise<CampaignCreatorRow[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("campaign_creators")
-        .select(
-          `id, campaign_id, creator_id, deal_structure, manual_inputs,
-           cached_earnings, cached_commission,
-           payment_status, payment_due_date,
-           creator:creators!inner(id, name, twitch_handle, kick_handle, tier)`,
-        )
-        .eq("campaign_id", campaignId!);
+        .select("*, creator:creators(id, name)")
+        .eq("campaign_id", campaignId)
+        .order("created_at");
       if (error) throw error;
-      return (data ?? []).map((r: any) => ({
-        id: r.id,
-        campaign_id: r.campaign_id,
-        creator_id: r.creator_id,
-        deal_structure: Array.isArray(r.deal_structure) ? r.deal_structure : [],
-        manual_inputs:
-          r.manual_inputs && typeof r.manual_inputs === "object"
-            ? (r.manual_inputs as ManualInputs)
-            : {},
-        cached_earnings: Number(r.cached_earnings ?? 0),
-        cached_commission: Number(r.cached_commission ?? 0),
-        payment_status: r.payment_status,
-        payment_due_date: r.payment_due_date,
-        creator: r.creator,
-      }));
+      return (data ?? []) as CampaignCreatorRow[];
     },
   });
 }
 
-export function useSaveDealStructure() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (args: {
-      id: string;
-      campaign_id: string;
-      deal_structure: DealComponent[];
-      commission_rate: number;
-      manual_inputs?: ManualInputs;
-    }) => {
-      const base = computeEarnings(args.deal_structure, args.commission_rate);
-      const final = applyManualOverrides(
-        base,
-        args.manual_inputs ?? null,
-        args.commission_rate,
-      );
-      const { error } = await supabase
-        .from("campaign_creators")
-        .update({
-          deal_structure: args.deal_structure as any,
-          manual_inputs: (args.manual_inputs ?? {}) as any,
-          cached_earnings: final.gross,
-          cached_commission: final.commission,
-          last_calculated_at: new Date().toISOString(),
-        })
-        .eq("id", args.id);
-      if (error) throw error;
-      return final;
-    },
-    onSuccess: (_res, vars) => {
-      toast.success("Deal saved");
-      qc.invalidateQueries({ queryKey: ["campaign-creators", vars.campaign_id] });
-      qc.invalidateQueries({ queryKey: ["campaigns", "list"] });
-      qc.invalidateQueries({ queryKey: ["finance-summary"] });
-    },
-    onError: (e) => toast.error(`Save deal failed: ${(e as Error).message}`),
-  });
+export interface CampaignCreatorInput {
+  campaign_id: string;
+  creator_id: string;
+  /** null = inherit campaign default. */
+  commission_pct: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  deal_type: DealType;
+  cpm_rate: number | null;
+  flat_amount: number | null;
+  notes?: string | null;
 }
 
-export function useUpdatePaymentStatus() {
+export function useAddCampaignCreator() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: {
-      id: string;
-      campaign_id: string;
-      payment_status: PaymentStatus;
-    }) => {
-      const { error } = await supabase
+    mutationFn: async (input: CampaignCreatorInput) => {
+      const { data, error } = await supabase
         .from("campaign_creators")
-        .update({ payment_status: args.payment_status })
-        .eq("id", args.id);
+        .insert(input)
+        .select("*")
+        .single();
       if (error) throw error;
+      return data as CampaignCreatorV2;
     },
     onSuccess: (_r, vars) => {
-      toast.success(`Payment status → ${vars.payment_status}`);
-      qc.invalidateQueries({ queryKey: ["campaign-creators", vars.campaign_id] });
-      qc.invalidateQueries({ queryKey: ["finance-summary"] });
+      qc.invalidateQueries({ queryKey: ["campaign-creators", "v2", vars.campaign_id] });
     },
-    onError: (e) => toast.error(`Status update failed: ${(e as Error).message}`),
+  });
+}
+
+export function useUpdateCampaignCreator() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { id: string; patch: Partial<CampaignCreatorInput> }) => {
+      const { data, error } = await supabase
+        .from("campaign_creators")
+        .update(args.patch)
+        .eq("id", args.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as CampaignCreatorV2;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaign-creators", "v2"] }),
+  });
+}
+
+export function useDeleteCampaignCreator() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("campaign_creators").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["campaign-creators", "v2"] });
+      qc.invalidateQueries({ queryKey: ["campaign-payments"] });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Per-month performance (views / clicks / etc) lives on campaign_creators
+// itself as the running totals, but each month's *delta* is stored on the
+// campaign_payment row. The cell editor takes views/clicks for a specific
+// month, calls calcCampaignDeal client-side, and writes both the period
+// row (with that month's gross) and the rolled-up cached totals on
+// campaign_creators.
+// ─────────────────────────────────────────────────────────────────────
+
+export interface CampaignCreatorMetricsUpdate {
+  id: string;
+  views: number | null;
+  displays: number | null;
+  clicks: number | null;
+  /** Optional: pre-computed CTR; if omitted, derived from clicks/views. */
+  ctr_pct?: number | null;
+  /** Pass through deal terms so we can refresh cached_earnings/cached_commission. */
+  deal_type: DealType;
+  cpm_rate: number | null;
+  flat_amount: number | null;
+  override_commission_pct: number | null;
+  default_commission_pct: number;
+}
+
+export function useUpdateCampaignCreatorMetrics() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CampaignCreatorMetricsUpdate) => {
+      const calc = calcCampaignDeal({
+        deal_type: input.deal_type,
+        cpm_rate: input.cpm_rate,
+        flat_amount: input.flat_amount,
+        views: input.views,
+        displays: input.displays,
+        clicks: input.clicks,
+        override_commission_pct: input.override_commission_pct,
+        default_commission_pct: input.default_commission_pct,
+      });
+      const { data, error } = await supabase
+        .from("campaign_creators")
+        .update({
+          views: input.views,
+          displays: input.displays,
+          clicks: input.clicks,
+          ctr_pct: input.ctr_pct ?? calc.ctr_pct,
+          cached_earnings: calc.gross,
+          cached_commission: calc.recast_commission,
+          last_calculated_at: new Date().toISOString(),
+        })
+        .eq("id", input.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return { row: data as CampaignCreatorV2, calc };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaign-creators", "v2"] }),
   });
 }

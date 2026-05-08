@@ -1,66 +1,101 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { CampaignStatus } from "@/types/database";
+import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 
-export interface CampaignRow {
-  id: string;
-  name: string;
-  status: CampaignStatus;
-  brand_id: string;
-  commission_rate: number;
-  payment_due_date: string | null;
-  is_ad_overlay: boolean;
-  type: string | null;
-  brief_id: string | null;
-  brief: { id: string; title: string } | null;
-  brand: { id: string; name: string } | null;
-  creator_count: number;
-  total_earnings: number;
-  total_commission: number;
+/**
+ * NOTE: this file replaces the legacy hook of the same name. The old version
+ * targeted the pre-Phase-A schema (`commission_rate`, `brand_id` FK). The new
+ * schema is `default_commission_pct`, free-text `brand`, plus `campaign_type`,
+ * `is_ad_overlay`, `brief_id`, etc. — all reflected in CampaignV2 in types/finance.
+ */
+
+export interface CampaignFilter {
+  status?: CampaignStatusV2;
+  /** Substring match on name OR brand. */
+  search?: string;
 }
 
-export function useCampaigns(opts?: { enabled?: boolean }) {
+export function useCampaigns(filter: CampaignFilter = {}) {
   return useQuery({
-    queryKey: ["campaigns", "list"],
-    enabled: opts?.enabled ?? true,
-    queryFn: async (): Promise<CampaignRow[]> => {
-      const { data: campaigns, error } = await supabase
+    queryKey: ["campaigns", "v2", "list", filter.status ?? "all", filter.search ?? ""],
+    queryFn: async () => {
+      let q = supabase
         .from("campaigns")
-        .select(
-          `id, name, status, brand_id, commission_rate, payment_due_date, is_ad_overlay, type, brief_id,
-           brand:brands!inner(id, name),
-           brief:briefs!campaigns_brief_id_fkey(id, title),
-           campaign_creators(cached_earnings, cached_commission)`,
-        )
+        .select("*")
         .order("created_at", { ascending: false });
-
+      if (filter.status) q = q.eq("status", filter.status);
+      const { data, error } = await q;
       if (error) throw error;
 
-      return (campaigns ?? []).map((c: any) => {
-        const creators = c.campaign_creators ?? [];
-        return {
-          id: c.id,
-          name: c.name,
-          status: c.status,
-          brand_id: c.brand_id,
-          commission_rate: Number(c.commission_rate),
-          payment_due_date: c.payment_due_date,
-          is_ad_overlay: c.is_ad_overlay,
-          type: c.type ?? null,
-          brief_id: c.brief_id ?? null,
-          brief: c.brief ?? null,
-          brand: c.brand,
-          creator_count: creators.length,
-          total_earnings: creators.reduce(
-            (s: number, cc: any) => s + Number(cc.cached_earnings ?? 0),
-            0,
-          ),
-          total_commission: creators.reduce(
-            (s: number, cc: any) => s + Number(cc.cached_commission ?? 0),
-            0,
-          ),
-        };
-      });
+      let rows = (data ?? []) as CampaignV2[];
+      const s = filter.search?.trim().toLowerCase();
+      if (s) {
+        rows = rows.filter(
+          (c) => c.name.toLowerCase().includes(s) || c.brand.toLowerCase().includes(s),
+        );
+      }
+      return rows;
+    },
+  });
+}
+
+export interface CampaignInput {
+  name: string;
+  brand: string;
+  campaign_type?: string | null;
+  status?: CampaignStatusV2;
+  default_commission_pct: number;
+  description?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_ad_overlay?: boolean;
+  notes?: string | null;
+}
+
+export function useAddCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CampaignInput) => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .insert(input)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as CampaignV2;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns", "v2"] }),
+  });
+}
+
+export function useUpdateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { id: string; patch: Partial<CampaignInput> }) => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .update(args.patch)
+        .eq("id", args.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as CampaignV2;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns", "v2"] }),
+  });
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("campaigns").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["campaigns", "v2"] });
+      qc.invalidateQueries({ queryKey: ["campaign-creators", "v2"] });
+      qc.invalidateQueries({ queryKey: ["campaign-payments"] });
     },
   });
 }
