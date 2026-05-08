@@ -3,8 +3,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/pages/Login";
 import { UnauthorizedPage } from "@/pages/Unauthorized";
-import { RebuildingPage } from "@/pages/Rebuilding";
 import { FinancePage } from "@/pages/Finance";
+import { CampaignsPage } from "@/pages/Campaigns";
 import { RosterPage } from "@/pages/Roster";
 import { LeadsPage } from "@/pages/Leads";
 import { PotentialPage } from "@/pages/Potential";
@@ -29,10 +29,7 @@ export const router = createBrowserRouter([
         path: "campaigns",
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance"]}>
-            <RebuildingPage
-              section="Campaigns"
-              detail="The campaign tracker is being rebuilt with per-creator commission overrides, view-based CPM, and per-campaign payment history. New version lands shortly."
-            />
+            <CampaignsPage />
           </ProtectedRoute>
         ),
       },

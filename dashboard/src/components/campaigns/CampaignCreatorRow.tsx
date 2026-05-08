@@ -1,0 +1,180 @@
+import * as React from "react";
+import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  useDeleteCampaignCreator,
+  type CampaignCreatorRow as CCRow,
+} from "@/hooks/useCampaignCreators";
+import { useConfirm } from "@/hooks/useConfirm";
+import { CampaignPeriodCellDialog } from "@/components/campaigns/CampaignPeriodCellDialog";
+import type { CampaignPayment, PaymentStatusV2 } from "@/types/finance";
+import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
+
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+const STATUS_STYLES: Record<PaymentStatusV2, string> = {
+  unpaid: "bg-muted/30 text-muted-foreground",
+  partial: "bg-amber-50 text-amber-900 border-amber-200",
+  paid: "bg-emerald-50 text-emerald-900 border-emerald-200",
+  overdue: "bg-rose-50 text-rose-900 border-rose-200",
+};
+
+interface Props {
+  campaignCreator: CCRow;
+  defaultCommissionPct: number;
+  year: number;
+  payments: Record<number, CampaignPayment>;
+  onEdit: () => void;
+}
+
+export function CampaignCreatorRow({
+  campaignCreator: cc, defaultCommissionPct, year, payments, onEdit,
+}: Props) {
+  const [expanded, setExpanded] = React.useState(false);
+  const [editingMonth, setEditingMonth] = React.useState<number | null>(null);
+  const del = useDeleteCampaignCreator();
+  const confirm = useConfirm();
+
+  const totals = React.useMemo(() => {
+    let gross = 0, paidCount = 0;
+    for (const p of Object.values(payments)) {
+      gross += Number(p.amount) || 0;
+      if (p.status === "paid") paidCount++;
+    }
+    return { gross, paidCount };
+  }, [payments]);
+
+  const effectivePct = cc.commission_pct != null ? cc.commission_pct : defaultCommissionPct;
+  const dealLabel =
+    cc.deal_type === "cpm"
+      ? `CPM · $${cc.cpm_rate ?? 0}/1k`
+      : cc.deal_type === "flat_fee"
+      ? `Flat · ${formatUSD(cc.flat_amount ?? 0, { decimals: 0 })}`
+      : `Hybrid · $${cc.cpm_rate ?? 0}/1k + ${formatUSD(cc.flat_amount ?? 0, { decimals: 0 })}`;
+
+  async function onDelete() {
+    const ok = await confirm({
+      title: `Remove ${cc.creator?.name ?? "creator"} from campaign?`,
+      description: "This wipes their monthly performance for this campaign. Cannot be undone.",
+      confirmLabel: "Remove",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync(cc.id);
+      toast.success("Removed from campaign");
+    } catch (e) {
+      toast.error(`Remove failed: ${(e as Error).message}`);
+    }
+  }
+
+  return (
+    <div className="rounded-md border bg-card">
+      <button
+        type="button"
+        onClick={() => setExpanded((x) => !x)}
+        className="flex w-full items-center gap-3 p-2.5 text-left text-sm hover:bg-muted/30"
+      >
+        {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{cc.creator?.name ?? "Unknown creator"}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
+              {dealLabel}
+            </span>
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider",
+                cc.commission_pct != null
+                  ? "bg-amber-100 text-amber-900"
+                  : "bg-muted text-muted-foreground",
+              )}
+              title={cc.commission_pct != null ? "Per-creator override" : "Inherited from campaign default"}
+            >
+              {effectivePct}% to Recast{cc.commission_pct != null ? " (override)" : ""}
+            </span>
+          </div>
+          {(cc.start_date || cc.end_date) && (
+            <div className="mt-0.5 text-[11px] text-muted-foreground">
+              {cc.start_date ?? "—"} → {cc.end_date ?? "—"}
+            </div>
+          )}
+        </div>
+        <div className="hidden items-center gap-2 text-xs sm:flex">
+          <span className="text-muted-foreground">Gross YTD</span>
+          <span className="font-semibold tabular-nums">
+            {formatUSD(totals.gross, { decimals: 0 })}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{totals.paidCount}/12 paid</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="space-y-3 border-t p-3">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Monthly performance — {year}
+          </div>
+          <div className="grid grid-cols-12 gap-1">
+            {MONTHS.map((label, i) => {
+              const month = i + 1;
+              const p = payments[month];
+              const status = p?.status ?? "unpaid";
+              return (
+                <button
+                  key={month}
+                  type="button"
+                  onClick={() => setEditingMonth(month)}
+                  title={
+                    p?.amount != null
+                      ? `${formatUSD(p.amount, { decimals: 2 })} · ${status} · click to edit`
+                      : "Click to enter metrics"
+                  }
+                  className={cn(
+                    "flex flex-col items-stretch gap-1 rounded-md border px-2 py-2 text-left transition hover:border-primary/50",
+                    STATUS_STYLES[status],
+                  )}
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-wider">{label}</div>
+                  <div className="text-sm font-semibold tabular-nums">
+                    {p?.amount != null && Number(p.amount) > 0
+                      ? formatUSDCompact(Number(p.amount))
+                      : "—"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="mr-1 h-3 w-3" /> Edit deal
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={onDelete}
+              disabled={del.isPending}
+            >
+              <Trash2 className="mr-1 h-3 w-3" /> Remove
+            </Button>
+          </div>
+
+          {editingMonth != null && (
+            <CampaignPeriodCellDialog
+              open
+              onOpenChange={(o) => !o && setEditingMonth(null)}
+              campaignCreator={cc}
+              defaultCommissionPct={defaultCommissionPct}
+              year={year}
+              month={editingMonth}
+              existing={payments[editingMonth] ?? null}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
