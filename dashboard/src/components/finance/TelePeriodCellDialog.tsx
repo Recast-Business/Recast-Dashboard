@@ -21,6 +21,7 @@ import {
 import { useUpsertTelePeriod } from "@/hooks/useTeleDeals";
 import { calcTelePeriod } from "@/lib/finance/calc";
 import { formatUSD } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import type {
   CommissionBasis,
   PaymentStatusV2,
@@ -174,12 +175,7 @@ export function TelePeriodCellDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="tp-paid">Paid date</Label>
-              <Input
-                id="tp-paid"
-                type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
-              />
+              <DatePicker id="tp-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
             </div>
           </div>
 

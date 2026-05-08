@@ -196,7 +196,6 @@ function ContractTermsDialog({
               id="terms"
               value={terms}
               onChange={(e) => setTerms(e.target.value)}
-              placeholder="e.g. 2yr excl, 20% commission, link to signed PDF…"
             />
           </div>
           {save.error ? (

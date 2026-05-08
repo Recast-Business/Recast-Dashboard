@@ -24,6 +24,8 @@ import {
   type OFDealInput,
 } from "@/hooks/useOFDeals";
 import { useCreators } from "@/hooks/useCreators";
+import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
+import { UserPlus } from "lucide-react";
 import type { CommissionBasis, OFDeal } from "@/types/finance";
 
 interface Props {
@@ -35,7 +37,8 @@ interface Props {
 export function OFDealDialog({ open, onOpenChange, deal }: Props) {
   const add = useAddOFDeal();
   const update = useUpdateOFDeal();
-  const { data: creators, isLoading: creatorsLoading } = useCreators("all");
+  const { data: creators, isLoading: creatorsLoading } = useCreators("signed");
+  const [addCreatorOpen, setAddCreatorOpen] = React.useState(false);
 
   const [creatorId, setCreatorId] = React.useState("");
   const [pageName, setPageName] = React.useState("");
@@ -97,7 +100,7 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
           <DialogTitle>{deal ? "Edit OF page deal" : "Add OF page deal"}</DialogTitle>
           <DialogDescription>
             One deal per (creator, page name). A creator can have multiple pages
-            (e.g. Charlotte Free, Charlotte VIP) — add a row for each.
+            — add a row for each.
           </DialogDescription>
         </DialogHeader>
 
@@ -105,18 +108,32 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label>Creator *</Label>
-              <Select value={creatorId} onValueChange={setCreatorId} disabled={!!deal}>
-                <SelectTrigger>
-                  <SelectValue placeholder={creatorsLoading ? "Loading…" : "Pick a creator"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(creators ?? []).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={creatorId} onValueChange={setCreatorId} disabled={!!deal}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={creatorsLoading ? "Loading…" : "Pick from Roster"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(creators ?? []).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!deal && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setAddCreatorOpen(true)}
+                    title="Create a new creator"
+                  >
+                    <UserPlus className="mr-1 h-4 w-4" /> New
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="of-page">Page name *</Label>
@@ -124,10 +141,16 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
                 id="of-page"
                 value={pageName}
                 onChange={(e) => setPageName(e.target.value)}
-                placeholder="e.g. Charlotte Free"
               />
             </div>
           </div>
+
+          <AddCreatorDialog
+            signed
+            open={addCreatorOpen}
+            onOpenChange={setAddCreatorOpen}
+            onCreated={(id) => setCreatorId(id)}
+          />
 
           <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5">

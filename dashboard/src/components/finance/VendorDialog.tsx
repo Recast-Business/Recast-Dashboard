@@ -157,7 +157,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 id="v-name"
                 value={form.name}
                 onChange={(e) => set("name", e.target.value)}
-                placeholder="e.g. NV Energy"
                 autoFocus
               />
             </div>
@@ -206,7 +205,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 id="v-profile"
                 value={form.account_profile ?? ""}
                 onChange={(e) => set("account_profile", e.target.value)}
-                placeholder='e.g. "Recast Brex Card"'
               />
             </div>
           </div>

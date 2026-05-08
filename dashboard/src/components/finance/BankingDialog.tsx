@@ -133,7 +133,6 @@ export function BankingDialog({ open, onOpenChange, editingId, vendorId, creator
               <Field label="Bank name" value={form.bank_name} onChange={(v) => set("bank_name", v)} />
               <Field
                 label="Account profile"
-                placeholder='e.g. "Recast Chase business"'
                 value={form.account_profile}
                 onChange={(v) => set("account_profile", v)}
               />

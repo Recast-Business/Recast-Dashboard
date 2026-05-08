@@ -24,6 +24,9 @@ import {
   type TeleDealInput,
 } from "@/hooks/useTeleDeals";
 import { useCreators } from "@/hooks/useCreators";
+import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
+import { DatePicker } from "@/components/ui/date-picker";
+import { UserPlus } from "lucide-react";
 import type { CommissionBasis, TeleDeal } from "@/types/finance";
 
 interface Props {
@@ -35,7 +38,8 @@ interface Props {
 export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
   const add = useAddTeleDeal();
   const update = useUpdateTeleDeal();
-  const { data: creators, isLoading: creatorsLoading } = useCreators("all");
+  const { data: creators, isLoading: creatorsLoading } = useCreators("signed");
+  const [addCreatorOpen, setAddCreatorOpen] = React.useState(false);
 
   const [creatorId, setCreatorId] = React.useState<string>("");
   const [pct, setPct] = React.useState<string>("20");
@@ -128,24 +132,49 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
         <div className="grid gap-3 py-2">
           <div className="grid gap-1.5">
             <Label>Creator *</Label>
-            <Select value={creatorId} onValueChange={setCreatorId} disabled={!!deal}>
-              <SelectTrigger>
-                <SelectValue placeholder={creatorsLoading ? "Loading…" : "Pick a creator"} />
-              </SelectTrigger>
-              <SelectContent>
-                {(creators ?? []).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {deal && (
+            <div className="flex items-center gap-2">
+              <Select value={creatorId} onValueChange={setCreatorId} disabled={!!deal}>
+                <SelectTrigger>
+                  <SelectValue placeholder={creatorsLoading ? "Loading…" : "Pick from Roster"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(creators ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!deal && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setAddCreatorOpen(true)}
+                  title="Create a new creator and add them to the Roster"
+                >
+                  <UserPlus className="mr-1 h-4 w-4" /> New
+                </Button>
+              )}
+            </div>
+            {deal ? (
               <p className="text-[11px] text-muted-foreground">
                 Creator can't be changed after the deal is created. Delete + re-add to move.
               </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Pulls from your signed Roster. Click New to create one inline — they'll be added to the Roster automatically.
+              </p>
             )}
           </div>
+
+          <AddCreatorDialog
+            signed
+            open={addCreatorOpen}
+            onOpenChange={setAddCreatorOpen}
+            onCreated={(id) => setCreatorId(id)}
+          />
 
           <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5">
@@ -204,7 +233,6 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
                   min="0"
                   value={mg}
                   onChange={(e) => setMg(e.target.value)}
-                  placeholder="e.g. 7000"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Creator qualifies for top-up when their net is ≥ 50% of MG. Top-up
@@ -217,11 +245,11 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="td-start">Contract start</Label>
-              <Input id="td-start" type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              <DatePicker id="td-start" value={start} onChange={(v) => setStart(v ?? "")} allowClear={false} />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="td-end">Contract end</Label>
-              <Input id="td-end" type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <DatePicker id="td-end" value={end} onChange={(v) => setEnd(v ?? "")} allowClear={false} minDate={start ? new Date(start) : undefined} />
             </div>
           </div>
 

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpsertVendorPayment } from "@/hooks/useVendorPayments";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { VendorPayment, PaymentStatusV2 } from "@/types/finance";
 
 const MONTH_NAMES = [
@@ -116,12 +117,7 @@ export function PaymentCellDialog({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="pc-paid">Paid date</Label>
-              <Input
-                id="pc-paid"
-                type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
-              />
+              <DatePicker id="pc-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
             </div>
           </div>
 

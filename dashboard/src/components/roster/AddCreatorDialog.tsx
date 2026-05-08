@@ -32,10 +32,30 @@ const CATEGORY_OPTIONS = [
 interface Props {
   signed: boolean;
   triggerLabel?: string;
+  /** If supplied, the dialog is fully controlled and the default trigger button is suppressed. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Optional callback invoked with the new creator's id after a successful create. */
+  onCreated?: (creatorId: string) => void;
 }
 
-export function AddCreatorDialog({ signed, triggerLabel = "Add creator" }: Props) {
-  const [open, setOpen] = React.useState(false);
+export function AddCreatorDialog({
+  signed,
+  triggerLabel = "Add creator",
+  open: controlledOpen,
+  onOpenChange,
+  onCreated,
+}: Props) {
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const open = isControlled ? !!controlledOpen : internalOpen;
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (isControlled) onOpenChange?.(next);
+      else setInternalOpen(next);
+    },
+    [isControlled, onOpenChange],
+  );
   const [name, setName] = React.useState("");
   const [category, setCategory] = React.useState<string>("");
   const [country, setCountry] = React.useState("");
@@ -66,7 +86,7 @@ export function AddCreatorDialog({ signed, triggerLabel = "Add creator" }: Props
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await create.mutateAsync({
+    const created = await create.mutateAsync({
       name: name.trim(),
       category: category || null,
       signed,
@@ -75,16 +95,19 @@ export function AddCreatorDialog({ signed, triggerLabel = "Add creator" }: Props
       tier: tier || null,
       socials,
     });
+    if (created?.id) onCreated?.(created.id);
     setOpen(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="mr-2 h-4 w-4" /> {triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <Plus className="mr-2 h-4 w-4" /> {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{signed ? "Add signed creator to Roster" : "Add creator to Leads"}</DialogTitle>
@@ -127,7 +150,6 @@ export function AddCreatorDialog({ signed, triggerLabel = "Add creator" }: Props
                 id="c-country"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
-                placeholder="e.g. US, UK, ES"
               />
             </div>
             <div className="space-y-2">
@@ -136,7 +158,6 @@ export function AddCreatorDialog({ signed, triggerLabel = "Add creator" }: Props
                 id="c-tier"
                 value={tier}
                 onChange={(e) => setTier(e.target.value)}
-                placeholder="e.g. A, B, C"
               />
             </div>
           </div>
@@ -147,7 +168,6 @@ export function AddCreatorDialog({ signed, triggerLabel = "Add creator" }: Props
                 id="c-contract"
                 value={contractTerms}
                 onChange={(e) => setContractTerms(e.target.value)}
-                placeholder="e.g. 2yr excl, 20%, link to signed PDF"
               />
             </div>
           )}

@@ -131,7 +131,6 @@ export function PaymentLogDialog({
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Wire from brand, ref #1234"
             />
           </div>
           <label className="flex items-center gap-2 text-sm">

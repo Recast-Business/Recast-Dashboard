@@ -21,6 +21,7 @@ import {
 import { useUpsertOFPeriod } from "@/hooks/useOFDeals";
 import { calcOFPeriod } from "@/lib/finance/calc";
 import { formatUSD } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import type {
   CommissionBasis,
   OFDeal,
@@ -153,12 +154,7 @@ export function OFPeriodCellDialog({
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="op-paid">Paid date</Label>
-              <Input
-                id="op-paid"
-                type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
-              />
+              <DatePicker id="op-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
             </div>
           </div>
 

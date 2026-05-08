@@ -116,7 +116,6 @@ export function AddCampaignDialog({ campaign, open: controlledOpen, onOpenChange
               required
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              placeholder="e.g. Fanatics"
             />
           </div>
           <div className="space-y-2">
@@ -126,7 +125,6 @@ export function AddCampaignDialog({ campaign, open: controlledOpen, onOpenChange
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Fanatics Overlay – April 2026"
             />
           </div>
           <div className="space-y-2">
@@ -135,7 +133,6 @@ export function AddCampaignDialog({ campaign, open: controlledOpen, onOpenChange
               id="type"
               value={type}
               onChange={(e) => setType(e.target.value)}
-              placeholder="e.g. Partnership, Ad Overlay, One-off"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

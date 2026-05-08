@@ -224,7 +224,7 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
             })}
           </div>
 
-          <div className="flex flex-wrap gap-3 text-xs">
+          <div className="flex flex-wrap gap-x-6 gap-y-3 rounded-md border bg-muted/20 p-3">
             <Stat label="Gross YTD" value={formatUSD(totals.gross, { decimals: 0 })} />
             <Stat label="Net" value={formatUSD(totals.net, { decimals: 0 })} />
             {totals.topUp > 0 && <Stat label="MG top-ups" value={formatUSD(totals.topUp, { decimals: 0 })} emphasised />}
@@ -267,8 +267,10 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
 function Stat({ label, value, emphasised }: { label: string; value: string; emphasised?: boolean }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
-      <span className={emphasised ? "font-semibold" : ""}>{value}</span>
+      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className={emphasised ? "text-lg font-semibold tabular-nums" : "text-base tabular-nums"}>
+        {value}
+      </span>
     </div>
   );
 }

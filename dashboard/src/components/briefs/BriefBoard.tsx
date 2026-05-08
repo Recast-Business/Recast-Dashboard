@@ -399,7 +399,6 @@ function BriefDialog({ brief, open: controlledOpen, onOpenChange }: DialogProps 
               id="b-content-type"
               value={contentType}
               onChange={(e) => setContentType(e.target.value)}
-              placeholder="e.g. Live stream, Short-form, Overlay"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
