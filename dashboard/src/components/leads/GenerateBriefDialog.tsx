@@ -12,26 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/auth/AuthProvider";
 import type { CreatorRow } from "@/components/roster/CreatorTable";
-
-const STATUS_OPTIONS = [
-  "Qualified — Primary Target",
-  "Qualified — Shortlist",
-  "Pending Review",
-  "Does Not Fit — Wrong Content",
-  "Does Not Fit — Active Deal",
-  "Does Not Fit — CCV Too Low",
-  "Does Not Fit — Wrong Geography",
-];
 
 interface Props {
   open: boolean;
@@ -47,7 +30,6 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
   const [campaign, setCampaign] = React.useState("");
   const [criteria, setCriteria] = React.useState("");
   const [monthYear, setMonthYear] = React.useState("");
-  const [statuses, setStatuses] = React.useState<Record<string, string>>({});
   const [submitting, setSubmitting] = React.useState(false);
 
   React.useEffect(() => {
@@ -59,10 +41,7 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
     setMonthYear(
       d.toLocaleString(undefined, { month: "long", year: "numeric" }),
     );
-    setStatuses(
-      Object.fromEntries(creators.map((c) => [c.id, "Pending Review"])),
-    );
-  }, [open, creators]);
+  }, [open]);
 
   async function onGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -85,7 +64,6 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
           criteria: criteria.trim(),
           month_year: monthYear.trim() || undefined,
           creator_ids: creators.map((c) => c.id),
-          statuses,
         }),
       });
       const data = await res.json();
@@ -182,7 +160,7 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Per-creator status</Label>
+            <Label>Selected creators ({creators.length})</Label>
             <div className="max-h-56 overflow-y-auto rounded-md border">
               {creators.map((c) => (
                 <div
@@ -192,26 +170,14 @@ export function GenerateBriefDialog({ open, onOpenChange, creators }: Props) {
                   <div className="flex-1 truncate">
                     <div className="font-medium">{c.name}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      {c.country || "—"} · {c.twitch_handle ? `twitch.tv/${c.twitch_handle}` : c.kick_handle ? `kick.com/${c.kick_handle}` : "no handle"}
+                      {c.country || "—"} ·{" "}
+                      {c.twitch_handle
+                        ? `twitch.tv/${c.twitch_handle}`
+                        : c.kick_handle
+                        ? `kick.com/${c.kick_handle}`
+                        : "no handle"}
                     </div>
                   </div>
-                  <Select
-                    value={statuses[c.id] ?? "Pending Review"}
-                    onValueChange={(v) =>
-                      setStatuses((prev) => ({ ...prev, [c.id]: v }))
-                    }
-                  >
-                    <SelectTrigger className="h-7 w-[220px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               ))}
             </div>
