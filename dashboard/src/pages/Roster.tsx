@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pencil, Trash2, UserMinus } from "lucide-react";
+import { IdCard, Pencil, Trash2, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { CreatorTable, type CreatorRow } from "@/components/roster/CreatorTable";
 import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
+import { CreatorProfileDialog } from "@/components/roster/CreatorProfileDialog";
 import {
   useBulkDeleteCreators,
   useCreators,
@@ -28,6 +29,7 @@ export function RosterPage() {
   const canEdit = role === "admin";
   const { data, isLoading, error } = useCreators("signed");
   const [editTarget, setEditTarget] = React.useState<CreatorRow | null>(null);
+  const [profileTarget, setProfileTarget] = React.useState<CreatorRow | null>(null);
   const setSigned = useSetCreatorSigned();
   const del = useBulkDeleteCreators();
   const confirm = useConfirm();
@@ -120,6 +122,16 @@ export function RosterPage() {
                 <div className="flex items-center justify-end gap-1">
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setProfileTarget(c)}
+                    title="Open full profile (legal name, contact, commission %)"
+                  >
+                    <IdCard className="mr-1 h-3 w-3" /> Profile
+                  </Button>
+                  <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-xs"
@@ -145,6 +157,14 @@ export function RosterPage() {
             : undefined
         }
       />
+
+      {profileTarget && (
+        <CreatorProfileDialog
+          creator={profileTarget as never}
+          open={!!profileTarget}
+          onOpenChange={(o) => !o && setProfileTarget(null)}
+        />
+      )}
 
       {editTarget && (
         <ContractTermsDialog

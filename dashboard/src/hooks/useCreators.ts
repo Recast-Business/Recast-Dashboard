@@ -13,7 +13,7 @@ export function useCreators(filter: CreatorFilter = "all") {
       let q = supabase
         .from("creators")
         .select(
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status",
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
@@ -199,6 +199,50 @@ export function useUpdateContractTerms() {
     },
     onSuccess: () => {
       toast.success("Contract terms saved");
+      qc.invalidateQueries({ queryKey: ["creators"] });
+    },
+    onError: (e) => toast.error(`Save failed: ${(e as Error).message}`),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Phase J profile expansion — full editable profile per creator
+// ─────────────────────────────────────────────────────────────────────
+
+/** What can be edited via the Creator Profile dialog. */
+export interface CreatorProfilePatch {
+  legal_name?: string | null;
+  business_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  payment_method_pref?: string | null;
+  tax_id?: string | null;
+  /** Map of division → commission %. Phase K extends to tiered shapes. */
+  commission_pct_by_platform?: Record<string, number | null>;
+  /** Allow the dialog to also tweak the everyday fields. */
+  name?: string;
+  country?: string | null;
+  category?: string | null;
+  contract_terms?: string | null;
+  socials?: Record<string, string>;
+}
+
+export function useUpdateCreatorProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { id: string; patch: CreatorProfilePatch }) => {
+      const { data, error } = await supabase
+        .from("creators")
+        .update(args.patch)
+        .eq("id", args.id)
+        .select("id, name")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (r) => {
+      toast.success(`${r?.name ?? "Creator"} updated`);
       qc.invalidateQueries({ queryKey: ["creators"] });
     },
     onError: (e) => toast.error(`Save failed: ${(e as Error).message}`),
