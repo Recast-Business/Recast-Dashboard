@@ -195,12 +195,17 @@ export function OverdueDrawer() {
 
   const totalOwed = rows.reduce((s, r) => s + r.amount, 0);
 
+  // Rows with amount === 0 are typically vendor cells where the bill amount
+  // hasn't been entered yet. They still count as overdue (the period exists)
+  // but get a "—" placeholder + a soft warning.
+  const missingAmountCount = rows.filter((r) => !r.amount || r.amount <= 0).length;
+
   return (
-    <div className="rounded-md border border-rose-300 bg-rose-50 text-rose-900">
+    <div className="overflow-hidden rounded-md border border-rose-300 bg-card">
       <button
         type="button"
         onClick={() => setOpen((x) => !x)}
-        className="flex w-full items-start gap-3 p-3 text-left text-sm hover:bg-rose-100/60"
+        className="flex w-full items-start gap-3 bg-rose-50 p-3 text-left text-sm text-rose-900 hover:bg-rose-100/70"
       >
         {open ? (
           <ChevronDown className="mt-0.5 h-4 w-4 shrink-0" />
@@ -216,60 +221,83 @@ export function OverdueDrawer() {
           </div>
           <div className="text-xs text-rose-800/80">
             Click to {open ? "hide" : "see"} the full list.
+            {missingAmountCount > 0 && (
+              <>
+                {" · "}
+                <span className="font-medium">
+                  {missingAmountCount} row{missingAmountCount === 1 ? "" : "s"} missing an amount
+                </span>
+              </>
+            )}
           </div>
         </div>
       </button>
 
       {open && (
-        <div className="overflow-x-auto border-t border-rose-300 bg-white">
+        <div className="overflow-x-auto border-t border-rose-200 bg-card text-foreground">
           <table className="w-full text-xs">
-            <thead className="bg-rose-50 text-[10px] uppercase tracking-wider text-rose-900">
-              <tr>
-                <th className="px-3 py-2 text-left">Section</th>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-left">Period</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2 text-right">Days late</th>
-                <th className="px-3 py-2 text-right">Invoice</th>
+            <thead>
+              <tr className="border-b bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="px-3 py-2 text-left font-medium">Section</th>
+                <th className="px-3 py-2 text-left font-medium">Name</th>
+                <th className="px-3 py-2 text-left font-medium">Period</th>
+                <th className="px-3 py-2 text-right font-medium">Amount</th>
+                <th className="px-3 py-2 text-right font-medium">Days late</th>
+                <th className="px-3 py-2 text-right font-medium">Invoice</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className={cn(i % 2 === 0 ? "bg-white" : "bg-rose-50/30")}>
-                  <td className="px-3 py-2">
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {SOURCE_LABEL[r.source]}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 font-medium text-foreground">{r.name}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {new Date(r.period_year, r.period_month - 1).toLocaleDateString("en-US", {
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-foreground">
-                    {formatUSD(r.amount, { decimals: 2 })}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-rose-900">
-                    {r.days_overdue}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {r.invoice_url ? (
-                      <a
-                        href={r.invoice_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-rose-900 underline hover:text-rose-700"
-                      >
-                        Open <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
+              {rows.map((r, i) => {
+                const missingAmount = !r.amount || r.amount <= 0;
+                return (
+                  <tr
+                    key={i}
+                    className={cn(
+                      "border-b last:border-b-0 hover:bg-muted/30",
+                      i % 2 === 0 ? "bg-card" : "bg-muted/15",
                     )}
-                  </td>
-                </tr>
-              ))}
+                  >
+                    <td className="px-3 py-2">
+                      <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {SOURCE_LABEL[r.source]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-medium text-foreground">{r.name}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {new Date(r.period_year, r.period_month - 1).toLocaleDateString("en-US", {
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-3 py-2 text-right font-semibold tabular-nums",
+                        missingAmount ? "text-amber-700" : "text-foreground",
+                      )}
+                      title={missingAmount ? "Bill amount not entered for this period" : undefined}
+                    >
+                      {missingAmount ? "—" : formatUSD(r.amount, { decimals: 2 })}
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-rose-700">
+                      {r.days_overdue}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {r.invoice_url ? (
+                        <a
+                          href={r.invoice_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-rose-700 underline hover:text-rose-900"
+                        >
+                          Open <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
