@@ -13,6 +13,9 @@ backups/
 *.sql.gz
 *.dump
 
+# Internal-only docs — kept locally, not in the public repo
+dashboard/docs/recast-dashboard-design-prompt.txt
+
 # Data files (live in Google Sheets, not git)
 *.xlsx
 chat_messages.json
