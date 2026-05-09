@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import { TeleDealDialog } from "@/components/finance/TeleDealDialog";
 import { TelePeriodCellDialog } from "@/components/finance/TelePeriodCellDialog";
+import { TalentReceiptDialog } from "@/components/finance/TalentReceiptDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
@@ -315,6 +316,7 @@ interface DealRowProps {
 function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
   const [expanded, setExpanded] = React.useState(false);
   const [editingMonth, setEditingMonth] = React.useState<number | null>(null);
+  const [payOpen, setPayOpen] = React.useState(false);
   const del = useDeleteTeleDeal();
   const confirm = useConfirm();
 
@@ -429,6 +431,9 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
           </div>
 
           <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" onClick={() => setPayOpen(true)}>
+              <Wallet className="mr-1 h-3 w-3" /> Log payment
+            </Button>
             <Button size="sm" variant="outline" onClick={onEdit}>
               <Pencil className="mr-1 h-3 w-3" /> Edit deal
             </Button>
@@ -451,6 +456,18 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
               year={year}
               month={editingMonth}
               existing={periods[editingMonth] ?? null}
+            />
+          )}
+
+          {payOpen && deal.creator?.name && (
+            <TalentReceiptDialog
+              open
+              onOpenChange={setPayOpen}
+              mode={{
+                kind: "telegram",
+                creatorId: deal.creator_id,
+                creatorName: deal.creator.name,
+              }}
             />
           )}
         </div>
