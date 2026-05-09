@@ -12,6 +12,81 @@ export interface TeleDealRow extends TeleDeal {
   creator?: { id: string; name: string } | null;
 }
 
+/** Orphan creator: has tele_period_performance rows for `year` but no
+ *  active tele_deals row. Surfaced in the Income tab so the user can
+ *  click "Create deal" and claim the data. */
+export interface OrphanTeleCreator {
+  creator_id: string;
+  name: string;
+  row_count: number;
+  total_gross: number;
+  total_commission: number;
+}
+
+/** Find creators who have telegram performance rows for the given year
+ *  but no matching active deal. Used to render the "Unclaimed performance"
+ *  banner at the top of the Income tab. */
+export function useOrphanTeleCreators(year: number) {
+  return useQuery({
+    queryKey: ["tele-orphans", year],
+    queryFn: async (): Promise<OrphanTeleCreator[]> => {
+      const [perfRes, dealsRes] = await Promise.all([
+        supabase
+          .from("tele_period_performance")
+          .select("creator_id, gross_revenue, recast_commission, creator:creators(id, name)")
+          .eq("period_year", year),
+        supabase
+          .from("tele_deals")
+          .select("creator_id")
+          .eq("active", true),
+      ]);
+      if (perfRes.error) throw perfRes.error;
+      if (dealsRes.error) throw dealsRes.error;
+      const dealsByCreator = new Set((dealsRes.data ?? []).map((d: any) => d.creator_id));
+      const acc = new Map<string, OrphanTeleCreator>();
+      for (const row of (perfRes.data ?? []) as any[]) {
+        if (dealsByCreator.has(row.creator_id)) continue;
+        const existing = acc.get(row.creator_id);
+        if (existing) {
+          existing.row_count += 1;
+          existing.total_gross += Number(row.gross_revenue) || 0;
+          existing.total_commission += Number(row.recast_commission) || 0;
+        } else {
+          acc.set(row.creator_id, {
+            creator_id: row.creator_id,
+            name: row.creator?.name ?? "Unknown creator",
+            row_count: 1,
+            total_gross: Number(row.gross_revenue) || 0,
+            total_commission: Number(row.recast_commission) || 0,
+          });
+        }
+      }
+      return Array.from(acc.values()).sort((a, b) => b.total_commission - a.total_commission);
+    },
+  });
+}
+
+/** Drop ALL tele_period_performance rows for the given (creator_id, year).
+ *  Cleanup hook for orphan rows that shouldn't exist. */
+export function useDeleteOrphanTelePerformance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { creator_id: string; year: number }) => {
+      const { error } = await supabase
+        .from("tele_period_performance")
+        .delete()
+        .eq("creator_id", args.creator_id)
+        .eq("period_year", args.year);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tele-orphans"] });
+      qc.invalidateQueries({ queryKey: ["tele-period"] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
+    },
+  });
+}
+
 /**
  * List active Telegram deals plus their attached creator name.
  * Includes inactive when `includeInactive=true`.

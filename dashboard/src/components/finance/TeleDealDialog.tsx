@@ -33,9 +33,12 @@ interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   deal: TeleDeal | null; // null = creating
+  /** When creating, preselect this creator (e.g. from the orphan-rescue
+   *  banner where the creator is already known). Ignored on edit. */
+  prefilledCreatorId?: string;
 }
 
-export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
+export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }: Props) {
   const add = useAddTeleDeal();
   const update = useUpdateTeleDeal();
   const { data: creators, isLoading: creatorsLoading } = useCreators("signed");
@@ -77,7 +80,7 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
       setNotes(deal.notes ?? "");
       setActive(deal.active);
     } else {
-      setCreatorId("");
+      setCreatorId(prefilledCreatorId ?? "");
       setPct("20");
       setBasis("net");
       setHasMG(false);
@@ -90,7 +93,7 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
       setNotes("");
       setActive(true);
     }
-  }, [open, deal]);
+  }, [open, deal, prefilledCreatorId]);
 
   // K-1: When creating a new deal and the user picks a creator, snap the
   // commission % to whatever is on their profile. Editing an existing deal

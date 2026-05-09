@@ -1,13 +1,16 @@
 import * as React from "react";
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  useDeleteOrphanTelePerformance,
   useDeleteTeleDeal,
+  useOrphanTeleCreators,
   useTeleDeals,
   useTelePeriodsByCreators,
+  type OrphanTeleCreator,
   type TeleDealRow,
 } from "@/hooks/useTeleDeals";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -38,9 +41,11 @@ interface Props {
 
 export function TeleIncomeSection({ year }: Props) {
   const { data: deals, isLoading, error } = useTeleDeals();
+  const { data: orphans } = useOrphanTeleCreators(year);
   const [search, setSearch] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingDeal, setEditingDeal] = React.useState<TeleDealRow | null>(null);
+  const [prefilledCreatorId, setPrefilledCreatorId] = React.useState<string | undefined>(undefined);
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -55,10 +60,17 @@ export function TeleIncomeSection({ year }: Props) {
 
   function openAdd() {
     setEditingDeal(null);
+    setPrefilledCreatorId(undefined);
+    setDialogOpen(true);
+  }
+  function openAddForCreator(creatorId: string) {
+    setEditingDeal(null);
+    setPrefilledCreatorId(creatorId);
     setDialogOpen(true);
   }
   function openEdit(d: TeleDealRow) {
     setEditingDeal(d);
+    setPrefilledCreatorId(undefined);
     setDialogOpen(true);
   }
 
@@ -97,6 +109,14 @@ export function TeleIncomeSection({ year }: Props) {
         onChange={(e) => setSearch(e.target.value)}
         className="max-w-sm"
       />
+
+      {orphans && orphans.length > 0 && (
+        <OrphanBanner
+          orphans={orphans}
+          year={year}
+          onCreateDeal={openAddForCreator}
+        />
+      )}
 
       {isLoading && (
         <div className="space-y-2">
@@ -185,7 +205,99 @@ export function TeleIncomeSection({ year }: Props) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         deal={editingDeal}
+        prefilledCreatorId={prefilledCreatorId}
       />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Orphan banner — period rows without a deal
+// ─────────────────────────────────────────────────────────────────────
+
+function OrphanBanner({
+  orphans,
+  year,
+  onCreateDeal,
+}: {
+  orphans: OrphanTeleCreator[];
+  year: number;
+  onCreateDeal: (creatorId: string) => void;
+}) {
+  const del = useDeleteOrphanTelePerformance();
+  const confirm = useConfirm();
+
+  async function onDelete(o: OrphanTeleCreator) {
+    const ok = await confirm({
+      title: `Delete ${o.row_count} performance row${o.row_count === 1 ? "" : "s"} for ${o.name}?`,
+      description: `Removes all ${year} Telegram performance entries for ${o.name}. Use this only if the data was recorded in error — once deleted it can't be recovered.`,
+      confirmLabel: "Delete data",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync({ creator_id: o.creator_id, year });
+      toast.success(`Deleted ${o.row_count} row${o.row_count === 1 ? "" : "s"} for ${o.name}`);
+    } catch (e) {
+      toast.error(`Delete failed: ${(e as Error).message}`);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
+      <div className="flex items-start gap-3 text-sm text-amber-900">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">
+            {orphans.length} creator{orphans.length === 1 ? "" : "s"} have Telegram
+            performance recorded in {year} but no deal yet
+          </div>
+          <p className="mt-0.5 text-xs text-amber-900/80">
+            Performance rows exist in the database (this is what the overdue banner
+            picks up) but they're invisible here because the Income tab only shows
+            creators with an active deal. Create a deal to claim the data, or delete
+            it if it was a mistake.
+          </p>
+        </div>
+      </div>
+      <ul className="mt-3 space-y-1">
+        {orphans.map((o) => (
+          <li
+            key={o.creator_id}
+            className="flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-white px-3 py-2 text-xs"
+          >
+            <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+              {o.name}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              {o.row_count} row{o.row_count === 1 ? "" : "s"}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              Gross {formatUSD(o.total_gross, { decimals: 0 })}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              Commission {formatUSD(o.total_commission, { decimals: 0 })}
+            </span>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 px-2 text-xs"
+              onClick={() => onCreateDeal(o.creator_id)}
+            >
+              <Plus className="mr-1 h-3 w-3" /> Create deal
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDelete(o)}
+              disabled={del.isPending}
+            >
+              <Trash2 className="mr-1 h-3 w-3" /> Delete
+            </Button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
