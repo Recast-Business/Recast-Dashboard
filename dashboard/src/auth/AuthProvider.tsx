@@ -69,6 +69,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             setViewCampaignFinancials(true);
           }
+
+          // Phase H-1 — flip stale unpaid rows to overdue on app load.
+          // Idempotent at the SQL level. Best-effort: failures are silent so
+          // they never block the dashboard from rendering.
+          if (r === "admin" || r === "finance") {
+            supabase.rpc("mark_overdue_payments").then(({ error: rpcError }) => {
+              if (rpcError) {
+                console.warn("[overdue] mark_overdue_payments failed:", rpcError.message);
+              }
+            });
+          }
         }
         setLoading(false);
       });
