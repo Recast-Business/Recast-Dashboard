@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import { useDeleteVendor } from "@/hooks/useVendors";
 import { useUpsertVendorPayment } from "@/hooks/useVendorPayments";
 import { useConfirm } from "@/hooks/useConfirm";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
+import { LogReceiptDialog } from "@/components/finance/LogReceiptDialog";
 import type {
   PaymentMethod,
   PaymentStatusV2,
@@ -66,6 +67,7 @@ export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) 
   const del = useDeleteVendor();
   const confirm = useConfirm();
   const [editingCell, setEditingCell] = React.useState<CellTarget | null>(null);
+  const [payTarget, setPayTarget] = React.useState<Vendor | null>(null);
 
   async function quickToggle(vendorId: string, month: number, current?: VendorPayment) {
     const nextStatus: PaymentStatusV2 =
@@ -166,8 +168,17 @@ export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) 
                   <TableCell className="text-right">
                     <Button
                       size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPayTarget(v)}
+                      title="Log a payment for this vendor (FIFO across oldest unpaid months)"
+                    >
+                      <Wallet className="mr-1 h-3 w-3" /> Pay
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="ghost"
-                      className="h-6 w-6 p-0"
+                      className="ml-1 h-6 w-6 p-0"
                       onClick={() => onEdit(v)}
                       title="Edit"
                     >
@@ -201,6 +212,18 @@ export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) 
           year={year}
           month={editingCell.month}
           existing={paymentsByVendor[editingCell.vendorId]?.[editingCell.month] ?? null}
+        />
+      )}
+
+      {payTarget && (
+        <LogReceiptDialog
+          open
+          onOpenChange={(o) => !o && setPayTarget(null)}
+          mode={{
+            kind: "vendor",
+            vendorId: payTarget.id,
+            vendorName: payTarget.name,
+          }}
         />
       )}
     </>
