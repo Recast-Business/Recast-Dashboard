@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/pages/Login";
 import { UnauthorizedPage } from "@/pages/Unauthorized";
 import { FinancePage } from "@/pages/Finance";
+import { OverviewPage } from "@/pages/Overview";
 import { CampaignsPage } from "@/pages/Campaigns";
 import { RosterPage } from "@/pages/Roster";
 import { LeadsPage } from "@/pages/Leads";
@@ -25,6 +26,14 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <RoleRedirect /> },
+      {
+        path: "overview",
+        element: (
+          <ProtectedRoute allow={["admin", "finance"]}>
+            <OverviewPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "campaigns",
         element: (

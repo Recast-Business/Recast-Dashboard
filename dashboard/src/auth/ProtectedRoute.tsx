@@ -32,7 +32,9 @@ export function ProtectedRoute({ allow, children }: Props) {
 }
 
 export function defaultRouteForRole(role: UserRole | null): string {
-  if (role === "finance") return "/finance";
+  // Admin + finance land on the Overview dashboard (Phase K-5).
+  // Partner / operator skip it (no finance access) and go to Campaigns.
+  if (role === "admin" || role === "finance") return "/overview";
   if (role) return "/campaigns";
   return "/login";
 }
