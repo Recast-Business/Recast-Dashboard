@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DivisionView } from "@/components/finance/DivisionView";
 import { HouseSection } from "@/components/finance/HouseSection";
 import { VendorSection } from "@/components/finance/VendorSection";
-import { OverdueBadge } from "@/components/finance/OverdueBadge";
+import { OverdueDrawer } from "@/components/finance/OverdueDrawer";
 import type { Division } from "@/types/finance";
 
 const DIVISIONS: { value: Division; label: string }[] = [
@@ -29,7 +29,7 @@ export function FinancePage() {
         <YearSelector value={year} onChange={setYear} />
       </div>
 
-      <OverdueBadge />
+      <OverdueDrawer />
 
       <Tabs defaultValue="onlyfans" className="space-y-4">
         <TabsList className="h-10 flex-wrap">
