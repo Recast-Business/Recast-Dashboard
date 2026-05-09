@@ -3,12 +3,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DivisionView } from "@/components/finance/DivisionView";
 import { HouseSection } from "@/components/finance/HouseSection";
 import { VendorSection } from "@/components/finance/VendorSection";
+import { OverdueBadge } from "@/components/finance/OverdueBadge";
 import type { Division } from "@/types/finance";
 
 const DIVISIONS: { value: Division; label: string }[] = [
   { value: "onlyfans", label: "OnlyFans" },
   { value: "telegram", label: "Telegram" },
-  { value: "efuse", label: "eFuse" },
+  { value: "efuse", label: "Overlay" },
 ];
 
 export function FinancePage() {
@@ -28,6 +29,8 @@ export function FinancePage() {
         <YearSelector value={year} onChange={setYear} />
       </div>
 
+      <OverdueBadge />
+
       <Tabs defaultValue="onlyfans" className="space-y-4">
         <TabsList className="h-10 flex-wrap">
           {DIVISIONS.map((d) => (
@@ -40,9 +43,6 @@ export function FinancePage() {
           </TabsTrigger>
           <TabsTrigger value="vendors" className="px-4">
             Vendors
-          </TabsTrigger>
-          <TabsTrigger value="credit_cards" className="px-4">
-            Credit cards
           </TabsTrigger>
         </TabsList>
 
@@ -66,15 +66,6 @@ export function FinancePage() {
           />
         </TabsContent>
 
-        <TabsContent value="credit_cards">
-          <VendorSection
-            kind="credit_card_account"
-            title="Credit cards"
-            description="Cards Recast uses to pay vendors. Tag transactions to a card for analytics and audits."
-            year={year}
-            showDivisionFilter
-          />
-        </TabsContent>
       </Tabs>
     </div>
   );

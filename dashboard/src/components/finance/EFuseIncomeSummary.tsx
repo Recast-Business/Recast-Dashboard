@@ -101,7 +101,7 @@ export function EFuseIncomeSummary({ year }: Props) {
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">eFuse income</h2>
+          <h2 className="text-lg font-semibold">Overlay income</h2>
           <p className="text-sm text-muted-foreground">
             Per-campaign performance for {year}. Campaigns themselves are managed on{" "}
             <Link to="/campaigns" className="underline hover:text-foreground">
@@ -129,7 +129,7 @@ export function EFuseIncomeSummary({ year }: Props) {
               />
               <ExportPDFButton
                 filename={`efuse-income-${year}.pdf`}
-                title={`eFuse income — ${year}`}
+                title={`Overlay income — ${year}`}
                 subtitle="Per-campaign rollup"
                 rows={campaigns ?? []}
                 columns={exportColumns}
@@ -164,7 +164,7 @@ export function EFuseIncomeSummary({ year }: Props) {
       )}
 
       {(campaigns ?? []).length > 0 && (
-        <AnalyticsPanel storageKey="recast.analytics.efuse" title="eFuse analytics">
+        <AnalyticsPanel storageKey="recast.analytics.efuse" title="Overlay analytics">
           {() => (
             <>
               <PieCard
@@ -232,10 +232,10 @@ export function EFuseIncomeSummary({ year }: Props) {
                       {ready ? t?.creators ?? 0 : "…"}
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
-                      {ready ? formatUSD(t?.gross ?? 0, { decimals: 0 }) : "…"}
+                      {ready ? formatUSD(t?.gross ?? 0, { decimals: 2 }) : "…"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {ready ? formatUSD(t?.recast ?? 0, { decimals: 0 }) : "…"}
+                      {ready ? formatUSD(t?.recast ?? 0, { decimals: 2 }) : "…"}
                     </TableCell>
                     <TableCell
                       className={cn(
@@ -243,7 +243,7 @@ export function EFuseIncomeSummary({ year }: Props) {
                         (t?.outstanding ?? 0) > 0 && "font-semibold text-amber-700",
                       )}
                     >
-                      {ready ? formatUSD(t?.outstanding ?? 0, { decimals: 0 }) : "…"}
+                      {ready ? formatUSD(t?.outstanding ?? 0, { decimals: 2 }) : "…"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
@@ -261,13 +261,13 @@ export function EFuseIncomeSummary({ year }: Props) {
                 <TableCell colSpan={3}>TOTALS</TableCell>
                 <TableCell className="text-right tabular-nums">{grand.creators}</TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatUSD(grand.gross, { decimals: 0 })}
+                  {formatUSD(grand.gross, { decimals: 2 })}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatUSD(grand.recast, { decimals: 0 })}
+                  {formatUSD(grand.recast, { decimals: 2 })}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatUSD(grand.outstanding, { decimals: 0 })}
+                  {formatUSD(grand.outstanding, { decimals: 2 })}
                 </TableCell>
                 <TableCell />
               </TableRow>

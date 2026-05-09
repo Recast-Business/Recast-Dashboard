@@ -123,7 +123,7 @@ export function VendorSection({ division, kind, title, description, year, showDi
                 divisionFilter === d ? "bg-foreground text-background" : "hover:bg-muted",
               )}
             >
-              {d === "all" ? "All" : d === "none" ? "Org-wide" : d === "onlyfans" ? "OnlyFans" : d === "telegram" ? "Telegram" : "eFuse"}
+              {d === "all" ? "All" : d === "none" ? "Org-wide" : d === "onlyfans" ? "OnlyFans" : d === "telegram" ? "Telegram" : "Overlay"}
             </button>
           ))}
         </div>
@@ -287,7 +287,7 @@ function divisionLabel(d: string | null | undefined): string {
   if (!d) return "Org-wide";
   if (d === "onlyfans") return "OnlyFans";
   if (d === "telegram") return "Telegram";
-  if (d === "efuse") return "eFuse";
+  if (d === "efuse") return "Overlay";
   return d;
 }
 

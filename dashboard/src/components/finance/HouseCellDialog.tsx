@@ -119,10 +119,21 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
   }
 
   const submitting = upsertRent.isPending || upsertUtility.isPending;
-  const splitPreview =
-    mode.kind === "utility" && mode.activeResidentCount > 0 && Number(amount)
-      ? Number(amount) / mode.activeResidentCount
+  // Floor-each + remainder-to-Frazier algorithm so the column reconciles.
+  // For the preview we just show the two values: "base" (everyone else) and
+  // "Frazier's share" (which absorbs any leftover cents).
+  const splitBase =
+    mode.kind === "utility" && mode.activeResidentCount > 0 && Number(amount) > 0
+      ? Math.floor((Number(amount) * 100) / mode.activeResidentCount) / 100
       : 0;
+  const splitFrazier =
+    mode.kind === "utility" && mode.activeResidentCount > 0 && Number(amount) > 0
+      ? (Math.round(Number(amount) * 100) -
+          Math.floor((Number(amount) * 100) / mode.activeResidentCount) *
+            (mode.activeResidentCount - 1)) /
+        100
+      : 0;
+  const splitPreview = splitBase;
 
   const title =
     mode.kind === "rent"
@@ -188,14 +199,26 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
           </div>
 
           {mode.kind === "utility" && splitPreview > 0 && (
-            <div className="rounded-md border bg-muted/30 p-3 text-xs">
+            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
               <div className="text-muted-foreground">
                 Split across {mode.activeResidentCount} active resident
                 {mode.activeResidentCount === 1 ? "" : "s"}
               </div>
-              <div className="text-base font-semibold tabular-nums">
-                {formatUSD(splitPreview, { decimals: 2 })} per person
-              </div>
+              {splitBase === splitFrazier ? (
+                <div className="text-base font-semibold tabular-nums">
+                  {formatUSD(splitBase, { decimals: 2 })} per person
+                </div>
+              ) : (
+                <>
+                  <div className="text-base font-semibold tabular-nums">
+                    {formatUSD(splitBase, { decimals: 2 })} per person ·{" "}
+                    {formatUSD(splitFrazier, { decimals: 2 })} for Frazier
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Cent remainder goes to Frazier so the split reconciles.
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

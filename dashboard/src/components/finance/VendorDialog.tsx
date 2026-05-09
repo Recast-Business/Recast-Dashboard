@@ -46,7 +46,7 @@ const DIVISIONS: { value: Division | "none"; label: string }[] = [
   { value: "none", label: "Not division-specific" },
   { value: "onlyfans", label: "OnlyFans" },
   { value: "telegram", label: "Telegram" },
-  { value: "efuse", label: "eFuse" },
+  { value: "efuse", label: "Overlay" },
 ];
 
 interface Props {

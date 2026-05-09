@@ -40,7 +40,9 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 const STATUS_STYLES: Record<PaymentStatusV2, string> = {
   unpaid: "bg-muted/30 text-muted-foreground",
-  partial: "bg-amber-50 text-amber-900",
+  // Partial = half-green-paid / half-red-owed gradient. Looks like a split
+  // cell so you immediately see "some has been paid, some still owed".
+  partial: "bg-gradient-to-r from-emerald-100 from-50% to-rose-100 to-50% text-foreground",
   paid: "bg-emerald-50 text-emerald-900",
   overdue: "bg-rose-50 text-rose-900",
 };
@@ -219,12 +221,17 @@ function BedroomsRentPanel({
                   {m}
                 </TableHead>
               ))}
+              <TableHead className="min-w-[80px] text-right">YTD</TableHead>
               <TableHead className="min-w-[70px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {residents.map((r) => {
               const cells = rentByResident[r.id] ?? {};
+              const ytd = Object.values(cells).reduce(
+                (sum, p) => sum + (Number(p.amount) || 0),
+                0,
+              );
               return (
                 <TableRow key={r.id} className="text-xs">
                   <TableCell className="sticky left-0 z-10 bg-background font-medium">
@@ -233,7 +240,7 @@ function BedroomsRentPanel({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{r.bedroom}</TableCell>
                   <TableCell className="font-mono tabular-nums">
-                    {formatUSD(r.monthly_rent, { decimals: 0 })}
+                    {formatUSD(r.monthly_rent, { decimals: 2 })}
                   </TableCell>
                   {MONTHS.map((_label, i) => {
                     const month = i + 1;
@@ -268,11 +275,17 @@ function BedroomsRentPanel({
                       </TableCell>
                     );
                   })}
+                  <TableCell
+                    className="text-right font-semibold tabular-nums"
+                    title={formatUSD(ytd, { decimals: 2 })}
+                  >
+                    {ytd > 0 ? formatUSD(ytd, { decimals: 2 }) : "—"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0"
+                      variant="outline"
+                      className="h-7 w-7 p-0"
                       onClick={() => {
                         setEditingResident(r);
                         setDialogOpen(true);
@@ -283,8 +296,8 @@ function BedroomsRentPanel({
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                      variant="outline"
+                      className="ml-1 h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => onDelete(r)}
                       title="Delete resident"
                     >
@@ -428,12 +441,17 @@ function UtilitiesPanel({
                   {m}
                 </TableHead>
               ))}
+              <TableHead className="min-w-[80px] text-right">YTD</TableHead>
               <TableHead className="min-w-[70px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {utilities.map((u) => {
               const cells = utilityByUtility[u.id] ?? {};
+              const ytd = Object.values(cells).reduce(
+                (sum, p) => sum + (Number(p.amount) || 0),
+                0,
+              );
               return (
                 <TableRow key={u.id} className="text-xs">
                   <TableCell className="sticky left-0 z-10 bg-background font-medium">
@@ -466,11 +484,17 @@ function UtilitiesPanel({
                       </TableCell>
                     );
                   })}
+                  <TableCell
+                    className="text-right font-semibold tabular-nums"
+                    title={formatUSD(ytd, { decimals: 2 })}
+                  >
+                    {ytd > 0 ? formatUSD(ytd, { decimals: 2 }) : "—"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0"
+                      variant="outline"
+                      className="h-7 w-7 p-0"
                       onClick={() => {
                         setEditingUtility(u);
                         setDialogOpen(true);
@@ -481,8 +505,8 @@ function UtilitiesPanel({
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                      variant="outline"
+                      className="ml-1 h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => onDelete(u)}
                       title="Delete utility"
                     >
@@ -497,9 +521,14 @@ function UtilitiesPanel({
               <TableCell className="sticky left-0 z-10 bg-muted/30">TOTAL</TableCell>
               {monthlyTotals.map((t, i) => (
                 <TableCell key={i} className="text-center tabular-nums">
-                  {t > 0 ? formatUSDCompact(t) : "—"}
+                  {t > 0 ? formatUSD(t, { decimals: 2 }) : "—"}
                 </TableCell>
               ))}
+              <TableCell className="text-right font-semibold tabular-nums">
+                {monthlyTotals.reduce((s, t) => s + t, 0) > 0
+                  ? formatUSD(monthlyTotals.reduce((s, t) => s + t, 0), { decimals: 2 })
+                  : "—"}
+              </TableCell>
               <TableCell />
             </TableRow>
           </TableBody>
@@ -541,19 +570,6 @@ function PerResidentSplitPanel({
   utilityByUtility: Record<string, Record<number, HouseUtilityPayment>>;
   activeResidentCount: number;
 }) {
-  const monthlyShare = React.useMemo(() => {
-    const totals: number[] = Array(12).fill(0);
-    for (const utilityId of Object.keys(utilityByUtility)) {
-      for (let m = 1; m <= 12; m++) {
-        totals[m - 1] += Number(utilityByUtility[utilityId]?.[m]?.amount) || 0;
-      }
-    }
-    if (activeResidentCount === 0) return totals.map(() => 0);
-    return totals.map((t) => t / activeResidentCount);
-  }, [utilityByUtility, activeResidentCount]);
-
-  const yearlyShare = monthlyShare.reduce((a, b) => a + b, 0);
-
   if (activeResidentCount === 0) {
     return (
       <div className="rounded-md border bg-card p-4 text-sm text-muted-foreground">
@@ -562,12 +578,43 @@ function PerResidentSplitPanel({
     );
   }
 
+  // Compute the monthly TOTAL across all utilities, then split per-resident
+  // with Frazier-takes-the-extra-cents rounding so the splits always reconcile.
+  const monthlyTotals: number[] = Array(12).fill(0);
+  for (const utilityId of Object.keys(utilityByUtility)) {
+    for (let m = 1; m <= 12; m++) {
+      monthlyTotals[m - 1] += Number(utilityByUtility[utilityId]?.[m]?.amount) || 0;
+    }
+  }
+
+  // Find Frazier in the resident list (by name match). Falls back to first
+  // resident if not found, so the algorithm always reconciles.
+  const frazierIdx = Math.max(
+    0,
+    residents.findIndex((r) => r.name.toLowerCase().includes("frazier")),
+  );
+
+  // Per-resident per-month share — floor for everyone, Frazier absorbs the
+  // remainder so the column sums to the original total exactly.
+  function shareFor(residentIdx: number, monthIdx: number): number {
+    const total = monthlyTotals[monthIdx];
+    if (total <= 0 || activeResidentCount === 0) return 0;
+    const totalCents = Math.round(total * 100);
+    const baseCents = Math.floor(totalCents / activeResidentCount);
+    const remainderCents = totalCents - baseCents * activeResidentCount;
+    if (residentIdx === frazierIdx) {
+      return (baseCents + remainderCents) / 100;
+    }
+    return baseCents / 100;
+  }
+
   return (
     <div className="space-y-2">
       <div>
         <h2 className="text-lg font-semibold">All Splits — Utilities per resident</h2>
         <p className="text-sm text-muted-foreground">
-          Equal-per-head split of monthly utility bills. Each active resident owes the same amount.
+          Equal-per-head split of monthly utility bills. Cent remainders go to Frazier so each
+          column reconciles to the utility total exactly.
         </p>
       </div>
 
@@ -577,27 +624,42 @@ function PerResidentSplitPanel({
             <TableRow className="bg-muted/40 text-[10px] uppercase tracking-wider">
               <TableHead className="sticky left-0 z-10 min-w-[200px] bg-muted/40">Resident</TableHead>
               {MONTHS.map((m) => (
-                <TableHead key={m} className="min-w-[64px] text-center">
+                <TableHead key={m} className="min-w-[72px] text-center">
                   {m}
                 </TableHead>
               ))}
-              <TableHead className="min-w-[80px] text-right">Year</TableHead>
+              <TableHead className="min-w-[90px] text-right">YTD</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {residents.map((r) => (
-              <TableRow key={r.id} className="text-xs">
-                <TableCell className="sticky left-0 z-10 bg-background font-medium">{r.name}</TableCell>
-                {monthlyShare.map((share, i) => (
-                  <TableCell key={i} className="text-center font-semibold tabular-nums">
-                    {share > 0 ? formatUSDCompact(share) : "—"}
+            {residents.map((r, rIdx) => {
+              const yearlyShare = monthlyTotals.reduce(
+                (sum, _t, mIdx) => sum + shareFor(rIdx, mIdx),
+                0,
+              );
+              return (
+                <TableRow key={r.id} className="text-xs">
+                  <TableCell className="sticky left-0 z-10 bg-background font-medium">
+                    {r.name}
                   </TableCell>
-                ))}
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {formatUSD(yearlyShare, { decimals: 0 })}
-                </TableCell>
-              </TableRow>
-            ))}
+                  {monthlyTotals.map((_t, mIdx) => {
+                    const share = shareFor(rIdx, mIdx);
+                    return (
+                      <TableCell
+                        key={mIdx}
+                        className="text-center font-semibold tabular-nums"
+                        title={share > 0 ? formatUSD(share, { decimals: 2 }) : undefined}
+                      >
+                        {share > 0 ? formatUSD(share, { decimals: 2 }) : "—"}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {yearlyShare > 0 ? formatUSD(yearlyShare, { decimals: 2 }) : "—"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

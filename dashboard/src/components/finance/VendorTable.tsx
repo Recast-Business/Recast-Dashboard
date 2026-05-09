@@ -26,7 +26,7 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 const STATUS_STYLES: Record<PaymentStatusV2, string> = {
   unpaid: "bg-muted/30 text-muted-foreground",
-  partial: "bg-amber-50 text-amber-900",
+  partial: "bg-gradient-to-r from-emerald-100 from-50% to-rose-100 to-50% text-foreground",
   paid: "bg-emerald-50 text-emerald-900",
   overdue: "bg-rose-50 text-rose-900",
 };

@@ -26,7 +26,8 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 const STATUS_STYLES: Record<PaymentStatusV2, string> = {
   unpaid: "bg-muted/30 text-muted-foreground",
-  partial: "bg-amber-50 text-amber-900 border-amber-200",
+  partial:
+    "bg-gradient-to-r from-emerald-100 from-50% to-rose-100 to-50% text-foreground border-amber-200",
   paid: "bg-emerald-50 text-emerald-900 border-emerald-200",
   overdue: "bg-rose-50 text-rose-900 border-rose-200",
 };
@@ -304,11 +305,11 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
           </div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-3 rounded-md border bg-muted/20 p-3">
-            <Stat label="Gross YTD" value={formatUSD(totals.gross, { decimals: 0 })} />
-            <Stat label="Net" value={formatUSD(totals.net, { decimals: 0 })} />
-            {totals.topUp > 0 && <Stat label="MG top-ups" value={formatUSD(totals.topUp, { decimals: 0 })} emphasised />}
-            <Stat label="Recast commission" value={formatUSD(totals.commission, { decimals: 0 })} />
-            <Stat label="Creator take-home" value={formatUSD(totals.takeHome, { decimals: 0 })} emphasised />
+            <Stat label="Gross YTD" value={formatUSD(totals.gross, { decimals: 2 })} />
+            <Stat label="Net" value={formatUSD(totals.net, { decimals: 2 })} />
+            {totals.topUp > 0 && <Stat label="MG top-ups" value={formatUSD(totals.topUp, { decimals: 2 })} emphasised />}
+            <Stat label="Recast commission" value={formatUSD(totals.commission, { decimals: 2 })} />
+            <Stat label="Creator take-home" value={formatUSD(totals.takeHome, { decimals: 2 })} emphasised />
             <Stat label="Paid months" value={`${totals.paidCount}/12`} />
           </div>
 
