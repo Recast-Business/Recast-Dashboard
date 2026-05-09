@@ -7,6 +7,7 @@ import { useDeleteVendor } from "@/hooks/useVendors";
 import { useConfirm } from "@/hooks/useConfirm";
 import { MonthlyPaymentGrid } from "@/components/finance/MonthlyPaymentGrid";
 import { LogReceiptDialog } from "@/components/finance/LogReceiptDialog";
+import { VendorInvoicesPanel } from "@/components/finance/VendorInvoicesPanel";
 import type { Vendor, VendorPayment, PaymentMethod } from "@/types/finance";
 
 const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -103,6 +104,8 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
               Click a month to toggle paid · Shift-click or right-click for full edit (amount, date, invoice URL, notes)
             </div>
           </div>
+
+          <VendorInvoicesPanel vendorId={vendor.id} vendorName={vendor.name} />
 
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => setPayOpen(true)}>

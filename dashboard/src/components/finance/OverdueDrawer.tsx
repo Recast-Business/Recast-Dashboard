@@ -19,15 +19,24 @@ import { cn, formatUSD } from "@/lib/utils";
  */
 
 interface OverdueRow {
-  source: "vendor" | "campaign" | "telegram" | "onlyfans" | "house_rent" | "house_utility";
-  /** Display name — vendor name, creator name, utility name, etc. */
+  source:
+    | "vendor"
+    | "campaign"
+    | "telegram"
+    | "onlyfans"
+    | "house_rent"
+    | "house_utility"
+    | "vendor_invoice";
+  /** Display name — vendor name, creator name, utility name, invoice description, etc. */
   name: string;
   amount: number;
+  /** For period-based rows: the period year. For invoice rows: the due-date year. */
   period_year: number;
+  /** For period-based rows: the period month (1-12). For invoice rows: the due-date month. */
   period_month: number;
   paid_at: string | null;
   invoice_url: string | null;
-  /** Days past EOM. */
+  /** Days past the deadline (EOM for periods, due_date for invoices). */
   days_overdue: number;
 }
 
@@ -38,7 +47,15 @@ const SOURCE_LABEL: Record<OverdueRow["source"], string> = {
   onlyfans: "OnlyFans",
   house_rent: "Rent",
   house_utility: "Utility",
+  vendor_invoice: "Invoice",
 };
+
+/** Days between an arbitrary deadline date and `now`. */
+function daysOverdueFromDate(deadlineISO: string, now: Date = new Date()): number {
+  const dl = new Date(deadlineISO);
+  const diff = now.getTime() - dl.getTime();
+  return Math.max(0, Math.floor(diff / (24 * 60 * 60 * 1000)));
+}
 
 /** First day of the month AFTER (year, month) — i.e. the EOM-due deadline. */
 function deadline(year: number, month: number): Date {
@@ -169,6 +186,26 @@ function useOverdueRows() {
           paid_at: r.paid_at,
           invoice_url: null,
           days_overdue: daysOverdue(r.period_year, r.period_month),
+        });
+      }
+
+      // Vendor invoices — ad-hoc bills past their custom due_date
+      const invoices = await supabase
+        .from("vendor_invoices")
+        .select("amount, due_date, paid_at, invoice_url, description, vendor:vendors(name)")
+        .eq("status", "overdue");
+      for (const r of (invoices.data ?? []) as any[]) {
+        const due = new Date(r.due_date);
+        const vendorName = r.vendor?.name ?? "Vendor";
+        out.push({
+          source: "vendor_invoice",
+          name: `${vendorName} — ${r.description}`,
+          amount: Number(r.amount) || 0,
+          period_year: due.getFullYear(),
+          period_month: due.getMonth() + 1,
+          paid_at: r.paid_at,
+          invoice_url: r.invoice_url,
+          days_overdue: daysOverdueFromDate(r.due_date),
         });
       }
 

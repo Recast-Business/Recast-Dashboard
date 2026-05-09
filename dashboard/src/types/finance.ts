@@ -278,6 +278,30 @@ export interface CampaignPayment {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Phase K-4: Ad-hoc vendor invoices
+// ─────────────────────────────────────────────────────────────────────
+
+/** A one-off bill outside the recurring monthly grid. Has its own
+ *  due date and amount; status flips paid/overdue independently. */
+export interface VendorInvoice {
+  id: string;
+  vendor_id: string;
+  description: string;
+  issued_at: string; // ISO date
+  due_date: string; // ISO date
+  amount: number;
+  status: PaymentStatusV2;
+  paid_at: string | null;
+  invoice_url: string | null;
+  payment_method: PaymentMethod | null;
+  payment_reference: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Phase K-3: Payment allocation engine
 // ─────────────────────────────────────────────────────────────────────
 
