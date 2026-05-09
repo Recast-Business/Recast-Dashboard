@@ -276,3 +276,49 @@ export interface CampaignPayment {
   created_at: string;
   updated_at: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Phase K-3: Payment allocation engine
+// ─────────────────────────────────────────────────────────────────────
+
+export type PaymentSource =
+  | "vendor"
+  | "campaign"
+  | "telegram"
+  | "onlyfans"
+  | "house_rent"
+  | "house_utility";
+
+/** A single chunk of money received/paid. Polymorphic obligor — exactly one
+ *  of vendor_id/campaign_creator_id/creator_id/of_deal_id/resident_id/utility_id
+ *  is non-null, matching `source`. */
+export interface PaymentReceipt {
+  id: string;
+  source: PaymentSource;
+  vendor_id: string | null;
+  campaign_creator_id: string | null;
+  creator_id: string | null;
+  of_deal_id: string | null;
+  resident_id: string | null;
+  utility_id: string | null;
+  received_at: string; // ISO date
+  amount: number;
+  method: PaymentMethod | null;
+  reference: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+/** Links a receipt to one (year, month) bucket on the obligor's monthly grid.
+ *  One receipt can have multiple allocations (e.g. paid 2 months at once). */
+export interface PaymentAllocation {
+  id: string;
+  receipt_id: string;
+  period_year: number;
+  period_month: number;
+  amount: number;
+  notes: string | null;
+  created_at: string;
+}

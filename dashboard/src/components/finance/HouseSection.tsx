@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Pencil, Plus, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +24,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
+import { LogReceiptDialog } from "@/components/finance/LogReceiptDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
@@ -120,6 +121,7 @@ function BedroomsRentPanel({
     resident: HouseResident;
     month: number;
   } | null>(null);
+  const [payTarget, setPayTarget] = React.useState<HouseResident | null>(null);
 
   async function quickToggleRent(r: HouseResident, month: number, current?: HouseRentPayment) {
     const nextStatus: PaymentStatusV2 =
@@ -222,7 +224,7 @@ function BedroomsRentPanel({
                 </TableHead>
               ))}
               <TableHead className="min-w-[80px] text-right">YTD</TableHead>
-              <TableHead className="min-w-[70px] text-right">Actions</TableHead>
+              <TableHead className="min-w-[140px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -285,7 +287,16 @@ function BedroomsRentPanel({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 w-7 p-0"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPayTarget(r)}
+                      title="Log a rent payment for this resident (FIFO across oldest unpaid months)"
+                    >
+                      <Wallet className="mr-1 h-3 w-3" /> Pay
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-1 h-7 w-7 p-0"
                       onClick={() => {
                         setEditingResident(r);
                         setDialogOpen(true);
@@ -339,6 +350,19 @@ function BedroomsRentPanel({
           }}
         />
       )}
+
+      {payTarget && (
+        <LogReceiptDialog
+          open
+          onOpenChange={(o) => !o && setPayTarget(null)}
+          mode={{
+            kind: "house_rent",
+            residentId: payTarget.id,
+            residentName: payTarget.name,
+            monthlyRent: payTarget.monthly_rent,
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -366,6 +390,7 @@ function UtilitiesPanel({
     utility: HouseUtility;
     month: number;
   } | null>(null);
+  const [payTarget, setPayTarget] = React.useState<HouseUtility | null>(null);
 
   async function onDelete(u: HouseUtility) {
     const ok = await confirm({
@@ -442,7 +467,7 @@ function UtilitiesPanel({
                 </TableHead>
               ))}
               <TableHead className="min-w-[80px] text-right">YTD</TableHead>
-              <TableHead className="min-w-[70px] text-right">Actions</TableHead>
+              <TableHead className="min-w-[140px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -494,7 +519,16 @@ function UtilitiesPanel({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 w-7 p-0"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPayTarget(u)}
+                      title="Log a utility payment (FIFO across oldest unpaid months)"
+                    >
+                      <Wallet className="mr-1 h-3 w-3" /> Pay
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-1 h-7 w-7 p-0"
                       onClick={() => {
                         setEditingUtility(u);
                         setDialogOpen(true);
@@ -549,6 +583,18 @@ function UtilitiesPanel({
             utilityName: editingCell.utility.utility_name,
             activeResidentCount,
             existing: utilityByUtility[editingCell.utility.id]?.[editingCell.month] ?? null,
+          }}
+        />
+      )}
+
+      {payTarget && (
+        <LogReceiptDialog
+          open
+          onOpenChange={(o) => !o && setPayTarget(null)}
+          mode={{
+            kind: "house_utility",
+            utilityId: payTarget.id,
+            utilityName: payTarget.utility_name,
           }}
         />
       )}
