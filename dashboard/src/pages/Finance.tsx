@@ -6,6 +6,17 @@ import { VendorSection } from "@/components/finance/VendorSection";
 import { OverdueDrawer } from "@/components/finance/OverdueDrawer";
 import type { Division } from "@/types/finance";
 
+/**
+ * Phase K-5: top-level tabs collapsed from 5 (OnlyFans / Telegram /
+ * Overlay / House / Vendors) to 3 (Talent / House / Vendors). The
+ * three divisions are now sub-tabs under Talent — same DivisionView
+ * component, just one nav level deeper.
+ *
+ * Why: per Gustavo, OF/Tele/Overlay are all "talent we manage"; their
+ * ledger shape is identical. Surfacing them as siblings of House and
+ * Vendors made the nav lopsided and obscured the conceptual grouping.
+ */
+
 const DIVISIONS: { value: Division; label: string }[] = [
   { value: "onlyfans", label: "OnlyFans" },
   { value: "telegram", label: "Telegram" },
@@ -31,13 +42,11 @@ export function FinancePage() {
 
       <OverdueDrawer />
 
-      <Tabs defaultValue="onlyfans" className="space-y-4">
-        <TabsList className="h-10 flex-wrap">
-          {DIVISIONS.map((d) => (
-            <TabsTrigger key={d.value} value={d.value} className="px-4">
-              {d.label}
-            </TabsTrigger>
-          ))}
+      <Tabs defaultValue="talent" className="space-y-4">
+        <TabsList className="h-10">
+          <TabsTrigger value="talent" className="px-4">
+            Talent
+          </TabsTrigger>
           <TabsTrigger value="house" className="px-4">
             Frazier's House
           </TabsTrigger>
@@ -46,11 +55,9 @@ export function FinancePage() {
           </TabsTrigger>
         </TabsList>
 
-        {DIVISIONS.map((d) => (
-          <TabsContent key={d.value} value={d.value}>
-            <DivisionView division={d.value} year={year} />
-          </TabsContent>
-        ))}
+        <TabsContent value="talent">
+          <TalentTab year={year} />
+        </TabsContent>
 
         <TabsContent value="house">
           <HouseSection year={year} />
@@ -65,11 +72,37 @@ export function FinancePage() {
             showDivisionFilter
           />
         </TabsContent>
-
       </Tabs>
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Talent tab — nested division switcher
+// ─────────────────────────────────────────────────────────────────────
+
+function TalentTab({ year }: { year: number }) {
+  return (
+    <Tabs defaultValue="onlyfans" className="space-y-4">
+      <TabsList className="h-9">
+        {DIVISIONS.map((d) => (
+          <TabsTrigger key={d.value} value={d.value} className="px-3 text-xs">
+            {d.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {DIVISIONS.map((d) => (
+        <TabsContent key={d.value} value={d.value}>
+          <DivisionView division={d.value} year={year} />
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Year selector
+// ─────────────────────────────────────────────────────────────────────
 
 function YearSelector({
   value,

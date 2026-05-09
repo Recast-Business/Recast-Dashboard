@@ -9,9 +9,10 @@ import {
 } from "lucide-react";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -46,6 +47,7 @@ const MONTH_LABELS = [
 export function OverviewPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = React.useState(currentYear);
+  const [compareYoY, setCompareYoY] = React.useState(false);
   const { data, isLoading } = useFinanceOverview(year);
 
   const monthLabel = new Date().toLocaleDateString("en-US", {
@@ -116,14 +118,28 @@ export function OverviewPage() {
             <CardTitle className="text-base">Monthly cash flow — {year}</CardTitle>
             <p className="text-xs text-muted-foreground">
               Inflow vs outflow by month, from receipts logged in the ledger.
+              {compareYoY && ` Dotted lines = ${year - 1}.`}
             </p>
           </div>
+          <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={compareYoY}
+              onChange={(e) => setCompareYoY(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Compare to {year - 1}
+          </label>
         </CardHeader>
         <CardContent>
           {isLoading || !data ? (
             <Skeleton className="h-[260px] w-full" />
           ) : (
-            <FlowChart monthly={data.monthly} />
+            <FlowChart
+              monthly={data.monthly}
+              monthlyPrev={compareYoY ? data.monthly_prev_year : null}
+              prevYear={year - 1}
+            />
           )}
         </CardContent>
       </Card>
@@ -238,17 +254,35 @@ function KPI({
 // Trend chart
 // ─────────────────────────────────────────────────────────────────────
 
-function FlowChart({ monthly }: { monthly: MonthlyFlow[] }) {
-  const data = monthly.map((m) => ({
-    month: MONTH_LABELS[m.month - 1],
-    Inflow: m.inflow,
-    Outflow: m.outflow,
-    Net: m.net,
-  }));
+function FlowChart({
+  monthly,
+  monthlyPrev,
+  prevYear,
+}: {
+  monthly: MonthlyFlow[];
+  monthlyPrev: MonthlyFlow[] | null;
+  prevYear: number;
+}) {
+  // Merge by month index so prev-year keys align with the X-axis ticks.
+  const data = monthly.map((m, i) => {
+    const prev = monthlyPrev?.[i];
+    return {
+      month: MONTH_LABELS[m.month - 1],
+      Inflow: m.inflow,
+      Outflow: m.outflow,
+      Net: m.net,
+      ...(prev
+        ? {
+            [`Inflow ${prevYear}`]: prev.inflow,
+            [`Outflow ${prevYear}`]: prev.outflow,
+          }
+        : {}),
+    };
+  });
   return (
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey="month"
@@ -279,7 +313,27 @@ function FlowChart({ monthly }: { monthly: MonthlyFlow[] }) {
           <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
           <Bar dataKey="Inflow" fill="hsl(142 71% 45%)" radius={[3, 3, 0, 0]} />
           <Bar dataKey="Outflow" fill="hsl(0 72% 51%)" radius={[3, 3, 0, 0]} />
-        </BarChart>
+          {monthlyPrev && (
+            <>
+              <Line
+                type="monotone"
+                dataKey={`Inflow ${prevYear}`}
+                stroke="hsl(142 71% 45%)"
+                strokeDasharray="4 3"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey={`Outflow ${prevYear}`}
+                stroke="hsl(0 72% 51%)"
+                strokeDasharray="4 3"
+                strokeWidth={2}
+                dot={false}
+              />
+            </>
+          )}
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );

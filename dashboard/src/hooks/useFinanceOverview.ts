@@ -57,6 +57,8 @@ export interface FinanceOverview {
   outstanding_overdue: number;
   /** 12-month trend (Jan..Dec for the requested year). */
   monthly: MonthlyFlow[];
+  /** Same shape, but for the previous year — drives the YoY overlay. */
+  monthly_prev_year: MonthlyFlow[];
   /** Top-5 most late, in days. */
   most_overdue: OverdueLeader[];
   /** Top-5 talents by gross this month. */
@@ -97,21 +99,32 @@ export function useFinanceOverview(year: number) {
       const monthStart = startOfMonthISO(currentYear, currentMonth);
       const monthEnd = endOfMonthISO(currentYear, currentMonth);
 
-      // ── 1. Receipts for the year — for KPIs + trend ────────────────────
-      const receiptsRes = await supabase
-        .from("payment_receipts")
-        .select("source, amount, received_at")
-        .gte("received_at", startOfYearISO(year))
-        .lte("received_at", endOfYearISO(year));
+      // ── 1. Receipts for the year (and prior year, for YoY overlay) ─────
+      const [receiptsRes, receiptsPrevRes] = await Promise.all([
+        supabase
+          .from("payment_receipts")
+          .select("source, amount, received_at")
+          .gte("received_at", startOfYearISO(year))
+          .lte("received_at", endOfYearISO(year)),
+        supabase
+          .from("payment_receipts")
+          .select("source, amount, received_at")
+          .gte("received_at", startOfYearISO(year - 1))
+          .lte("received_at", endOfYearISO(year - 1)),
+      ]);
       if (receiptsRes.error) throw receiptsRes.error;
+      if (receiptsPrevRes.error) throw receiptsPrevRes.error;
 
-      // Bucket by month
-      const monthly: MonthlyFlow[] = Array.from({ length: 12 }, (_, i) => ({
-        month: i + 1,
-        inflow: 0,
-        outflow: 0,
-        net: 0,
-      }));
+      function emptyMonthly(): MonthlyFlow[] {
+        return Array.from({ length: 12 }, (_, i) => ({
+          month: i + 1,
+          inflow: 0,
+          outflow: 0,
+          net: 0,
+        }));
+      }
+      const monthly = emptyMonthly();
+      const monthlyPrev = emptyMonthly();
       let inflowThisMonth = 0;
       let outflowThisMonth = 0;
       for (const r of (receiptsRes.data ?? []) as any[]) {
@@ -132,7 +145,18 @@ export function useFinanceOverview(year: number) {
           else outflowThisMonth += amt;
         }
       }
+      for (const r of (receiptsPrevRes.data ?? []) as any[]) {
+        const dt = new Date(r.received_at);
+        const m = dt.getMonth() + 1;
+        const amt = Number(r.amount) || 0;
+        const isInflow = INFLOW_SOURCES.includes(r.source as PaymentSource);
+        if (year - 1 === dt.getFullYear()) {
+          if (isInflow) monthlyPrev[m - 1].inflow += amt;
+          else monthlyPrev[m - 1].outflow += amt;
+        }
+      }
       for (const m of monthly) m.net = m.inflow - m.outflow;
+      for (const m of monthlyPrev) m.net = m.inflow - m.outflow;
 
       // ── 2. Overdue rows across the six payment tables ──────────────────
       const [
@@ -276,6 +300,7 @@ export function useFinanceOverview(year: number) {
         net_this_month: inflowThisMonth - outflowThisMonth,
         outstanding_overdue: outstandingOverdue,
         monthly,
+        monthly_prev_year: monthlyPrev,
         most_overdue: mostOverdue,
         top_talents: topTalents,
         top_vendors: topVendors,
