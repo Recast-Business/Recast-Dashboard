@@ -244,15 +244,15 @@ function OrphanBanner({
   }
 
   return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
-      <div className="flex items-start gap-3 text-sm text-amber-900">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+    <div className="overflow-hidden rounded-md border bg-card">
+      <div className="flex items-start gap-3 border-b bg-amber-500/10 p-3 text-sm text-foreground">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
         <div className="min-w-0 flex-1">
           <div className="font-semibold">
             {orphans.length} creator{orphans.length === 1 ? "" : "s"} have Telegram
             performance recorded in {year} but no deal yet
           </div>
-          <p className="mt-0.5 text-xs text-amber-900/80">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Performance rows exist in the database (this is what the overdue banner
             picks up) but they're invisible here because the Income tab only shows
             creators with an active deal. Create a deal to claim the data, or delete
@@ -260,11 +260,14 @@ function OrphanBanner({
           </p>
         </div>
       </div>
-      <ul className="mt-3 space-y-1">
-        {orphans.map((o) => (
+      <ul>
+        {orphans.map((o, i) => (
           <li
             key={o.creator_id}
-            className="flex flex-wrap items-center gap-3 rounded-md border border-amber-200 bg-white px-3 py-2 text-xs"
+            className={cn(
+              "flex flex-wrap items-center gap-3 px-3 py-2 text-xs hover:bg-muted/30",
+              i > 0 && "border-t",
+            )}
           >
             <span className="min-w-0 flex-1 truncate font-medium text-foreground">
               {o.name}
