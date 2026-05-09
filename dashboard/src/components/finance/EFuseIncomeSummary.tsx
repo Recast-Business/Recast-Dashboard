@@ -15,6 +15,9 @@ import { useCampaignCreatorsByCampaigns } from "@/hooks/useCampaignCreators";
 import { useCampaignPaymentsByCreators } from "@/hooks/useCampaignPayments";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import type { CSVColumn } from "@/lib/export/csv";
+import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
+import { PieCard } from "@/components/analytics/PieCard";
+import { groupSum } from "@/lib/analytics/group";
 import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 
@@ -155,6 +158,38 @@ export function EFuseIncomeSummary({ year }: Props) {
           </Link>{" "}
           to create one.
         </div>
+      )}
+
+      {(campaigns ?? []).length > 0 && (
+        <AnalyticsPanel storageKey="recast.analytics.efuse" title="eFuse analytics">
+          {() => (
+            <>
+              <PieCard
+                title="Gross by brand"
+                data={groupSum(campaigns ?? [], {
+                  key: (c) => c.brand,
+                  value: (c) => totalsByCampaign[c.id]?.gross ?? 0,
+                  topN: 8,
+                })}
+              />
+              <PieCard
+                title="Recast YTD by brand"
+                data={groupSum(campaigns ?? [], {
+                  key: (c) => c.brand,
+                  value: (c) => totalsByCampaign[c.id]?.recast ?? 0,
+                  topN: 8,
+                })}
+              />
+              <PieCard
+                title="By status"
+                data={groupSum(campaigns ?? [], {
+                  key: (c) => c.status.replace(/_/g, " "),
+                  value: (c) => totalsByCampaign[c.id]?.gross ?? 0,
+                })}
+              />
+            </>
+          )}
+        </AnalyticsPanel>
       )}
 
       {(campaigns ?? []).length > 0 && (

@@ -15,6 +15,9 @@ import { TeleDealDialog } from "@/components/finance/TeleDealDialog";
 import { TelePeriodCellDialog } from "@/components/finance/TelePeriodCellDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
+import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
+import { PieCard } from "@/components/analytics/PieCard";
+import { groupSum, periodMonthRange } from "@/lib/analytics/group";
 import type { PaymentStatusV2, TelePeriodPerformance } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
@@ -101,6 +104,60 @@ export function TeleIncomeSection({ year }: Props) {
         <div className="rounded-md border bg-card p-6 text-center text-sm text-muted-foreground">
           {deals?.length ? "No matches." : "No Telegram deals yet — click Add deal to create one."}
         </div>
+      )}
+
+      {filtered.length > 0 && (
+        <AnalyticsPanel
+          storageKey="recast.analytics.telegram"
+          title="Telegram analytics"
+        >
+          {(period) => {
+            const range = periodMonthRange(period);
+            const enriched = filtered.map((d) => {
+              const cells = periodsByCreator?.[d.creator_id] ?? {};
+              let gross = 0, recast = 0, takeHome = 0;
+              for (let m = range.from; m <= range.to; m++) {
+                const c = cells[m];
+                if (!c) continue;
+                gross += Number(c.gross_revenue) || 0;
+                recast += Number(c.recast_commission) || 0;
+                takeHome +=
+                  (Number(c.net_revenue) || 0) +
+                  (Number(c.mg_top_up) || 0) -
+                  (Number(c.recast_commission) || 0);
+              }
+              return { deal: d, gross, recast, takeHome };
+            });
+            return (
+              <>
+                <PieCard
+                  title="Gross by creator"
+                  data={groupSum(enriched, {
+                    key: (e) => e.deal.creator?.name ?? "Unknown",
+                    value: (e) => e.gross,
+                    topN: 8,
+                  })}
+                />
+                <PieCard
+                  title="Recast commission split"
+                  data={groupSum(enriched, {
+                    key: (e) => e.deal.creator?.name ?? "Unknown",
+                    value: (e) => e.recast,
+                    topN: 8,
+                  })}
+                />
+                <PieCard
+                  title="Creator take-home split"
+                  data={groupSum(enriched, {
+                    key: (e) => e.deal.creator?.name ?? "Unknown",
+                    value: (e) => e.takeHome,
+                    topN: 8,
+                  })}
+                />
+              </>
+            );
+          }}
+        </AnalyticsPanel>
       )}
 
       <div className="space-y-2">

@@ -15,6 +15,9 @@ import { OFDealDialog } from "@/components/finance/OFDealDialog";
 import { OFPeriodCellDialog } from "@/components/finance/OFPeriodCellDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
+import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
+import { PieCard } from "@/components/analytics/PieCard";
+import { groupSum, periodMonthRange } from "@/lib/analytics/group";
 import type { OFPeriodPerformance, PaymentStatusV2 } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
@@ -103,6 +106,57 @@ export function OFIncomeSection({ year }: Props) {
         <div className="rounded-md border bg-card p-6 text-center text-sm text-muted-foreground">
           {deals?.length ? "No matches." : "No OnlyFans deals yet — click Add deal to create one."}
         </div>
+      )}
+
+      {filtered.length > 0 && (
+        <AnalyticsPanel
+          storageKey="recast.analytics.onlyfans"
+          title="OnlyFans analytics"
+        >
+          {(period) => {
+            const range = periodMonthRange(period);
+            const enriched = filtered.map((d) => {
+              const cells = periodsByDeal?.[d.id] ?? {};
+              let gross = 0, recast = 0, girls = 0;
+              for (let m = range.from; m <= range.to; m++) {
+                const c = cells[m];
+                if (!c) continue;
+                gross += Number(c.gross_revenue) || 0;
+                recast += Number(c.recast_commission) || 0;
+                girls += Number(c.girls_share) || 0;
+              }
+              return { deal: d, gross, recast, girls };
+            });
+            return (
+              <>
+                <PieCard
+                  title="Gross by page"
+                  data={groupSum(enriched, {
+                    key: (e) => e.deal.page_name,
+                    value: (e) => e.gross,
+                    topN: 8,
+                  })}
+                />
+                <PieCard
+                  title="Recast share by page"
+                  data={groupSum(enriched, {
+                    key: (e) => e.deal.page_name,
+                    value: (e) => e.recast,
+                    topN: 8,
+                  })}
+                />
+                <PieCard
+                  title="Girls share by page"
+                  data={groupSum(enriched, {
+                    key: (e) => e.deal.page_name,
+                    value: (e) => e.girls,
+                    topN: 8,
+                  })}
+                />
+              </>
+            );
+          }}
+        </AnalyticsPanel>
       )}
 
       <div className="space-y-2">

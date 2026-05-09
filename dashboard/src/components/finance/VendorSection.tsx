@@ -10,6 +10,9 @@ import { VendorTable } from "@/components/finance/VendorTable";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
+import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
+import { PieCard } from "@/components/analytics/PieCard";
+import { groupSum, periodMonthRange } from "@/lib/analytics/group";
 import type { Division, Vendor, VendorKind } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
@@ -143,6 +146,52 @@ export function VendorSection({ division, kind, title, description, year, showDi
         </div>
       )}
 
+      {filtered.length > 0 && (
+        <AnalyticsPanel
+          storageKey={`recast.analytics.vendors.${kind}.${division ?? "top"}`}
+          title="Spend analytics"
+        >
+          {(period) => {
+            const range = periodMonthRange(period);
+            // Aggregate every vendor's payments within the selected month range.
+            const enriched = filtered.map((v) => {
+              const cells = paymentsByVendor?.[v.id] ?? {};
+              let amt = 0;
+              for (let m = range.from; m <= range.to; m++) {
+                amt += Number(cells[m]?.amount) || 0;
+              }
+              return { vendor: v, amount: amt };
+            });
+            return (
+              <>
+                <PieCard
+                  title="By payment method"
+                  data={groupSum(enriched, {
+                    key: (e) => methodLabel(e.vendor.payment_method),
+                    value: (e) => e.amount,
+                  })}
+                />
+                <PieCard
+                  title="By division"
+                  data={groupSum(enriched, {
+                    key: (e) => divisionLabel(e.vendor.division),
+                    value: (e) => e.amount,
+                  })}
+                />
+                <PieCard
+                  title="By counterparty (top 8)"
+                  data={groupSum(enriched, {
+                    key: (e) => e.vendor.name,
+                    value: (e) => e.amount,
+                    topN: 8,
+                  })}
+                />
+              </>
+            );
+          }}
+        </AnalyticsPanel>
+      )}
+
       {filtered.length > 0 && viewMode === "cards" && (
         <div className="space-y-2">
           {filtered.map((v) => (
@@ -219,6 +268,19 @@ function ViewToggle({
 // ─────────────────────────────────────────────────────────────────────
 // CSV export helpers
 // ─────────────────────────────────────────────────────────────────────
+
+function methodLabel(m: string | null | undefined): string {
+  if (!m) return "Unspecified";
+  return PAYMENT_METHOD_LABEL_FULL[m] ?? m;
+}
+
+function divisionLabel(d: string | null | undefined): string {
+  if (!d) return "Org-wide";
+  if (d === "onlyfans") return "OnlyFans";
+  if (d === "telegram") return "Telegram";
+  if (d === "efuse") return "eFuse";
+  return d;
+}
 
 const PAYMENT_METHOD_LABEL_FULL: Record<string, string> = {
   auto_pay: "Auto Pay",
