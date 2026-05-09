@@ -16,6 +16,9 @@ backups/
 # Internal-only docs — kept locally, not in the public repo
 dashboard/docs/recast-dashboard-design-prompt.txt
 
+# Archived legacy code — kept locally for reference, not in repo
+_archive/
+
 # Data files (live in Google Sheets, not git)
 *.xlsx
 chat_messages.json
