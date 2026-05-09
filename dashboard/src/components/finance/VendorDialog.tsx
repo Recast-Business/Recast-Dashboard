@@ -30,8 +30,9 @@ import type {
   PaymentMethod,
 } from "@/types/finance";
 
+// Phase M-0: Auto Pay removed — utilities (the only place auto-pay was used)
+// live under Frazier's House and don't flow through this dialog.
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: "auto_pay", label: "Auto Pay" },
   { value: "paypal", label: "PayPal" },
   { value: "domestic_wire", label: "Domestic Wire" },
   { value: "international_transfer", label: "International Transfer" },
@@ -42,6 +43,10 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "credit_card", label: "Credit Card" },
 ];
 
+// Phase M-0: Division field hidden for `kind="vendor"` rows — Gustavo's
+// vendor list is org-wide and doesn't need OF/Telegram/Overlay tagging.
+// Talent rows (talent_we_pay / talent_that_pays_us) keep the field until
+// M-6 collapses those into the new Talent restructure.
 const DIVISIONS: { value: Division | "none"; label: string }[] = [
   { value: "none", label: "Not division-specific" },
   { value: "onlyfans", label: "OnlyFans" },
@@ -151,7 +156,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
-          <div className="grid grid-cols-2 gap-3">
+          <div className={defaultKind === "vendor" ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
             <div className="grid gap-1.5">
               <Label htmlFor="v-name">Name *</Label>
               <Input
@@ -161,24 +166,26 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 autoFocus
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label>Division</Label>
-              <Select
-                value={form.division ?? "none"}
-                onValueChange={(v) => set("division", v === "none" ? null : (v as Division))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DIVISIONS.map((d) => (
-                    <SelectItem key={d.value} value={d.value}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {defaultKind !== "vendor" && (
+              <div className="grid gap-1.5">
+                <Label>Division</Label>
+                <Select
+                  value={form.division ?? "none"}
+                  onValueChange={(v) => set("division", v === "none" ? null : (v as Division))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DIVISIONS.map((d) => (
+                      <SelectItem key={d.value} value={d.value}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -5,6 +5,8 @@ import type { AnalyticsPeriod } from "@/lib/analytics/group";
 
 const PERIODS: { value: AnalyticsPeriod; label: string }[] = [
   { value: "current", label: "Current month" },
+  { value: "last30", label: "Last 30 days" },
+  { value: "3m", label: "Last 3 months" },
   { value: "6m", label: "Last 6 months" },
   { value: "ytd", label: "YTD" },
 ];

@@ -1,6 +1,5 @@
 import { NavLink } from "react-router-dom";
 import {
-  Activity,
   DollarSign,
   FileText,
   LayoutDashboard,
@@ -34,7 +33,6 @@ const ITEMS: NavItem[] = [
   { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"] },
   { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"] },
   { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
-  { to: "/activity", label: "Activity", icon: Activity, allow: ["admin", "partner", "finance"] },
 ];
 
 export function Sidebar() {

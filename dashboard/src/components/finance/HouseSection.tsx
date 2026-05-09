@@ -230,8 +230,13 @@ function BedroomsRentPanel({
           <TableBody>
             {residents.map((r) => {
               const cells = rentByResident[r.id] ?? {};
+              // Phase M-0 bug fix: YTD reflects what's been PAID, so toggling
+              // a cell unpaid actually subtracts from the total (was adding
+              // every row regardless of status — increased on paid, never
+              // decreased on unpaid).
               const ytd = Object.values(cells).reduce(
-                (sum, p) => sum + (Number(p.amount) || 0),
+                (sum, p) =>
+                  p.status === "paid" ? sum + (Number(p.amount) || 0) : sum,
                 0,
               );
               return (

@@ -56,12 +56,23 @@ export function groupSum<Row>(rows: Row[], opts: GroupOptions<Row>): PieBucket[]
  * Filter a (period_year, period_month) row to a UI window. The window is
  * always within ONE calendar year (whichever year the user has selected),
  * so this just narrows by month.
+ *
+ * Phase M-0: extended with `last30` (effectively the same one-month window
+ * as `current` for our row resolution, since periods are monthly buckets)
+ * and `3m` (last 3 calendar months) so analytics matches what Frazier
+ * asks for day-to-day.
  */
-export type AnalyticsPeriod = "ytd" | "6m" | "current";
+export type AnalyticsPeriod = "ytd" | "6m" | "3m" | "current" | "last30";
 
 export function periodMonthRange(period: AnalyticsPeriod): { from: number; to: number } {
   const currentMonth = new Date().getMonth() + 1; // 1-12
-  if (period === "current") return { from: currentMonth, to: currentMonth };
+  if (period === "current" || period === "last30") {
+    // last30 ≈ current month at our monthly grain — performance rows are
+    // bucketed monthly, so any sub-month window collapses to the current
+    // month. The label is still useful as a UX shorthand for Frazier.
+    return { from: currentMonth, to: currentMonth };
+  }
+  if (period === "3m") return { from: Math.max(1, currentMonth - 2), to: currentMonth };
   if (period === "6m") return { from: Math.max(1, currentMonth - 5), to: currentMonth };
   return { from: 1, to: 12 };
 }
