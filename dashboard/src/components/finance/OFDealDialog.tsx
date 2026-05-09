@@ -47,6 +47,19 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
   const [notes, setNotes] = React.useState("");
   const [active, setActive] = React.useState(true);
 
+  // K-1: read commission % off the selected creator's profile.
+  // Prefill applies only when CREATING a new deal (not editing existing).
+  const selectedCreator = React.useMemo(
+    () => (creators ?? []).find((c) => c.id === creatorId),
+    [creators, creatorId],
+  );
+  const profilePct = React.useMemo<number | null>(() => {
+    const map = (selectedCreator as any)?.commission_pct_by_platform;
+    if (!map || typeof map !== "object") return null;
+    const v = map.onlyfans;
+    return typeof v === "number" ? v : null;
+  }, [selectedCreator]);
+
   React.useEffect(() => {
     if (!open) return;
     if (deal) {
@@ -65,6 +78,15 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
       setActive(true);
     }
   }, [open, deal]);
+
+  // K-1: When creating a new deal and the user picks a creator, snap the
+  // commission % to whatever is on their profile. Editing never auto-snaps.
+  React.useEffect(() => {
+    if (!open || deal) return;
+    if (!creatorId) return;
+    if (profilePct == null) return;
+    setPct(String(profilePct));
+  }, [open, deal, creatorId, profilePct]);
 
   async function onSave() {
     if (!creatorId) return toast.error("Pick a creator.");
@@ -164,6 +186,29 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
                 value={pct}
                 onChange={(e) => setPct(e.target.value)}
               />
+              {creatorId && profilePct != null && (
+                <p className="text-[11px] text-muted-foreground">
+                  {Number(pct) === profilePct ? (
+                    <>From profile ({profilePct}%).</>
+                  ) : (
+                    <>
+                      Overriding profile default ({profilePct}%).{" "}
+                      <button
+                        type="button"
+                        className="underline hover:text-foreground"
+                        onClick={() => setPct(String(profilePct))}
+                      >
+                        Reset
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+              {creatorId && profilePct == null && !deal && (
+                <p className="text-[11px] text-muted-foreground">
+                  No OnlyFans % on this creator's profile — set one in Roster → Profile to auto-fill next time.
+                </p>
+              )}
             </div>
             <div className="grid gap-1.5">
               <Label>Commission on</Label>

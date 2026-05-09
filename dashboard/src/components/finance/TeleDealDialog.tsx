@@ -43,6 +43,19 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
 
   const [creatorId, setCreatorId] = React.useState<string>("");
   const [pct, setPct] = React.useState<string>("20");
+
+  // K-1: read commission % off the selected creator's profile.
+  // Prefill applies only when CREATING a new deal (not editing existing).
+  const selectedCreator = React.useMemo(
+    () => (creators ?? []).find((c) => c.id === creatorId),
+    [creators, creatorId],
+  );
+  const profilePct = React.useMemo<number | null>(() => {
+    const map = (selectedCreator as any)?.commission_pct_by_platform;
+    if (!map || typeof map !== "object") return null;
+    const v = map.telegram;
+    return typeof v === "number" ? v : null;
+  }, [selectedCreator]);
   const [basis, setBasis] = React.useState<CommissionBasis>("net");
   const [hasMG, setHasMG] = React.useState(false);
   const [mg, setMg] = React.useState<string>("");
@@ -78,6 +91,16 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
       setActive(true);
     }
   }, [open, deal]);
+
+  // K-1: When creating a new deal and the user picks a creator, snap the
+  // commission % to whatever is on their profile. Editing an existing deal
+  // never auto-snaps — keep the recorded contract value untouched.
+  React.useEffect(() => {
+    if (!open || deal) return;
+    if (!creatorId) return;
+    if (profilePct == null) return;
+    setPct(String(profilePct));
+  }, [open, deal, creatorId, profilePct]);
 
   async function onSave() {
     if (!creatorId) {
@@ -188,6 +211,29 @@ export function TeleDealDialog({ open, onOpenChange, deal }: Props) {
                 value={pct}
                 onChange={(e) => setPct(e.target.value)}
               />
+              {creatorId && profilePct != null && (
+                <p className="text-[11px] text-muted-foreground">
+                  {Number(pct) === profilePct ? (
+                    <>From profile ({profilePct}%).</>
+                  ) : (
+                    <>
+                      Overriding profile default ({profilePct}%).{" "}
+                      <button
+                        type="button"
+                        className="underline hover:text-foreground"
+                        onClick={() => setPct(String(profilePct))}
+                      >
+                        Reset
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+              {creatorId && profilePct == null && !deal && (
+                <p className="text-[11px] text-muted-foreground">
+                  No Telegram % on this creator's profile — set one in Roster → Profile to auto-fill next time.
+                </p>
+              )}
             </div>
             <div className="grid gap-1.5">
               <Label>Commission on</Label>
