@@ -38,6 +38,10 @@ export interface VendorInput {
   account_profile?: string | null;
   notes?: string | null;
   active?: boolean;
+  // Phase M-1: roster fields
+  username_handle?: string | null;
+  nda_signed?: boolean;
+  nda_url?: string | null;
 }
 
 export function useAddVendor() {

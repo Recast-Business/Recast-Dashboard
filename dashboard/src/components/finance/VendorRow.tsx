@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, ChevronRight, Pencil, Trash2, Wallet } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSignature, Pencil, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,11 +72,41 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
           <div className="flex items-center gap-2">
             <span className="truncate font-medium">{vendor.name}</span>
             {!vendor.active && <Badge variant="secondary">Inactive</Badge>}
+            {/* Phase M-1: NDA pill in card header — same idiom as VendorTable */}
+            {vendor.nda_signed ? (
+              vendor.nda_url ? (
+                <a
+                  href={vendor.nda_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="NDA signed — open document"
+                  className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-400"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <FileSignature className="h-3 w-3" /> NDA
+                </a>
+              ) : (
+                <span
+                  title="NDA signed (no link on file)"
+                  className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400"
+                >
+                  <FileSignature className="h-3 w-3" /> NDA
+                </span>
+              )
+            ) : (
+              <span
+                title="NDA not signed — flag this for compliance"
+                className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400"
+              >
+                No NDA
+              </span>
+            )}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             {vendor.payment_method && <span>{PAYMENT_METHOD_LABEL[vendor.payment_method]}</span>}
             {vendor.account_profile && <span>· {vendor.account_profile}</span>}
             {vendor.contact_name && <span>· {vendor.contact_name}</span>}
+            {vendor.username_handle && <span>· @{vendor.username_handle}</span>}
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs">

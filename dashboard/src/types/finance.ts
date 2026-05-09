@@ -50,6 +50,12 @@ export interface Vendor {
   account_profile: string | null;
   notes: string | null;
   active: boolean;
+  /** Phase M-1: Discord / Telegram / generic IM handle. Separate from email/phone. */
+  username_handle: string | null;
+  /** Phase M-1: NDA signed status. Required signal for compliance — Gustavo asks
+   *  for this on every vendor; the URL is optional supporting evidence. */
+  nda_signed: boolean;
+  nda_url: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

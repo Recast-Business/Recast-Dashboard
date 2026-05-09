@@ -78,6 +78,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
     account_profile: "",
     notes: "",
     active: true,
+    username_handle: "",
+    nda_signed: false,
+    nda_url: "",
   });
 
   React.useEffect(() => {
@@ -94,6 +97,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         account_profile: vendor.account_profile ?? "",
         notes: vendor.notes ?? "",
         active: vendor.active,
+        username_handle: vendor.username_handle ?? "",
+        nda_signed: vendor.nda_signed,
+        nda_url: vendor.nda_url ?? "",
       });
     } else {
       setForm({
@@ -107,6 +113,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         account_profile: "",
         notes: "",
         active: true,
+        username_handle: "",
+        nda_signed: false,
+        nda_url: "",
       });
     }
   }, [open, vendor, defaultDivision, defaultKind]);
@@ -128,6 +137,8 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       contact_phone: form.contact_phone?.trim() || null,
       account_profile: form.account_profile?.trim() || null,
       notes: form.notes?.trim() || null,
+      username_handle: form.username_handle?.trim() || null,
+      nda_url: form.nda_url?.trim() || null,
     };
     try {
       if (vendor) {
@@ -241,6 +252,44 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 id="v-cphone"
                 value={form.contact_phone ?? ""}
                 onChange={(e) => set("contact_phone", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Phase M-1: handle field for IM platforms (Discord, Telegram, etc.) */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="v-handle">Username / handle</Label>
+            <Input
+              id="v-handle"
+              value={form.username_handle ?? ""}
+              onChange={(e) => set("username_handle", e.target.value)}
+              placeholder="Discord, Telegram, IG handle…"
+            />
+          </div>
+
+          {/* Phase M-1: NDA toggle + optional URL. The toggle is the source
+              of truth — Gustavo wants this on every vendor. The URL is a
+              convenience pointer to the signed file in Drive/Dropbox. */}
+          <div className="rounded-md border bg-muted/15 p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.nda_signed ?? false}
+                onChange={(e) => set("nda_signed", e.target.checked)}
+              />
+              NDA signed
+            </label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="v-nda-url" className="text-[11px] text-muted-foreground">
+                NDA link (optional)
+              </Label>
+              <Input
+                id="v-nda-url"
+                type="url"
+                value={form.nda_url ?? ""}
+                onChange={(e) => set("nda_url", e.target.value)}
+                placeholder="https://drive.google.com/…"
+                disabled={!form.nda_signed}
               />
             </div>
           </div>

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pencil, Trash2, Wallet } from "lucide-react";
+import { FileSignature, Pencil, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,7 +127,40 @@ export function VendorTable({ vendors, paymentsByVendor, year, onEdit }: Props) 
               return (
                 <TableRow key={v.id} className="text-xs">
                   <TableCell className="sticky left-0 z-10 bg-background font-medium">
-                    {v.name}
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate">{v.name}</span>
+                      {/* Phase M-1: NDA status pill — NDA signed = green icon,
+                          missing = amber pill so it's visually obvious in the
+                          list which vendors still need an NDA on file. */}
+                      {v.nda_signed ? (
+                        v.nda_url ? (
+                          <a
+                            href={v.nda_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="NDA signed — open document"
+                            className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FileSignature className="h-3.5 w-3.5" />
+                          </a>
+                        ) : (
+                          <span
+                            title="NDA signed (no link on file)"
+                            className="text-emerald-600 dark:text-emerald-400"
+                          >
+                            <FileSignature className="h-3.5 w-3.5" />
+                          </span>
+                        )
+                      ) : (
+                        <span
+                          title="NDA not signed"
+                          className="rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400"
+                        >
+                          No NDA
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>{v.payment_method ? PAYMENT_METHOD_LABEL[v.payment_method] : "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{v.account_profile || "—"}</TableCell>
