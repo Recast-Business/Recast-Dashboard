@@ -218,8 +218,14 @@ export interface CreatorProfilePatch {
   address?: string | null;
   payment_method_pref?: string | null;
   tax_id?: string | null;
-  /** Map of division → commission %. Phase K extends to tiered shapes. */
-  commission_pct_by_platform?: Record<string, number | null>;
+  /** Phase K-2: per-platform commission. Each value is either:
+   *  - a flat percentage number (e.g. 30)
+   *  - null (no deal on that platform)
+   *  - an array of {threshold, pct} tier rows (cliff semantics) */
+  commission_pct_by_platform?: Record<
+    string,
+    number | null | Array<{ threshold: number; pct: number }>
+  >;
   /** Allow the dialog to also tweak the everyday fields. */
   name?: string;
   country?: string | null;

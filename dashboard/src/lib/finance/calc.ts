@@ -9,7 +9,61 @@
  *
  * OnlyFans is simpler — Recast takes a % of gross or net depending on the deal,
  * the rest is the creator's "girls share". No MG.
+ *
+ * Phase K-2: tiered commissions with cliff semantics.
+ *   • Tiers are an array of { threshold, pct } sorted by threshold.
+ *   • For a given month's gross G, find the highest-threshold tier where
+ *     threshold <= G — its pct applies to the WHOLE month (cliff, not
+ *     marginal). Confirmed by Gustavo.
+ *   • If gross < lowest threshold (rare — usually threshold=0 covers it),
+ *     fall back to the lowest tier's pct.
+ *   • Backward compat: when tiers is null/undefined/empty, the calc uses
+ *     the deal's flat pct as before.
  */
+
+export interface CommissionTier {
+  /** Monthly gross >= this threshold → use this pct (cliff). */
+  threshold: number;
+  /** Recast's cut, 0–100. */
+  pct: number;
+}
+
+/** Resolve which tier applies for a given monthly gross under cliff
+ *  semantics. Returns null if no tiers provided. */
+export function effectivePctFromTiers(
+  gross: number,
+  tiers: CommissionTier[] | null | undefined,
+): number | null {
+  if (!tiers || tiers.length === 0) return null;
+  const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
+  let chosen = sorted[0].pct;
+  for (const t of sorted) {
+    if (gross >= t.threshold) chosen = t.pct;
+    else break;
+  }
+  return chosen;
+}
+
+/** Pull a tier array out of a creator's commission_pct_by_platform JSONB.
+ *  Backwards-compat: a flat number or null returns null (calc engine
+ *  falls back to the deal's flat pct in that case). */
+export function tiersFromProfile(
+  commissionByPlatform: unknown,
+  platform: "onlyfans" | "telegram" | "efuse",
+): CommissionTier[] | null {
+  if (!commissionByPlatform || typeof commissionByPlatform !== "object") return null;
+  const map = commissionByPlatform as Record<string, unknown>;
+  const v = map[platform];
+  if (!Array.isArray(v)) return null;
+  // Sanity-filter so a malformed JSONB row doesn't crash the calc.
+  const out: CommissionTier[] = [];
+  for (const t of v as Array<Record<string, unknown>>) {
+    if (typeof t?.threshold === "number" && typeof t?.pct === "number") {
+      out.push({ threshold: t.threshold, pct: t.pct });
+    }
+  }
+  return out.length > 0 ? out : null;
+}
 
 const TELEGRAM_PLATFORM_NET_RATIO = 0.5;
 const TELEGRAM_MG_QUALIFIER_RATIO = 0.5;
@@ -26,9 +80,12 @@ export interface TelePeriodCalc {
 export interface TelePeriodInput {
   gross_revenue: number;
   net_revenue?: number;           // optional override; defaults to 50% of gross
-  recast_commission_pct: number;  // e.g. 20 for 20%
+  recast_commission_pct: number;  // e.g. 20 for 20% (used when tiers is null/empty)
   commission_basis: "gross" | "net";
   min_guarantee?: number | null;  // null = no MG
+  /** Optional tier table from the creator's profile. When present, overrides
+   *  recast_commission_pct using cliff semantics (see effectivePctFromTiers). */
+  tiers?: CommissionTier[] | null;
 }
 
 export function calcTelePeriod(input: TelePeriodInput): TelePeriodCalc {
@@ -45,7 +102,12 @@ export function calcTelePeriod(input: TelePeriodInput): TelePeriodCalc {
 
   const baseForCommission =
     input.commission_basis === "gross" ? gross : round2(net + topUp);
-  const recastCommission = round2(baseForCommission * (input.recast_commission_pct / 100));
+  // Tiers, if present, are evaluated against the GROSS revenue — Gustavo's
+  // monthly threshold is "how much did the creator make this month", not
+  // "how much was Recast's base after splits". Cliff semantics per spec.
+  const tieredPct = effectivePctFromTiers(gross, input.tiers);
+  const effectivePct = tieredPct ?? input.recast_commission_pct;
+  const recastCommission = round2(baseForCommission * (effectivePct / 100));
 
   const creatorTakeHome = round2(net + topUp - recastCommission);
 
@@ -71,8 +133,10 @@ export interface OFPeriodCalc {
 export interface OFPeriodInput {
   gross_revenue: number;
   net_revenue?: number;           // optional override; defaults equal to gross
-  recast_pct: number;             // e.g. 35 for 35%
+  recast_pct: number;             // e.g. 35 for 35% (used when tiers is null/empty)
   basis: "gross" | "net";
+  /** Optional tier table from the creator's profile. Cliff semantics per K-2. */
+  tiers?: CommissionTier[] | null;
 }
 
 export function calcOFPeriod(input: OFPeriodInput): OFPeriodCalc {
@@ -83,7 +147,9 @@ export function calcOFPeriod(input: OFPeriodInput): OFPeriodCalc {
       : gross;
 
   const baseForCommission = input.basis === "gross" ? gross : net;
-  const recastCommission = round2(baseForCommission * (input.recast_pct / 100));
+  const tieredPct = effectivePctFromTiers(gross, input.tiers);
+  const effectivePct = tieredPct ?? input.recast_pct;
+  const recastCommission = round2(baseForCommission * (effectivePct / 100));
   const girlsShare = round2(net - recastCommission);
 
   return {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { calcOFPeriod } from "@/lib/finance/calc";
+import { calcOFPeriod, type CommissionTier } from "@/lib/finance/calc";
 import type {
   CommissionBasis,
   OFDeal,
@@ -9,7 +9,11 @@ import type {
 } from "@/types/finance";
 
 export interface OFDealRow extends OFDeal {
-  creator?: { id: string; name: string } | null;
+  creator?: {
+    id: string;
+    name: string;
+    commission_pct_by_platform?: Record<string, unknown> | null;
+  } | null;
 }
 
 export function useOFDeals(opts: { includeInactive?: boolean } = {}) {
@@ -18,7 +22,7 @@ export function useOFDeals(opts: { includeInactive?: boolean } = {}) {
     queryFn: async () => {
       let q = supabase
         .from("of_deals")
-        .select("*, creator:creators(id, name)")
+        .select("*, creator:creators(id, name, commission_pct_by_platform)")
         .order("created_at", { ascending: false });
       if (!opts.includeInactive) q = q.eq("active", true);
       const { data, error } = await q;
@@ -138,6 +142,8 @@ export interface OFPeriodInput {
   // Deal economics for client-side calc:
   recast_pct: number;
   basis: CommissionBasis;
+  /** Phase K-2: optional tiered commission table from the creator's profile. */
+  tiers?: CommissionTier[] | null;
 }
 
 export function useUpsertOFPeriod() {
@@ -149,6 +155,7 @@ export function useUpsertOFPeriod() {
         net_revenue: input.net_revenue,
         recast_pct: input.recast_pct,
         basis: input.basis,
+        tiers: input.tiers,
       });
       const row = {
         of_deal_id: input.of_deal_id,

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { calcTelePeriod } from "@/lib/finance/calc";
+import { calcTelePeriod, type CommissionTier } from "@/lib/finance/calc";
 import type {
   CommissionBasis,
   PaymentStatusV2,
@@ -9,7 +9,11 @@ import type {
 } from "@/types/finance";
 
 export interface TeleDealRow extends TeleDeal {
-  creator?: { id: string; name: string } | null;
+  creator?: {
+    id: string;
+    name: string;
+    commission_pct_by_platform?: Record<string, unknown> | null;
+  } | null;
 }
 
 /** Orphan creator: has tele_period_performance rows for `year` but no
@@ -97,7 +101,7 @@ export function useTeleDeals(opts: { includeInactive?: boolean } = {}) {
     queryFn: async () => {
       let q = supabase
         .from("tele_deals")
-        .select("*, creator:creators(id, name)")
+        .select("*, creator:creators(id, name, commission_pct_by_platform)")
         .order("created_at", { ascending: false });
       if (!opts.includeInactive) q = q.eq("active", true);
       const { data, error } = await q;
@@ -222,6 +226,9 @@ export interface TelePeriodInput {
   recast_commission_pct: number;
   commission_basis: CommissionBasis;
   min_guarantee: number | null;
+  /** Phase K-2: optional tiered commission table from the creator's profile.
+   *  When present, overrides recast_commission_pct using cliff semantics. */
+  tiers?: CommissionTier[] | null;
 }
 
 /**
@@ -239,6 +246,7 @@ export function useUpsertTelePeriod() {
         recast_commission_pct: input.recast_commission_pct,
         commission_basis: input.commission_basis,
         min_guarantee: input.min_guarantee,
+        tiers: input.tiers,
       });
 
       const row = {

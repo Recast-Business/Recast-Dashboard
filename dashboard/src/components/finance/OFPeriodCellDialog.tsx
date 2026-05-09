@@ -18,13 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useUpsertOFPeriod } from "@/hooks/useOFDeals";
-import { calcOFPeriod } from "@/lib/finance/calc";
+import { useUpsertOFPeriod, type OFDealRow } from "@/hooks/useOFDeals";
+import { calcOFPeriod, tiersFromProfile } from "@/lib/finance/calc";
 import { formatUSD } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
 import type {
   CommissionBasis,
-  OFDeal,
   OFPeriodPerformance,
   PaymentStatusV2,
 } from "@/types/finance";
@@ -37,7 +36,7 @@ const MONTH_NAMES = [
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  deal: OFDeal;
+  deal: OFDealRow;
   year: number;
   month: number;
   existing: OFPeriodPerformance | null;
@@ -64,6 +63,11 @@ export function OFPeriodCellDialog({
 
   const grossNum = Number(gross) || 0;
   const netNum = net.trim() ? Number(net) : grossNum;
+  // Phase K-2: tiered profile commission overrides the deal's flat pct.
+  const tiers = React.useMemo(
+    () => tiersFromProfile(deal.creator?.commission_pct_by_platform, "onlyfans"),
+    [deal.creator?.commission_pct_by_platform],
+  );
   const preview = React.useMemo(
     () =>
       calcOFPeriod({
@@ -71,8 +75,9 @@ export function OFPeriodCellDialog({
         net_revenue: netNum,
         recast_pct: deal.recast_pct,
         basis: deal.basis as CommissionBasis,
+        tiers,
       }),
-    [grossNum, netNum, deal],
+    [grossNum, netNum, deal, tiers],
   );
 
   async function onSave() {
@@ -92,6 +97,7 @@ export function OFPeriodCellDialog({
         notes: notes.trim() || null,
         recast_pct: deal.recast_pct,
         basis: deal.basis as CommissionBasis,
+        tiers,
       });
       toast.success(`${MONTH_NAMES[month - 1]} ${year} updated`);
       onOpenChange(false);

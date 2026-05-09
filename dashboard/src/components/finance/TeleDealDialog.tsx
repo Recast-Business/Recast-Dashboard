@@ -53,11 +53,31 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
     () => (creators ?? []).find((c) => c.id === creatorId),
     [creators, creatorId],
   );
-  const profilePct = React.useMemo<number | null>(() => {
+  // K-2: profile may be flat (number) or tiered (array). For the deal dialog,
+  // we still snap a single % — the lowest tier's pct when tiered, the flat
+  // value otherwise. Tiered profiles get a hint instead of a "matches/overriding"
+  // line because the actual commission applies tier-by-tier at calc time.
+  const { profilePct, profileIsTiered, tierSummary } = React.useMemo(() => {
     const map = (selectedCreator as any)?.commission_pct_by_platform;
-    if (!map || typeof map !== "object") return null;
+    if (!map || typeof map !== "object") {
+      return { profilePct: null as number | null, profileIsTiered: false, tierSummary: "" };
+    }
     const v = map.telegram;
-    return typeof v === "number" ? v : null;
+    if (typeof v === "number") {
+      return { profilePct: v, profileIsTiered: false, tierSummary: "" };
+    }
+    if (Array.isArray(v) && v.length > 0) {
+      const sorted = [...v].sort((a: any, b: any) => (a?.threshold ?? 0) - (b?.threshold ?? 0));
+      const summary = sorted
+        .map((t: any) => `${t.pct}%/$${Number(t.threshold).toLocaleString()}+`)
+        .join(", ");
+      return {
+        profilePct: typeof sorted[0]?.pct === "number" ? sorted[0].pct : null,
+        profileIsTiered: true,
+        tierSummary: summary,
+      };
+    }
+    return { profilePct: null as number | null, profileIsTiered: false, tierSummary: "" };
   }, [selectedCreator]);
   const [basis, setBasis] = React.useState<CommissionBasis>("net");
   const [hasMG, setHasMG] = React.useState(false);
@@ -214,7 +234,13 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
                 value={pct}
                 onChange={(e) => setPct(e.target.value)}
               />
-              {creatorId && profilePct != null && (
+              {creatorId && profileIsTiered && (
+                <p className="text-[11px] text-muted-foreground">
+                  Tiered profile · {tierSummary}. The deal's flat % is ignored at
+                  calc time — tiers apply per-month based on gross.
+                </p>
+              )}
+              {creatorId && !profileIsTiered && profilePct != null && (
                 <p className="text-[11px] text-muted-foreground">
                   {Number(pct) === profilePct ? (
                     <>From profile ({profilePct}%).</>
@@ -232,7 +258,7 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
                   )}
                 </p>
               )}
-              {creatorId && profilePct == null && !deal && (
+              {creatorId && profilePct == null && !profileIsTiered && !deal && (
                 <p className="text-[11px] text-muted-foreground">
                   No Telegram % on this creator's profile — set one in Roster → Profile to auto-fill next time.
                 </p>

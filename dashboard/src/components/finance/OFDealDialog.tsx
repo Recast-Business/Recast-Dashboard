@@ -47,17 +47,34 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
   const [notes, setNotes] = React.useState("");
   const [active, setActive] = React.useState(true);
 
-  // K-1: read commission % off the selected creator's profile.
-  // Prefill applies only when CREATING a new deal (not editing existing).
+  // K-1 + K-2: read commission off the selected creator's profile.
+  // Profile may be flat (number) or tiered (array). Tiered profiles apply
+  // per-month at calc time and override the deal's flat pct.
   const selectedCreator = React.useMemo(
     () => (creators ?? []).find((c) => c.id === creatorId),
     [creators, creatorId],
   );
-  const profilePct = React.useMemo<number | null>(() => {
+  const { profilePct, profileIsTiered, tierSummary } = React.useMemo(() => {
     const map = (selectedCreator as any)?.commission_pct_by_platform;
-    if (!map || typeof map !== "object") return null;
+    if (!map || typeof map !== "object") {
+      return { profilePct: null as number | null, profileIsTiered: false, tierSummary: "" };
+    }
     const v = map.onlyfans;
-    return typeof v === "number" ? v : null;
+    if (typeof v === "number") {
+      return { profilePct: v, profileIsTiered: false, tierSummary: "" };
+    }
+    if (Array.isArray(v) && v.length > 0) {
+      const sorted = [...v].sort((a: any, b: any) => (a?.threshold ?? 0) - (b?.threshold ?? 0));
+      const summary = sorted
+        .map((t: any) => `${t.pct}%/$${Number(t.threshold).toLocaleString()}+`)
+        .join(", ");
+      return {
+        profilePct: typeof sorted[0]?.pct === "number" ? sorted[0].pct : null,
+        profileIsTiered: true,
+        tierSummary: summary,
+      };
+    }
+    return { profilePct: null as number | null, profileIsTiered: false, tierSummary: "" };
   }, [selectedCreator]);
 
   React.useEffect(() => {
@@ -186,7 +203,13 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
                 value={pct}
                 onChange={(e) => setPct(e.target.value)}
               />
-              {creatorId && profilePct != null && (
+              {creatorId && profileIsTiered && (
+                <p className="text-[11px] text-muted-foreground">
+                  Tiered profile · {tierSummary}. The deal's flat % is ignored at
+                  calc time — tiers apply per-month based on gross.
+                </p>
+              )}
+              {creatorId && !profileIsTiered && profilePct != null && (
                 <p className="text-[11px] text-muted-foreground">
                   {Number(pct) === profilePct ? (
                     <>From profile ({profilePct}%).</>
@@ -204,7 +227,7 @@ export function OFDealDialog({ open, onOpenChange, deal }: Props) {
                   )}
                 </p>
               )}
-              {creatorId && profilePct == null && !deal && (
+              {creatorId && profilePct == null && !profileIsTiered && !deal && (
                 <p className="text-[11px] text-muted-foreground">
                   No OnlyFans % on this creator's profile — set one in Roster → Profile to auto-fill next time.
                 </p>

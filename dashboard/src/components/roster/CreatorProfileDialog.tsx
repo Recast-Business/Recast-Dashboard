@@ -1,5 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
+import { Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,9 +24,17 @@ import {
  * needed for invoicing — legal name, business name, email/phone/address,
  * payment method preference, tax ID, and a per-platform commission %.
  *
- * Phase K will extend the commission shape to tiered thresholds; for now
- * each platform has a single number.
+ * Phase K-2: commission can be either flat (single % for any gross) or
+ * tiered (different % at different gross thresholds, cliff semantics —
+ * the higher tier applies to the WHOLE month once crossed).
  */
+
+/** Per-tier editor row. Stored as strings while the user is typing so
+ *  blank values + "0" stay distinguishable. */
+interface TierEditor {
+  threshold: string;
+  pct: string;
+}
 
 interface CreatorMinimal {
   id: string;
@@ -41,7 +50,10 @@ interface CreatorMinimal {
   address?: string | null;
   payment_method_pref?: string | null;
   tax_id?: string | null;
-  commission_pct_by_platform?: Record<string, number | null> | null;
+  commission_pct_by_platform?: Record<
+    string,
+    number | null | Array<{ threshold: number; pct: number }>
+  > | null;
 }
 
 interface Props {
@@ -73,16 +85,9 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
   const [paymentPref, setPaymentPref] = React.useState(creator.payment_method_pref ?? "");
   const [taxId, setTaxId] = React.useState(creator.tax_id ?? "");
 
-  // Commission % per platform — null/empty means "no deal on this platform"
-  const initialPct = creator.commission_pct_by_platform ?? {};
-  const [pctOnlyFans, setPctOnlyFans] = React.useState<string>(
-    initialPct.onlyfans != null ? String(initialPct.onlyfans) : "",
-  );
-  const [pctTelegram, setPctTelegram] = React.useState<string>(
-    initialPct.telegram != null ? String(initialPct.telegram) : "",
-  );
-  const [pctOverlay, setPctOverlay] = React.useState<string>(
-    initialPct.efuse != null ? String(initialPct.efuse) : "",
+  // Commission per platform — empty array means "no deal on this platform"
+  const [tiersByPlatform, setTiersByPlatform] = React.useState<Record<string, TierEditor[]>>(
+    () => loadTiersFromCreator(creator),
   );
 
   // Multi-platform usernames (kept on socials JSON — already exists)
@@ -108,10 +113,7 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setAddress(creator.address ?? "");
     setPaymentPref(creator.payment_method_pref ?? "");
     setTaxId(creator.tax_id ?? "");
-    const init = creator.commission_pct_by_platform ?? {};
-    setPctOnlyFans(init.onlyfans != null ? String(init.onlyfans) : "");
-    setPctTelegram(init.telegram != null ? String(init.telegram) : "");
-    setPctOverlay(init.efuse != null ? String(init.efuse) : "");
+    setTiersByPlatform(loadTiersFromCreator(creator));
     const s = creator.socials ?? {};
     setTwitchHandle(s.twitch ?? "");
     setKickHandle(s.kick ?? "");
@@ -122,20 +124,15 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setTelegramUser(s.telegram ?? "");
   }, [open, creator]);
 
-  function parsePct(raw: string): number | null {
-    const v = raw.trim();
-    if (!v) return null;
-    const n = Number(v);
-    if (Number.isNaN(n) || n < 0 || n > 100) return null;
-    return n;
-  }
-
   async function onSave() {
     if (!name.trim()) return toast.error("Name is required.");
-    const pct: Record<string, number | null> = {};
-    pct.onlyfans = parsePct(pctOnlyFans);
-    pct.telegram = parsePct(pctTelegram);
-    pct.efuse = parsePct(pctOverlay);
+    let pct: Record<string, number | null | Array<{ threshold: number; pct: number }>>;
+    try {
+      pct = serializeTiers(tiersByPlatform);
+    } catch (e) {
+      toast.error((e as Error).message);
+      return;
+    }
 
     const socials: Record<string, string> = {};
     if (twitchHandle.trim()) socials.twitch = twitchHandle.trim();
@@ -215,39 +212,19 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
           </Section>
 
           <Section
-            title="Commission % per platform"
-            help="Leave a field blank if the creator isn't on that platform. Phase K will let you add tiered thresholds (e.g. 30% under $10K → 25% over)."
+            title="Commission per platform"
+            help="Single % for any gross, or add tiers for cliff-style thresholds (e.g. 30% under $10K → 25% over $10K — once you cross the threshold the higher tier applies to the WHOLE month)."
           >
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {PLATFORMS.map((p) => (
-                <div key={p.key} className="grid gap-1.5">
-                  <Label>{p.label}</Label>
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={
-                        p.key === "onlyfans"
-                          ? pctOnlyFans
-                          : p.key === "telegram"
-                          ? pctTelegram
-                          : pctOverlay
-                      }
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (p.key === "onlyfans") setPctOnlyFans(v);
-                        else if (p.key === "telegram") setPctTelegram(v);
-                        else setPctOverlay(v);
-                      }}
-                      className="pr-6"
-                    />
-                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                      %
-                    </span>
-                  </div>
-                </div>
+                <CommissionEditor
+                  key={p.key}
+                  label={p.label}
+                  tiers={tiersByPlatform[p.key] ?? []}
+                  onChange={(next) =>
+                    setTiersByPlatform((cur) => ({ ...cur, [p.key]: next }))
+                  }
+                />
               ))}
             </div>
           </Section>
@@ -339,4 +316,233 @@ function Field({
       )}
     </div>
   );
+}
+
+// ─── Commission editor (Phase K-2) ──────────────────────────────────
+
+/** Per-platform commission editor. Empty array → no deal. One tier with
+ *  threshold=0 → flat (renders a single % input). 2+ rows or threshold > 0
+ *  → tiered (cliff). */
+function CommissionEditor({
+  label,
+  tiers,
+  onChange,
+}: {
+  label: string;
+  tiers: TierEditor[];
+  onChange: (next: TierEditor[]) => void;
+}) {
+  const isFlat = tiers.length === 1 && tiers[0].threshold === "0";
+  const isEmpty = tiers.length === 0;
+
+  function setRow(i: number, patch: Partial<TierEditor>) {
+    onChange(tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  }
+  function addRow() {
+    if (isEmpty) {
+      onChange([{ threshold: "0", pct: "" }]);
+    } else {
+      // Append a new tier with a higher threshold than the highest existing one.
+      const max = Math.max(...tiers.map((t) => Number(t.threshold) || 0));
+      onChange([...tiers, { threshold: String(max + 10000), pct: "" }]);
+    }
+  }
+  function removeRow(i: number) {
+    const next = tiers.filter((_, idx) => idx !== i);
+    onChange(next);
+  }
+  function clear() {
+    onChange([]);
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/15 p-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">{label}</Label>
+        {!isEmpty && (
+          <button
+            type="button"
+            onClick={clear}
+            className="text-[11px] text-muted-foreground hover:text-foreground"
+            title="Remove this platform from the creator's deals"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {isEmpty ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={addRow}
+        >
+          <Plus className="mr-1 h-3 w-3" /> Set commission
+        </Button>
+      ) : isFlat ? (
+        <>
+          <div className="relative">
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={tiers[0].pct}
+              onChange={(e) => setRow(0, { pct: e.target.value })}
+              placeholder="0"
+              className="pr-6"
+            />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              %
+            </span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 w-full text-xs"
+            onClick={addRow}
+          >
+            <Plus className="mr-1 h-3 w-3" /> Add tier
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            {tiers.map((t, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                    $
+                  </span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={t.threshold}
+                    onChange={(e) => setRow(i, { threshold: e.target.value })}
+                    placeholder="0"
+                    className="pl-5 text-xs"
+                    title="Monthly gross threshold"
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">→</span>
+                <div className="relative w-20">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={t.pct}
+                    onChange={(e) => setRow(i, { pct: e.target.value })}
+                    placeholder="0"
+                    className="pr-5 text-xs"
+                  />
+                  <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                    %
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  title="Remove tier"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 w-full text-xs"
+            onClick={addRow}
+          >
+            <Plus className="mr-1 h-3 w-3" /> Add tier
+          </Button>
+          <p className="text-[10px] text-muted-foreground">
+            Cliff: once monthly gross ≥ a threshold, that tier's % applies to the
+            entire month (not just the amount above the threshold).
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Tier serialization helpers (Phase K-2) ──────────────────────────
+
+/** Convert the creator's stored commission_pct_by_platform into the editor's
+ *  Record<platform, TierEditor[]> shape. Backwards-compat:
+ *    null   → []
+ *    number → [{threshold: "0", pct: <num>}]
+ *    array  → array.map(stringify)
+ */
+function loadTiersFromCreator(
+  c: { commission_pct_by_platform?: Record<string, unknown> | null },
+): Record<string, TierEditor[]> {
+  const out: Record<string, TierEditor[]> = {};
+  const map = c.commission_pct_by_platform ?? {};
+  for (const platform of ["onlyfans", "telegram", "efuse"]) {
+    const v = map?.[platform];
+    if (v == null) {
+      out[platform] = [];
+    } else if (typeof v === "number") {
+      out[platform] = [{ threshold: "0", pct: String(v) }];
+    } else if (Array.isArray(v)) {
+      out[platform] = v
+        .filter((t: unknown): t is { threshold: number; pct: number } => {
+          const x = t as Record<string, unknown>;
+          return typeof x?.threshold === "number" && typeof x?.pct === "number";
+        })
+        .map((t) => ({ threshold: String(t.threshold), pct: String(t.pct) }));
+    } else {
+      out[platform] = [];
+    }
+  }
+  return out;
+}
+
+/** Convert the editor state back into the JSONB shape we store. Throws on
+ *  invalid input (e.g. blank pct in a tier) so the caller can toast. */
+function serializeTiers(
+  byPlatform: Record<string, TierEditor[]>,
+): Record<string, number | null | Array<{ threshold: number; pct: number }>> {
+  const out: Record<string, number | null | Array<{ threshold: number; pct: number }>> = {};
+  for (const [platform, rows] of Object.entries(byPlatform)) {
+    if (rows.length === 0) {
+      out[platform] = null;
+      continue;
+    }
+    const parsed = rows.map((r, i) => {
+      const threshold = Number(r.threshold);
+      const pct = Number(r.pct);
+      if (!Number.isFinite(threshold) || threshold < 0) {
+        throw new Error(`${platform}: tier ${i + 1} threshold must be a non-negative number`);
+      }
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        throw new Error(`${platform}: tier ${i + 1} percentage must be 0–100`);
+      }
+      return { threshold, pct };
+    });
+    // Single tier with threshold=0 → store as flat number for compactness
+    if (parsed.length === 1 && parsed[0].threshold === 0) {
+      out[platform] = parsed[0].pct;
+    } else {
+      // Sort ascending by threshold so the JSONB on-disk is canonical.
+      parsed.sort((a, b) => a.threshold - b.threshold);
+      // Reject duplicate thresholds.
+      for (let i = 1; i < parsed.length; i++) {
+        if (parsed[i].threshold === parsed[i - 1].threshold) {
+          throw new Error(`${platform}: two tiers with the same threshold ($${parsed[i].threshold})`);
+        }
+      }
+      out[platform] = parsed;
+    }
+  }
+  return out;
 }

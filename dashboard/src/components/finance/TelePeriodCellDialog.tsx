@@ -18,14 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useUpsertTelePeriod } from "@/hooks/useTeleDeals";
-import { calcTelePeriod } from "@/lib/finance/calc";
+import { useUpsertTelePeriod, type TeleDealRow } from "@/hooks/useTeleDeals";
+import { calcTelePeriod, tiersFromProfile } from "@/lib/finance/calc";
 import { formatUSD } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
 import type {
   CommissionBasis,
   PaymentStatusV2,
-  TeleDeal,
   TelePeriodPerformance,
 } from "@/types/finance";
 
@@ -37,7 +36,7 @@ const MONTH_NAMES = [
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  deal: TeleDeal;
+  deal: TeleDealRow;
   year: number;
   month: number;
   existing: TelePeriodPerformance | null;
@@ -76,6 +75,13 @@ export function TelePeriodCellDialog({
   }, [open, existing]);
 
   const grossNum = Number(gross) || 0;
+  // Phase K-2: pull tiered commission from the creator's profile.
+  // When tiers exist, calcTelePeriod uses cliff semantics and the deal's
+  // flat pct is ignored; otherwise the deal's flat pct is authoritative.
+  const tiers = React.useMemo(
+    () => tiersFromProfile(deal.creator?.commission_pct_by_platform, "telegram"),
+    [deal.creator?.commission_pct_by_platform],
+  );
   const preview = React.useMemo(
     () =>
       calcTelePeriod({
@@ -84,8 +90,9 @@ export function TelePeriodCellDialog({
         recast_commission_pct: deal.recast_commission_pct,
         commission_basis: deal.commission_basis as CommissionBasis,
         min_guarantee: deal.min_guarantee,
+        tiers,
       }),
-    [grossNum, useOverride, netOverride, deal],
+    [grossNum, useOverride, netOverride, deal, tiers],
   );
 
   async function onSave() {
@@ -106,6 +113,7 @@ export function TelePeriodCellDialog({
         recast_commission_pct: deal.recast_commission_pct,
         commission_basis: deal.commission_basis as CommissionBasis,
         min_guarantee: deal.min_guarantee,
+        tiers,
       });
       toast.success(`${MONTH_NAMES[month - 1]} ${year} updated`);
       onOpenChange(false);
