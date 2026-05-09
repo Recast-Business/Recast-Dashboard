@@ -14,6 +14,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { OFDealDialog } from "@/components/finance/OFDealDialog";
 import { OFPeriodCellDialog } from "@/components/finance/OFPeriodCellDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
 import { PieCard } from "@/components/analytics/PieCard";
@@ -77,6 +78,13 @@ export function OFIncomeSection({ year }: Props) {
             filename={`onlyfans-income-${year}.csv`}
             rows={filtered}
             columns={buildOFCSVColumns(periodsByDeal ?? {})}
+          />
+          <ExportPDFButton
+            filename={`onlyfans-income-${year}.pdf`}
+            title={`OnlyFans income — ${year}`}
+            rows={filtered}
+            columns={buildOFCSVColumns(periodsByDeal ?? {})}
+            orientation="landscape"
           />
           <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-4 w-4" /> Add deal

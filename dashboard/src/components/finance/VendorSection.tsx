@@ -9,6 +9,7 @@ import { VendorRow } from "@/components/finance/VendorRow";
 import { VendorTable } from "@/components/finance/VendorTable";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
 import { PieCard } from "@/components/analytics/PieCard";
@@ -94,6 +95,14 @@ export function VendorSection({ division, kind, title, description, year, showDi
             filename={buildExportFilename(kind, division ?? divisionFilter, year)}
             rows={filtered}
             columns={buildVendorCSVColumns(paymentsByVendor ?? {})}
+          />
+          <ExportPDFButton
+            filename={buildExportFilename(kind, division ?? divisionFilter, year).replace(/\.csv$/, ".pdf")}
+            title={`${title} — ${year}`}
+            subtitle={division ? `Division: ${divisionLabel(division)}` : undefined}
+            rows={filtered}
+            columns={buildVendorCSVColumns(paymentsByVendor ?? {})}
+            orientation="landscape"
           />
           <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-4 w-4" /> Add

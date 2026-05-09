@@ -25,6 +25,7 @@ import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import type {
   HouseResident,
@@ -186,6 +187,13 @@ function BedroomsRentPanel({
             filename={`house-rent-${year}.csv`}
             rows={residents}
             columns={buildRentCSVColumns(rentByResident)}
+          />
+          <ExportPDFButton
+            filename={`house-rent-${year}.pdf`}
+            title={`Frazier's House — Rent ${year}`}
+            rows={residents}
+            columns={buildRentCSVColumns(rentByResident)}
+            orientation="landscape"
           />
           <Button
             size="sm"
@@ -389,6 +397,14 @@ function UtilitiesPanel({
             filename={`house-utilities-${year}.csv`}
             rows={utilities}
             columns={buildUtilityCSVColumns(utilityByUtility, activeResidentCount)}
+          />
+          <ExportPDFButton
+            filename={`house-utilities-${year}.pdf`}
+            title={`Frazier's House — Utilities ${year}`}
+            subtitle={`Split across ${activeResidentCount} active resident${activeResidentCount === 1 ? "" : "s"}`}
+            rows={utilities}
+            columns={buildUtilityCSVColumns(utilityByUtility, activeResidentCount)}
+            orientation="landscape"
           />
           <Button
             size="sm"

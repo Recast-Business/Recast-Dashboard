@@ -8,6 +8,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import type { CSVColumn } from "@/lib/export/csv";
 import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,13 @@ export function CampaignsPage() {
             filename={`campaigns-${year}.csv`}
             rows={data ?? []}
             columns={CAMPAIGN_CSV_COLUMNS}
+          />
+          <ExportPDFButton
+            filename={`campaigns-${year}.pdf`}
+            title={`Campaigns — ${year}`}
+            rows={data ?? []}
+            columns={CAMPAIGN_CSV_COLUMNS}
+            orientation="landscape"
           />
           {canEdit && (
             <Button onClick={() => setDialogOpen(true)} size="sm">

@@ -14,6 +14,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { TeleDealDialog } from "@/components/finance/TeleDealDialog";
 import { TelePeriodCellDialog } from "@/components/finance/TelePeriodCellDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
 import { PieCard } from "@/components/analytics/PieCard";
@@ -75,6 +76,13 @@ export function TeleIncomeSection({ year }: Props) {
             filename={`telegram-income-${year}.csv`}
             rows={filtered}
             columns={buildTeleCSVColumns(periodsByCreator ?? {})}
+          />
+          <ExportPDFButton
+            filename={`telegram-income-${year}.pdf`}
+            title={`Telegram income — ${year}`}
+            rows={filtered}
+            columns={buildTeleCSVColumns(periodsByCreator ?? {})}
+            orientation="landscape"
           />
           <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-4 w-4" /> Add deal

@@ -14,6 +14,7 @@ import { useCampaigns } from "@/hooks/useCampaigns";
 import { useCampaignCreatorsByCampaigns } from "@/hooks/useCampaignCreators";
 import { useCampaignPaymentsByCreators } from "@/hooks/useCampaignPayments";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import type { CSVColumn } from "@/lib/export/csv";
 import { AnalyticsPanel } from "@/components/analytics/AnalyticsPanel";
 import { PieCard } from "@/components/analytics/PieCard";
@@ -109,31 +110,33 @@ export function EFuseIncomeSummary({ year }: Props) {
             — this view is read-only.
           </p>
         </div>
-        <ExportCSVButton
-          filename={`efuse-income-${year}.csv`}
-          rows={campaigns ?? []}
-          columns={[
+        {(() => {
+          const exportColumns: CSVColumn<CampaignV2>[] = [
             { header: "Brand", value: (c) => c.brand },
             { header: "Campaign", value: (c) => c.name },
             { header: "Status", value: (c) => c.status },
-            {
-              header: "Creators",
-              value: (c) => totalsByCampaign[c.id]?.creators ?? 0,
-            },
-            {
-              header: "Gross YTD",
-              value: (c) => (totalsByCampaign[c.id]?.gross ?? 0).toFixed(2),
-            },
-            {
-              header: "Recast YTD",
-              value: (c) => (totalsByCampaign[c.id]?.recast ?? 0).toFixed(2),
-            },
-            {
-              header: "Outstanding",
-              value: (c) => (totalsByCampaign[c.id]?.outstanding ?? 0).toFixed(2),
-            },
-          ] as CSVColumn<CampaignV2>[]}
-        />
+            { header: "Creators", value: (c) => totalsByCampaign[c.id]?.creators ?? 0 },
+            { header: "Gross YTD", value: (c) => (totalsByCampaign[c.id]?.gross ?? 0).toFixed(2) },
+            { header: "Recast YTD", value: (c) => (totalsByCampaign[c.id]?.recast ?? 0).toFixed(2) },
+            { header: "Outstanding", value: (c) => (totalsByCampaign[c.id]?.outstanding ?? 0).toFixed(2) },
+          ];
+          return (
+            <div className="flex items-center gap-2">
+              <ExportCSVButton
+                filename={`efuse-income-${year}.csv`}
+                rows={campaigns ?? []}
+                columns={exportColumns}
+              />
+              <ExportPDFButton
+                filename={`efuse-income-${year}.pdf`}
+                title={`eFuse income — ${year}`}
+                subtitle="Per-campaign rollup"
+                rows={campaigns ?? []}
+                columns={exportColumns}
+              />
+            </div>
+          );
+        })()}
       </div>
 
       {isLoading && (
