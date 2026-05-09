@@ -191,6 +191,7 @@ export function useUpsertTelePeriod() {
     onSuccess: (_r, vars) => {
       qc.invalidateQueries({ queryKey: ["tele-period", vars.creator_id, vars.period_year] });
       qc.invalidateQueries({ queryKey: ["tele-period", "by-creators"] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
     },
   });
 }

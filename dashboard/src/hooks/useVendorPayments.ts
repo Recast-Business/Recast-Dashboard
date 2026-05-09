@@ -72,6 +72,7 @@ export function useUpsertVendorPayment() {
     onSuccess: (_row, vars) => {
       qc.invalidateQueries({ queryKey: ["vendor-payments", vars.vendor_id, vars.period_year] });
       qc.invalidateQueries({ queryKey: ["vendor-payments", "by-vendors"] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
     },
   });
 }

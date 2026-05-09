@@ -176,7 +176,11 @@ function useOverdueRows() {
       out.sort((a, b) => b.days_overdue - a.days_overdue);
       return out;
     },
-    refetchInterval: 60_000,
+    // Same-tab mutations invalidate ["overdue-rows"] explicitly via the
+    // payment hooks. The poll + window-focus refetch are fallbacks for
+    // background changes (e.g. mark_overdue_payments cron, another tab).
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
   });
 }
 

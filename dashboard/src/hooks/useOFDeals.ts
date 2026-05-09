@@ -173,6 +173,7 @@ export function useUpsertOFPeriod() {
     onSuccess: (_r, vars) => {
       qc.invalidateQueries({ queryKey: ["of-period", vars.of_deal_id, vars.period_year] });
       qc.invalidateQueries({ queryKey: ["of-period", "by-deals"] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
     },
   });
 }

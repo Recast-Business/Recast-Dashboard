@@ -86,6 +86,7 @@ export function useUpsertCampaignPayment() {
         queryKey: ["campaign-payments", vars.campaign_creator_id, vars.period_year],
       });
       qc.invalidateQueries({ queryKey: ["campaign-payments", "by-cc"] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
     },
   });
 }

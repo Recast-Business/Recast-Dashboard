@@ -202,6 +202,7 @@ export function useUpsertUtilityPayment() {
     },
     onSuccess: (_r, vars) => {
       qc.invalidateQueries({ queryKey: ["house", "utility-payments", vars.period_year] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
     },
   });
 }
@@ -264,6 +265,7 @@ export function useUpsertRentPayment() {
     },
     onSuccess: (_r, vars) => {
       qc.invalidateQueries({ queryKey: ["house", "rent-payments", vars.period_year] });
+      qc.invalidateQueries({ queryKey: ["overdue-rows"] });
     },
   });
 }
