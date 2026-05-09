@@ -8,6 +8,8 @@ import { useVendorPaymentsByVendors } from "@/hooks/useVendorPayments";
 import { VendorRow } from "@/components/finance/VendorRow";
 import { VendorTable } from "@/components/finance/VendorTable";
 import { VendorDialog } from "@/components/finance/VendorDialog";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import type { Division, Vendor, VendorKind } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +87,11 @@ export function VendorSection({ division, kind, title, description, year, showDi
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle value={viewMode} onChange={setViewMode} />
+          <ExportCSVButton
+            filename={buildExportFilename(kind, division ?? divisionFilter, year)}
+            rows={filtered}
+            columns={buildVendorCSVColumns(paymentsByVendor ?? {})}
+          />
           <Button onClick={openAdd} size="sm">
             <Plus className="mr-1 h-4 w-4" /> Add
           </Button>
@@ -207,4 +214,65 @@ function ViewToggle({
       </button>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// CSV export helpers
+// ─────────────────────────────────────────────────────────────────────
+
+const PAYMENT_METHOD_LABEL_FULL: Record<string, string> = {
+  auto_pay: "Auto Pay",
+  paypal: "PayPal",
+  domestic_wire: "Domestic Wire",
+  international_transfer: "International Transfer",
+  bank_ach: "Bank ACH",
+  zelle: "Zelle",
+  invoice_link: "Invoice Link",
+  website_link: "Website Link",
+  credit_card: "Credit Card",
+};
+
+function buildExportFilename(
+  kind: VendorKind,
+  scope: Division | DivisionFilter | undefined,
+  year: number,
+): string {
+  const kindSlug =
+    kind === "vendor" ? "vendors"
+    : kind === "talent_we_pay" ? "talents-we-pay"
+    : kind === "talent_that_pays_us" ? "talents-paying-us"
+    : kind === "credit_card_account" ? "credit-cards"
+    : kind === "utility" ? "utilities"
+    : "employees";
+  const scopeSlug =
+    !scope || scope === "all"
+      ? ""
+      : scope === "none"
+      ? "-org-wide"
+      : `-${scope}`;
+  return `${kindSlug}${scopeSlug}-${year}.csv`;
+}
+
+function buildVendorCSVColumns(
+  paymentsByVendor: Record<string, Record<number, { amount: number | null }>>,
+): CSVColumn<Vendor>[] {
+  const base: CSVColumn<Vendor>[] = [
+    { header: "Name", value: (v) => v.name },
+    { header: "Division", value: (v) => v.division ?? "Org-wide" },
+    {
+      header: "Payment method",
+      value: (v) => (v.payment_method ? PAYMENT_METHOD_LABEL_FULL[v.payment_method] : ""),
+    },
+    { header: "Account profile", value: (v) => v.account_profile ?? "" },
+    { header: "Contact name", value: (v) => v.contact_name ?? "" },
+    { header: "Contact email", value: (v) => v.contact_email ?? "" },
+    { header: "Contact phone", value: (v) => v.contact_phone ?? "" },
+    { header: "Active", value: (v) => (v.active ? "yes" : "no") },
+    { header: "Notes", value: (v) => v.notes ?? "" },
+  ];
+  const monthly = monthlyAmountColumns<Vendor>((v, month) => {
+    const cell = paymentsByVendor[v.id]?.[month];
+    return cell?.amount ?? null;
+  });
+  return [...base, ...monthly];
 }

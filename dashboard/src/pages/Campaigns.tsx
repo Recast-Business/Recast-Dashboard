@@ -7,7 +7,9 @@ import { useCampaigns } from "@/hooks/useCampaigns";
 import { useAuth } from "@/auth/AuthProvider";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
-import type { CampaignStatusV2 } from "@/types/finance";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import type { CSVColumn } from "@/lib/export/csv";
+import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn } from "@/lib/utils";
 
 const STATUS_FILTERS: { value: CampaignStatusV2 | "all"; label: string }[] = [
@@ -45,6 +47,11 @@ export function CampaignsPage() {
         </div>
         <div className="flex items-center gap-3">
           <YearSelector value={year} onChange={setYear} />
+          <ExportCSVButton
+            filename={`campaigns-${year}.csv`}
+            rows={data ?? []}
+            columns={CAMPAIGN_CSV_COLUMNS}
+          />
           {canEdit && (
             <Button onClick={() => setDialogOpen(true)} size="sm">
               <Plus className="mr-1 h-4 w-4" /> New campaign
@@ -134,3 +141,16 @@ function YearSelector({ value, onChange }: { value: number; onChange: (y: number
     </div>
   );
 }
+
+const CAMPAIGN_CSV_COLUMNS: CSVColumn<CampaignV2>[] = [
+  { header: "Brand", value: (c) => c.brand },
+  { header: "Campaign", value: (c) => c.name },
+  { header: "Type", value: (c) => c.campaign_type ?? "" },
+  { header: "Status", value: (c) => c.status },
+  { header: "Default commission %", value: (c) => c.default_commission_pct },
+  { header: "Start date", value: (c) => c.start_date ?? "" },
+  { header: "End date", value: (c) => c.end_date ?? "" },
+  { header: "Ad overlay", value: (c) => (c.is_ad_overlay ? "yes" : "no") },
+  { header: "Description", value: (c) => c.description ?? "" },
+  { header: "Notes", value: (c) => c.notes ?? "" },
+];

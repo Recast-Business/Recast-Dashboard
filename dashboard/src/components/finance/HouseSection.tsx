@@ -24,6 +24,8 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import type {
   HouseResident,
   HouseRentPayment,
@@ -179,15 +181,22 @@ function BedroomsRentPanel({
             Click any month cell to toggle paid · Right-click for amount/notes/date.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditingResident(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-1 h-4 w-4" /> Add resident
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportCSVButton
+            filename={`house-rent-${year}.csv`}
+            rows={residents}
+            columns={buildRentCSVColumns(rentByResident)}
+          />
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingResident(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Add resident
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -375,15 +384,22 @@ function UtilitiesPanel({
             active resident{activeResidentCount === 1 ? "" : "s"}.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditingUtility(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-1 h-4 w-4" /> Add utility
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportCSVButton
+            filename={`house-utilities-${year}.csv`}
+            rows={utilities}
+            columns={buildUtilityCSVColumns(utilityByUtility, activeResidentCount)}
+          />
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingUtility(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Add utility
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -571,4 +587,49 @@ function PerResidentSplitPanel({
       </div>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// CSV export helpers
+// ─────────────────────────────────────────────────────────────────────
+
+function buildRentCSVColumns(
+  rentByResident: Record<string, Record<number, HouseRentPayment>>,
+): CSVColumn<HouseResident>[] {
+  const base: CSVColumn<HouseResident>[] = [
+    { header: "Resident", value: (r) => r.name },
+    { header: "Bedroom", value: (r) => r.bedroom },
+    { header: "Monthly rent", value: (r) => Number(r.monthly_rent).toFixed(2) },
+    { header: "Active", value: (r) => (r.active ? "yes" : "no") },
+  ];
+  const monthly = monthlyAmountColumns<HouseResident>((r, m) => {
+    const cell = rentByResident[r.id]?.[m];
+    // Default to monthly_rent when row exists but unpaid (matches the UI)
+    return cell?.amount != null ? Number(cell.amount) : null;
+  });
+  return [...base, ...monthly];
+}
+
+function buildUtilityCSVColumns(
+  utilityByUtility: Record<string, Record<number, HouseUtilityPayment>>,
+  activeResidentCount: number,
+): CSVColumn<HouseUtility>[] {
+  const base: CSVColumn<HouseUtility>[] = [
+    { header: "Utility", value: (u) => u.utility_name },
+    { header: "Active", value: (u) => (u.active ? "yes" : "no") },
+  ];
+  const amounts = monthlyAmountColumns<HouseUtility>((u, m) => {
+    return Number(utilityByUtility[u.id]?.[m]?.amount ?? 0) || null;
+  });
+  // Per-head split column at the very end — operators / Gustavo can compare
+  // against what each resident actually owes.
+  const yearlyTotal: CSVColumn<HouseUtility> = {
+    header: `Per-resident year (÷ ${activeResidentCount})`,
+    value: (u) => {
+      let sum = 0;
+      for (let m = 1; m <= 12; m++) sum += Number(utilityByUtility[u.id]?.[m]?.amount ?? 0);
+      return activeResidentCount > 0 ? (sum / activeResidentCount).toFixed(2) : "";
+    },
+  };
+  return [...base, ...amounts, yearlyTotal];
 }

@@ -13,6 +13,8 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import { TeleDealDialog } from "@/components/finance/TeleDealDialog";
 import { TelePeriodCellDialog } from "@/components/finance/TelePeriodCellDialog";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import type { PaymentStatusV2, TelePeriodPerformance } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
@@ -65,9 +67,16 @@ export function TeleIncomeSection({ year }: Props) {
             50% of gross (Telegram platform fee). Recast commission applies to net + top-up.
           </p>
         </div>
-        <Button onClick={openAdd} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> Add deal
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportCSVButton
+            filename={`telegram-income-${year}.csv`}
+            rows={filtered}
+            columns={buildTeleCSVColumns(periodsByCreator ?? {})}
+          />
+          <Button onClick={openAdd} size="sm">
+            <Plus className="mr-1 h-4 w-4" /> Add deal
+          </Button>
+        </div>
       </div>
 
       <Input
@@ -278,4 +287,25 @@ function Stat({ label, value, emphasised }: { label: string; value: string; emph
       </span>
     </div>
   );
+}
+
+function buildTeleCSVColumns(
+  periodsByCreator: Record<string, Record<number, TelePeriodPerformance>>,
+): CSVColumn<TeleDealRow>[] {
+  const base: CSVColumn<TeleDealRow>[] = [
+    { header: "Creator", value: (d) => d.creator?.name ?? "" },
+    { header: "Recast %", value: (d) => d.recast_commission_pct },
+    { header: "Basis", value: (d) => d.commission_basis },
+    { header: "Min Guarantee", value: (d) => (d.min_guarantee != null ? Number(d.min_guarantee).toFixed(2) : "") },
+    { header: "Contract start", value: (d) => d.contract_start },
+    { header: "Contract end", value: (d) => d.contract_end },
+    { header: "Active", value: (d) => (d.active ? "yes" : "no") },
+  ];
+  const gross = monthlyAmountColumns<TeleDealRow>((d, m) => {
+    return Number(periodsByCreator[d.creator_id]?.[m]?.gross_revenue ?? 0) || null;
+  }).map((c) => ({ ...c, header: c.header === "Total" ? "Gross Total" : `Gross ${c.header}` }));
+  const commission = monthlyAmountColumns<TeleDealRow>((d, m) => {
+    return Number(periodsByCreator[d.creator_id]?.[m]?.recast_commission ?? 0) || null;
+  }).map((c) => ({ ...c, header: c.header === "Total" ? "Commission Total" : `Commission ${c.header}` }));
+  return [...base, ...gross, ...commission];
 }

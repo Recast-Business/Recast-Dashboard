@@ -13,6 +13,8 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import { OFDealDialog } from "@/components/finance/OFDealDialog";
 import { OFPeriodCellDialog } from "@/components/finance/OFPeriodCellDialog";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
 import type { OFPeriodPerformance, PaymentStatusV2 } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
@@ -67,9 +69,16 @@ export function OFIncomeSection({ year }: Props) {
             Recast's commission is variable per deal.
           </p>
         </div>
-        <Button onClick={openAdd} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> Add deal
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportCSVButton
+            filename={`onlyfans-income-${year}.csv`}
+            rows={filtered}
+            columns={buildOFCSVColumns(periodsByDeal ?? {})}
+          />
+          <Button onClick={openAdd} size="sm">
+            <Plus className="mr-1 h-4 w-4" /> Add deal
+          </Button>
+        </div>
       </div>
 
       <Input
@@ -262,4 +271,26 @@ function Stat({ label, value, emphasised }: { label: string; value: string; emph
       </span>
     </div>
   );
+}
+
+function buildOFCSVColumns(
+  periodsByDeal: Record<string, Record<number, OFPeriodPerformance>>,
+): CSVColumn<OFDealRow>[] {
+  const base: CSVColumn<OFDealRow>[] = [
+    { header: "Creator", value: (d) => d.creator?.name ?? "" },
+    { header: "Page", value: (d) => d.page_name },
+    { header: "Recast %", value: (d) => d.recast_pct },
+    { header: "Basis", value: (d) => d.basis },
+    { header: "Active", value: (d) => (d.active ? "yes" : "no") },
+  ];
+  const gross = monthlyAmountColumns<OFDealRow>((d, m) => {
+    return Number(periodsByDeal[d.id]?.[m]?.gross_revenue ?? 0) || null;
+  }).map((c) => ({ ...c, header: c.header === "Total" ? "Gross Total" : `Gross ${c.header}` }));
+  const recast = monthlyAmountColumns<OFDealRow>((d, m) => {
+    return Number(periodsByDeal[d.id]?.[m]?.recast_commission ?? 0) || null;
+  }).map((c) => ({ ...c, header: c.header === "Total" ? "Recast Total" : `Recast ${c.header}` }));
+  const girls = monthlyAmountColumns<OFDealRow>((d, m) => {
+    return Number(periodsByDeal[d.id]?.[m]?.girls_share ?? 0) || null;
+  }).map((c) => ({ ...c, header: c.header === "Total" ? "Girls Total" : `Girls ${c.header}` }));
+  return [...base, ...gross, ...recast, ...girls];
 }

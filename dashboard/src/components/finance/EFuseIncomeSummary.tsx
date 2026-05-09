@@ -13,7 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { useCampaignCreatorsByCampaigns } from "@/hooks/useCampaignCreators";
 import { useCampaignPaymentsByCreators } from "@/hooks/useCampaignPayments";
-import type { CampaignStatusV2 } from "@/types/finance";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import type { CSVColumn } from "@/lib/export/csv";
+import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 
 const STATUS_STYLES: Record<CampaignStatusV2, string> = {
@@ -93,15 +95,42 @@ export function EFuseIncomeSummary({ year }: Props) {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold">eFuse income</h2>
-        <p className="text-sm text-muted-foreground">
-          Per-campaign performance for {year}. Campaigns themselves are managed on{" "}
-          <Link to="/campaigns" className="underline hover:text-foreground">
-            /campaigns
-          </Link>{" "}
-          — this view is read-only.
-        </p>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">eFuse income</h2>
+          <p className="text-sm text-muted-foreground">
+            Per-campaign performance for {year}. Campaigns themselves are managed on{" "}
+            <Link to="/campaigns" className="underline hover:text-foreground">
+              /campaigns
+            </Link>{" "}
+            — this view is read-only.
+          </p>
+        </div>
+        <ExportCSVButton
+          filename={`efuse-income-${year}.csv`}
+          rows={campaigns ?? []}
+          columns={[
+            { header: "Brand", value: (c) => c.brand },
+            { header: "Campaign", value: (c) => c.name },
+            { header: "Status", value: (c) => c.status },
+            {
+              header: "Creators",
+              value: (c) => totalsByCampaign[c.id]?.creators ?? 0,
+            },
+            {
+              header: "Gross YTD",
+              value: (c) => (totalsByCampaign[c.id]?.gross ?? 0).toFixed(2),
+            },
+            {
+              header: "Recast YTD",
+              value: (c) => (totalsByCampaign[c.id]?.recast ?? 0).toFixed(2),
+            },
+            {
+              header: "Outstanding",
+              value: (c) => (totalsByCampaign[c.id]?.outstanding ?? 0).toFixed(2),
+            },
+          ] as CSVColumn<CampaignV2>[]}
+        />
       </div>
 
       {isLoading && (
