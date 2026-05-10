@@ -110,9 +110,10 @@ export function DateRangeTabs({ value, onChange, compact, className }: Props) {
           onClick={() => onChange(t.key)}
           className={cn(
             "rounded-md px-2.5 py-1 transition",
+            // Phase L: active tab uses hairline + bg fill, no shadow.
             value === t.key
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? "border border-border bg-background text-foreground"
+              : "border border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
           {compact ? t.short : t.label}

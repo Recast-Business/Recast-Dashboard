@@ -1,0 +1,83 @@
+import * as React from "react";
+import { cn, formatUSD } from "@/lib/utils";
+
+/**
+ * Phase L primitive: tabular currency rendering.
+ *
+ * Always tabular-nums so columns line up. The decimal portion (.00)
+ * renders smaller and steel-coloured to keep the integer dollar-amount
+ * visually dominant — matches the cash-flow KPI tile recipe.
+ *
+ * Sign placement: `−` (minus, U+2212) prefix in front of the dollar
+ * sign for negative amounts, never after. Outflow / refund / fee.
+ */
+
+export interface MoneyCellProps extends React.HTMLAttributes<HTMLSpanElement> {
+  /** Raw dollar amount. Pass a number, not a pre-formatted string. */
+  amount: number;
+  /**
+   * "display" → 36px display weight (KPI hero)
+   * "h2" → 24px (panel heading)
+   * "body" → 14px (default — cells, lists)
+   * "small" → 12px (footnote, sub-line)
+   */
+  size?: "display" | "h2" | "body" | "small";
+  /**
+   * If true, renders `.00` decimals smaller and steel-coloured.
+   * Default true on display/h2, false on body/small (too noisy in cells).
+   */
+  splitDecimals?: boolean;
+  /** Visual emphasis colour. */
+  tone?: "default" | "muted" | "paid" | "overdue";
+}
+
+const sizeClass: Record<NonNullable<MoneyCellProps["size"]>, string> = {
+  display: "text-display",
+  h2: "text-h2",
+  body: "text-body",
+  small: "text-small",
+};
+
+const toneClass: Record<NonNullable<MoneyCellProps["tone"]>, string> = {
+  default: "text-foreground",
+  muted: "text-steel",
+  paid: "text-paid",
+  overdue: "text-overdue",
+};
+
+export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(
+  (
+    { amount, size = "body", splitDecimals, tone = "default", className, ...rest },
+    ref,
+  ) => {
+    const split = splitDecimals ?? (size === "display" || size === "h2");
+    const formatted = formatUSD(amount); // "$1,234.56" or "-$1,234.56"
+    // Replace ASCII hyphen with proper minus and split into integer/decimal.
+    const normalised = formatted.replace(/^-/, "−");
+    const [intPart, decPart] = normalised.split(".");
+
+    if (!split || !decPart) {
+      return (
+        <span
+          ref={ref}
+          className={cn("tabular", sizeClass[size], toneClass[tone], className)}
+          {...rest}
+        >
+          {normalised}
+        </span>
+      );
+    }
+
+    return (
+      <span
+        ref={ref}
+        className={cn("tabular inline-flex items-baseline gap-0.5", sizeClass[size], toneClass[tone], className)}
+        {...rest}
+      >
+        <span>{intPart}</span>
+        <span className="text-small text-steel">.{decPart}</span>
+      </span>
+    );
+  },
+);
+MoneyCell.displayName = "MoneyCell";
