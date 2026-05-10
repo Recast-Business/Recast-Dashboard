@@ -75,13 +75,16 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
     <div
       ref={ref}
       className={cn(
+        // Card recipe: bg-card (resolves to ash in dark) + hairline.
         "rounded-lg border bg-card",
         compact ? "p-tile-sm" : "p-tile-md",
-        // When tone is non-default, accent the border so the tile
-        // reads as warning/positive at a glance.
-        tone === "partial" && "border-partial/30",
-        tone === "overdue" && "border-overdue/30",
-        tone === "paid" && "border-paid/30",
+        // Per spec: "Status accent rule on top-edge for non-neutral
+        // KPIs". Render a 2px coloured stripe along the top edge —
+        // not a full border — so the tile still reads as part of
+        // the 4-up grid at a glance.
+        tone === "partial" && "border-t-2 border-t-partial",
+        tone === "overdue" && "border-t-2 border-t-overdue",
+        tone === "paid" && "border-t-2 border-t-paid",
         className,
       )}
       {...rest}

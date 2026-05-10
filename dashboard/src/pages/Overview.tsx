@@ -619,7 +619,7 @@ function ListPanel({
         {headerLink ? (
           <Link
             to={headerLink.to}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1 text-eyebrow text-steel transition-colors duration-base ease-out hover:bg-accent hover:text-foreground"
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1 text-eyebrow text-steel transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-foreground"
           >
             {headerLink.label}
             <span className="text-electric">↗</span>

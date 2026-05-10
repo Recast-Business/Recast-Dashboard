@@ -40,7 +40,8 @@ export const InvoiceCell = React.forwardRef<HTMLButtonElement, InvoiceCellProps>
       type="button"
       ref={ref}
       className={cn(
-        "block w-full rounded-sm border border-rule border-l-2 bg-card p-2 text-left transition-colors duration-base ease-out hover:bg-electric/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric",
+        // Card-style hover (per spec): subtle lighten, not a blue tint.
+        "block w-full rounded-sm border border-rule border-l-2 bg-card p-2 text-left transition-colors duration-base ease-out hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric",
         BORDER[status],
         future && "opacity-50",
         className,
