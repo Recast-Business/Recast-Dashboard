@@ -1,12 +1,6 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  ChevronRight,
-  Clock,
-  TrendingUp,
-} from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -18,25 +12,32 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  EyebrowLabel,
+  KpiTile,
+  MoneyCell,
+  StatusPill,
+} from "@/components/recast";
 import { useFinanceOverview, type MonthlyFlow } from "@/hooks/useFinanceOverview";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
 /**
- * Phase K-5 (partial): the Overview landing page.
+ * Phase L (C1): Overview rebuilt around the design system.
  *
- * First thing admin/finance see when they sign in. Reads from
- * useFinanceOverview which aggregates payment_receipts + the six
- * period tables. Auto-refetches every 30s plus on window-focus, so
- * an open Overview tab in the background stays current without
- * forcing a manual reload.
+ * Information hierarchy (top → bottom):
+ *   1. Header (title + live-sync chip + year selector)
+ *   2. Overdue alert banner — answers "who do I chase today?" first
+ *   3. 4-up KPI row (Inflow / Outflow / Net / Outstanding)
+ *   4. Cash flow chart — spec-compliant colours, YoY toggle
+ *   5. Three lists: Most overdue / Top talent / Top vendor
  *
- * Year selector at the top right scopes the trend chart only — the
- * KPI tiles and top-5 panels are always relative to the CURRENT
- * month, regardless of selected year. That mirrors how Gustavo
- * actually thinks about money: "what's my current state" and
- * "what's the year shape" are two different questions.
+ * Data hook unchanged from the K-5 version — only the visual layer
+ * was refactored to use Recast primitives + canonical chart colours.
+ *
+ * See dashboard/docs/DESIGN.md for recipe references.
  */
 
 const MONTH_LABELS = [
@@ -44,94 +45,150 @@ const MONTH_LABELS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+const SECTION_LABEL: Record<string, string> = {
+  vendor: "Vendor",
+  campaign: "Campaign",
+  telegram: "Telegram",
+  onlyfans: "OnlyFans",
+  house_rent: "Rent",
+  house_utility: "Utility",
+};
+
 export function OverviewPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = React.useState(currentYear);
   const [compareYoY, setCompareYoY] = React.useState(false);
+  const [bannerHidden, setBannerHidden] = React.useState(false);
   const { data, isLoading } = useFinanceOverview(year);
 
-  const monthLabel = new Date().toLocaleDateString("en-US", {
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
   });
 
+  // Compute prev-month deltas client-side from the monthly array.
+  // (data.monthly[i] is keyed 1-12; current month is now.getMonth()+1.)
+  const currentMonthIdx = now.getMonth(); // 0-based
+  const prevMonthIdx = currentMonthIdx - 1;
+  const prevMonth = data?.monthly && prevMonthIdx >= 0 ? data.monthly[prevMonthIdx] : null;
+  const prevMonthLabel = prevMonthIdx >= 0 ? MONTH_LABELS[prevMonthIdx] : "—";
+
+  const inflowDelta = deltaText(data?.inflow_this_month ?? 0, prevMonth?.inflow ?? 0, prevMonthLabel);
+  const outflowDelta = deltaText(data?.outflow_this_month ?? 0, prevMonth?.outflow ?? 0, prevMonthLabel, /* invert */ true);
+  const netDelta = deltaText(data?.net_this_month ?? 0, prevMonth?.net ?? 0, prevMonthLabel);
+
+  // YTD totals + YoY% for the chart header.
+  const ytd = sumNet(data?.monthly ?? []);
+  const ytdPrev = sumNet(data?.monthly_prev_year ?? []);
+  const ytdDeltaPct = ytdPrev !== 0 ? ((ytd - ytdPrev) / Math.abs(ytdPrev)) * 100 : null;
+
+  const showBanner =
+    !bannerHidden && (data?.most_overdue.length ?? 0) > 0;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            Live snapshot of Recast finance. KPIs are for {monthLabel}; the
-            trend below covers the selected year.
+          <div className="flex items-center gap-3">
+            <h1 className="font-display text-h2 font-semibold tracking-tight">
+              Overview
+            </h1>
+            <LiveSyncChip />
+          </div>
+          <p className="mt-1 text-small text-muted-foreground">
+            What&apos;s coming in, what&apos;s going out, what&apos;s overdue. KPIs
+            are for {monthLabel}; the trend below covers {year}.
           </p>
         </div>
         <YearSelector value={year} onChange={setYear} />
       </div>
 
-      {/* KPI tiles */}
+      {/* ── Overdue alert banner ───────────────────────────────────── */}
+      {showBanner && data ? (
+        <OverdueBanner
+          items={data.most_overdue}
+          totalAmount={data.outstanding_overdue}
+          onHide={() => setBannerHidden(true)}
+        />
+      ) : null}
+
+      {/* ── 4-up KPI tiles ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPI
-          label="Inflow this month"
-          value={data?.inflow_this_month}
-          loading={isLoading}
-          tone="positive"
-          icon={<ArrowDownRight className="h-4 w-4" />}
-          hint="Receipts received from talent, brands, residents"
-        />
-        <KPI
-          label="Outflow this month"
-          value={data?.outflow_this_month}
-          loading={isLoading}
-          tone="negative"
-          icon={<ArrowUpRight className="h-4 w-4" />}
-          hint="Vendor + utility receipts paid out"
-        />
-        <KPI
-          label="Net this month"
-          value={data?.net_this_month}
-          loading={isLoading}
-          tone={
-            data?.net_this_month != null
-              ? data.net_this_month >= 0
-                ? "positive"
-                : "negative"
-              : "neutral"
-          }
-          icon={<TrendingUp className="h-4 w-4" />}
-          hint="Inflow − outflow this calendar month"
-        />
-        <KPI
-          label="Outstanding overdue"
-          value={data?.outstanding_overdue}
-          loading={isLoading}
-          tone="warning"
-          icon={<Clock className="h-4 w-4" />}
-          hint={`${data?.most_overdue.length ?? 0} most-late items below`}
-          link="/finance"
-        />
+        {isLoading || !data ? (
+          <>
+            <KpiSkeleton />
+            <KpiSkeleton />
+            <KpiSkeleton />
+            <KpiSkeleton />
+          </>
+        ) : (
+          <>
+            <KpiTile
+              label="Inflow this month"
+              amount={data.inflow_this_month}
+              delta={inflowDelta}
+            />
+            <KpiTile
+              label="Outflow this month"
+              amount={data.outflow_this_month}
+              delta={outflowDelta}
+            />
+            <KpiTile
+              label="Net this month"
+              amount={data.net_this_month}
+              delta={netDelta}
+            />
+            <KpiTile
+              label="Outstanding overdue"
+              amount={data.outstanding_overdue}
+              meta={
+                data.most_overdue.length
+                  ? `${data.most_overdue.length} item${data.most_overdue.length === 1 ? "" : "s"} · oldest ${data.most_overdue[0].days_overdue}d`
+                  : "Nothing overdue"
+              }
+              delta={
+                data.outstanding_overdue > 0
+                  ? { tone: "overdue", text: "Click → Finance" }
+                  : { tone: "paid", text: "All clear" }
+              }
+            />
+          </>
+        )}
       </div>
 
-      {/* Trend chart */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+      {/* ── Cash flow chart ────────────────────────────────────────── */}
+      <Card className="p-tile-md">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Monthly cash flow — {year}</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Inflow vs outflow by month, from receipts logged in the ledger.
-              {compareYoY && ` Dotted lines = ${year - 1}.`}
-            </p>
+            <EyebrowLabel>Cash flow · {year}</EyebrowLabel>
+            <div className="mt-1 flex items-baseline gap-2">
+              <MoneyCell amount={ytd} size="h2" splitDecimals={false} />
+              {ytdDeltaPct != null ? (
+                <span
+                  className={cn(
+                    "tabular text-small",
+                    ytdDeltaPct >= 0 ? "text-paid" : "text-overdue",
+                  )}
+                >
+                  {ytdDeltaPct >= 0 ? "+" : ""}
+                  {ytdDeltaPct.toFixed(1)}% YoY
+                </span>
+              ) : null}
+            </div>
           </div>
-          <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-small">
             <input
               type="checkbox"
               checked={compareYoY}
               onChange={(e) => setCompareYoY(e.target.checked)}
-              className="h-3.5 w-3.5"
+              className="h-3.5 w-3.5 accent-electric"
             />
-            Compare to {year - 1}
+            Compare {year - 1}
           </label>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="mt-4">
           {isLoading || !data ? (
             <Skeleton className="h-[260px] w-full" />
           ) : (
@@ -141,48 +198,48 @@ export function OverviewPage() {
               prevYear={year - 1}
             />
           )}
-        </CardContent>
+        </div>
       </Card>
 
-      {/* Top-5 panels */}
+      {/* ── Three lists ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <TopPanel
+        <ListPanel
           title="Most overdue"
-          description="Highest days-past-due across every section"
+          eyebrow={`${data?.most_overdue.length ?? 0} items · sorted by days late`}
           empty="Nothing overdue — clean."
           loading={isLoading}
-          rows={(data?.most_overdue ?? []).map((r) => ({
+          rows={(data?.most_overdue ?? []).map((r, i) => ({
+            rank: String(i + 1).padStart(2, "0"),
             primary: r.name,
-            secondary: `${MONTH_LABELS[r.period_month - 1]} ${r.period_year} · ${SECTION_LABEL[r.source]}`,
-            value: formatUSD(r.amount, { decimals: 2 }),
-            badge: `${r.days_overdue}d`,
-            badgeTone: "rose",
+            secondary: `${SECTION_LABEL[r.source]} · ${MONTH_LABELS[r.period_month - 1]} ${r.period_year}`,
+            value: r.amount,
+            badge: { text: `${r.days_overdue}d`, status: "overdue" as const },
           }))}
-          footerLink={{ to: "/finance", label: "Open Finance" }}
+          footerLink={{ to: "/finance", label: "All overdue" }}
         />
-        <TopPanel
-          title="Top talents this month"
-          description="By gross revenue · Tele + OnlyFans"
+        <ListPanel
+          title="Top talent · this month"
+          eyebrow="Tele + OnlyFans gross combined"
           empty="No talent performance recorded yet this month."
           loading={isLoading}
           rows={(data?.top_talents ?? []).map((t) => ({
             primary: t.name,
             secondary: `${SECTION_LABEL[t.source]} · commission ${formatUSDCompact(t.commission)}`,
-            value: formatUSD(t.gross, { decimals: 0 }),
+            value: t.gross,
           }))}
-          footerLink={{ to: "/finance", label: "Open Finance" }}
+          footerLink={{ to: "/roster", label: "Roster" }}
         />
-        <TopPanel
-          title="Top vendor spend this month"
-          description="Vendors paid the most this calendar month"
+        <ListPanel
+          title="Top vendor spend · this month"
+          eyebrow="Paid out · highest first"
           empty="No vendor payments logged yet this month."
           loading={isLoading}
           rows={(data?.top_vendors ?? []).map((v) => ({
             primary: v.name,
             secondary: "Vendor",
-            value: formatUSD(v.paid, { decimals: 2 }),
+            value: v.paid,
           }))}
-          footerLink={{ to: "/finance", label: "Open Vendors" }}
+          footerLink={{ to: "/finance", label: "Vendors" }}
         />
       </div>
     </div>
@@ -190,68 +247,93 @@ export function OverviewPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// KPI tile
+// Live-sync chip (top of header)
 // ─────────────────────────────────────────────────────────────────────
 
-function KPI({
-  label,
-  value,
-  loading,
-  tone,
-  icon,
-  hint,
-  link,
-}: {
-  label: string;
-  value: number | undefined;
-  loading: boolean;
-  tone: "positive" | "negative" | "warning" | "neutral";
-  icon: React.ReactNode;
-  hint: string;
-  link?: string;
-}) {
-  const toneStyles: Record<typeof tone, string> = {
-    positive: "text-emerald-700 dark:text-emerald-400",
-    negative: "text-rose-700 dark:text-rose-400",
-    warning: "text-amber-700 dark:text-amber-400",
-    neutral: "text-foreground",
-  } as const;
-
-  const body = (
-    <Card className="h-full transition hover:bg-muted/20">
-      <CardContent className="flex flex-col gap-1 p-4">
-        <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-          <span className="truncate">{label}</span>
-          <span className={cn("shrink-0", toneStyles[tone])}>{icon}</span>
-        </div>
-        {loading ? (
-          <Skeleton className="mt-1 h-7 w-32" />
-        ) : (
-          <div
-            className={cn(
-              "text-2xl font-semibold tabular-nums",
-              toneStyles[tone],
-            )}
-          >
-            {value != null ? formatUSD(value, { decimals: 2 }) : "—"}
-          </div>
-        )}
-        <div className="text-[11px] text-muted-foreground">{hint}</div>
-      </CardContent>
-    </Card>
-  );
-
-  return link ? (
-    <Link to={link} className="block">
-      {body}
-    </Link>
-  ) : (
-    body
+function LiveSyncChip() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-paid/30 bg-paid-tint px-2.5 py-0.5 text-eyebrow text-paid">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-paid" />
+      Live · synced 30s
+    </span>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Trend chart
+// Overdue alert banner — first thing in eyeline if anything is late
+// ─────────────────────────────────────────────────────────────────────
+
+function OverdueBanner({
+  items,
+  totalAmount,
+  onHide,
+}: {
+  items: { source: string; name: string; period_month: number; days_overdue: number; amount: number }[];
+  totalAmount: number;
+  onHide: () => void;
+}) {
+  const sectionCount = new Set(items.map((i) => i.source)).size;
+  const oldest = items[0]?.days_overdue ?? 0;
+
+  return (
+    <div className="rounded-lg border border-overdue/30 bg-overdue-tint p-tile-md">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <EyebrowLabel className="text-overdue">
+            {items.length} payments past deadline
+          </EyebrowLabel>
+          <div className="mt-1 flex items-baseline gap-2">
+            <MoneyCell amount={totalAmount} size="h2" tone="overdue" />
+            <span className="text-small text-steel">
+              outstanding across {sectionCount} section{sectionCount === 1 ? "" : "s"}
+            </span>
+            <span className="text-small text-overdue">· Oldest {oldest}d</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button asChild variant="default" size="sm">
+            <Link to="/finance">Open Finance</Link>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onHide}
+            aria-label="Hide alert"
+          >
+            <X className="h-4 w-4" />
+            Hide
+          </Button>
+        </div>
+      </div>
+
+      {/* Inline chip strip — top items. Capped at 6 to keep it scannable. */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.slice(0, 6).map((item, i) => (
+          <div
+            key={i}
+            className="inline-flex items-center gap-2 rounded-md border border-overdue/20 bg-card px-2.5 py-1.5 text-small"
+          >
+            <EyebrowLabel className="text-steel">
+              {SECTION_LABEL[item.source] ?? item.source}
+            </EyebrowLabel>
+            <span className="truncate font-medium text-foreground">
+              {item.name} · {MONTH_LABELS[item.period_month - 1]}
+            </span>
+            <MoneyCell amount={item.amount} size="small" splitDecimals={false} />
+            <StatusPill status="overdue" label={`${item.days_overdue}D LATE`} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Cash flow chart — spec colours
+//   • Inflow:   vertical gradient electric-lt → electric-dk
+//   • Outflow:  solid #3a3f4b
+//   • Prior yr: dashed (3 4) at 55% opacity
 // ─────────────────────────────────────────────────────────────────────
 
 function FlowChart({
@@ -263,7 +345,6 @@ function FlowChart({
   monthlyPrev: MonthlyFlow[] | null;
   prevYear: number;
 }) {
-  // Merge by month index so prev-year keys align with the X-axis ticks.
   const data = monthly.map((m, i) => {
     const prev = monthlyPrev?.[i];
     return {
@@ -279,10 +360,17 @@ function FlowChart({
         : {}),
     };
   });
+
   return (
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id="rc-inflow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3B82F6" />
+              <stop offset="100%" stopColor="#1A4FCC" />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
           <XAxis
             dataKey="month"
@@ -311,23 +399,25 @@ function FlowChart({
             }
           />
           <Legend wrapperStyle={{ fontSize: 12 }} iconSize={10} />
-          <Bar dataKey="Inflow" fill="hsl(142 71% 45%)" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="Outflow" fill="hsl(0 72% 51%)" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="Inflow" fill="url(#rc-inflow)" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="Outflow" fill="#3a3f4b" radius={[3, 3, 0, 0]} />
           {monthlyPrev && (
             <>
               <Line
                 type="monotone"
                 dataKey={`Inflow ${prevYear}`}
-                stroke="hsl(142 71% 45%)"
-                strokeDasharray="4 3"
+                stroke="#2563EB"
+                strokeOpacity={0.55}
+                strokeDasharray="3 4"
                 strokeWidth={2}
                 dot={false}
               />
               <Line
                 type="monotone"
                 dataKey={`Outflow ${prevYear}`}
-                stroke="hsl(0 72% 51%)"
-                strokeDasharray="4 3"
+                stroke="#3a3f4b"
+                strokeOpacity={0.55}
+                strokeDasharray="3 4"
                 strokeWidth={2}
                 dot={false}
               />
@@ -340,47 +430,47 @@ function FlowChart({
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Top-N panel
+// List panel (Most overdue / Top talent / Top vendor)
 // ─────────────────────────────────────────────────────────────────────
 
-interface TopRow {
+interface ListRow {
+  rank?: string;
   primary: string;
   secondary: string;
-  value: string;
-  badge?: string;
-  badgeTone?: "rose" | "amber" | "emerald";
+  value: number;
+  badge?: { text: string; status: "paid" | "partial" | "overdue" | "unpaid" };
 }
 
-function TopPanel({
+function ListPanel({
   title,
-  description,
+  eyebrow,
   empty,
   loading,
   rows,
   footerLink,
 }: {
   title: string;
-  description: string;
+  eyebrow: string;
   empty: string;
   loading: boolean;
-  rows: TopRow[];
+  rows: ListRow[];
   footerLink?: { to: string; label: string };
 }) {
   return (
-    <Card className="flex h-full flex-col">
-      <CardHeader className="space-y-1 pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-1">
+    <Card className="flex h-full flex-col p-tile-md">
+      <div>
+        <h3 className="text-h3 font-semibold tracking-tight">{title}</h3>
+        <EyebrowLabel className="mt-1">{eyebrow}</EyebrowLabel>
+      </div>
+      <div className="mt-4 flex flex-1 flex-col gap-1">
         {loading ? (
           <>
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
           </>
         ) : rows.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center py-6 text-sm text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center py-6 text-small text-muted-foreground">
             {empty}
           </div>
         ) : (
@@ -388,50 +478,76 @@ function TopPanel({
             {rows.map((r, i) => (
               <li
                 key={i}
-                className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted/30"
+                className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors duration-base ease-out hover:bg-electric/5"
               >
+                {r.rank ? (
+                  <span className="tabular w-6 text-eyebrow text-steel">{r.rank}</span>
+                ) : null}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-foreground">
+                  <div className="truncate text-body font-medium text-foreground">
                     {r.primary}
                   </div>
-                  <div className="truncate text-[11px] text-muted-foreground">
+                  <div className="truncate text-eyebrow text-steel">
                     {r.secondary}
                   </div>
                 </div>
-                {r.badge && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                      r.badgeTone === "rose" && "bg-rose-500/15 text-rose-700 dark:text-rose-400",
-                      r.badgeTone === "amber" && "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                      r.badgeTone === "emerald" && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-                    )}
-                  >
-                    {r.badge}
-                  </span>
-                )}
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                  {r.value}
-                </span>
+                {r.badge ? <StatusPill status={r.badge.status} label={r.badge.text} /> : null}
+                <MoneyCell amount={r.value} size="body" splitDecimals={false} />
               </li>
             ))}
           </ul>
         )}
-        {footerLink && rows.length > 0 && (
+        {footerLink && rows.length > 0 ? (
           <Link
             to={footerLink.to}
-            className="mt-auto inline-flex items-center justify-end gap-0.5 pt-2 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+            className="mt-auto inline-flex items-center justify-end gap-0.5 pt-2 text-eyebrow text-steel transition-colors duration-base ease-out hover:text-foreground"
           >
             {footerLink.label} <ChevronRight className="h-3 w-3" />
           </Link>
-        )}
-      </CardContent>
+        ) : null}
+      </div>
     </Card>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Year selector (mirrors the one on /finance)
+// Helpers
+// ─────────────────────────────────────────────────────────────────────
+
+function KpiSkeleton() {
+  return (
+    <div className="rounded-lg border bg-card p-tile-md">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="mt-3 h-8 w-32" />
+      <Skeleton className="mt-2 h-3 w-40" />
+    </div>
+  );
+}
+
+function deltaText(
+  current: number,
+  prev: number,
+  prevLabel: string,
+  invertSign: boolean = false,
+): { tone: "paid" | "overdue" | "muted"; text: string } | undefined {
+  if (prev === 0) return undefined;
+  const pct = ((current - prev) / Math.abs(prev)) * 100;
+  // For outflow, "down" is good (less spending) → flip the tone.
+  const positive = invertSign ? pct < 0 : pct >= 0;
+  const tone = positive ? "paid" : "overdue";
+  const sign = pct >= 0 ? "+" : "";
+  return {
+    tone,
+    text: `${sign}${pct.toFixed(1)}% vs ${formatUSDCompact(prev)} ${prevLabel}`,
+  };
+}
+
+function sumNet(monthly: MonthlyFlow[]): number {
+  return monthly.reduce((s, m) => s + m.net, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Year selector (still uses raw <select> — small, doesn't justify Select)
 // ─────────────────────────────────────────────────────────────────────
 
 function YearSelector({
@@ -444,12 +560,12 @@ function YearSelector({
   const now = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted-foreground">Year:</span>
+    <div className="flex items-center gap-2 text-small">
+      <span className="text-steel">Year</span>
       <select
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="rounded-md border bg-background px-2 py-1 text-sm"
+        className="rounded-md border bg-background px-2 py-1 text-body tabular transition-colors duration-base ease-out focus:outline-none focus:ring-1 focus:ring-electric"
       >
         {years.map((y) => (
           <option key={y} value={y}>
@@ -460,16 +576,3 @@ function YearSelector({
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────
-
-const SECTION_LABEL: Record<string, string> = {
-  vendor: "Vendor",
-  campaign: "Campaign",
-  telegram: "Telegram",
-  onlyfans: "OnlyFans",
-  house_rent: "Rent",
-  house_utility: "Utility",
-};
