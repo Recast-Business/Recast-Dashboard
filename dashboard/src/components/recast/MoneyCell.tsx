@@ -16,12 +16,13 @@ export interface MoneyCellProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** Raw dollar amount. Pass a number, not a pre-formatted string. */
   amount: number;
   /**
-   * "display" → 36px display weight (KPI hero)
-   * "h2" → 24px (panel heading)
-   * "body" → 14px (default — cells, lists)
-   * "small" → 12px (footnote, sub-line)
+   * "display" → 36px (page-title hero number)
+   * "kpi"     → 30px (KPI tile value, per spec recipe)
+   * "h2"      → 24px (panel heading)
+   * "body"    → 14px (default — cells, lists)
+   * "small"   → 12px (footnote, sub-line)
    */
-  size?: "display" | "h2" | "body" | "small";
+  size?: "display" | "kpi" | "h2" | "body" | "small";
   /**
    * If true, renders `.00` decimals smaller and steel-coloured.
    * Default true on display/h2, false on body/small (too noisy in cells).
@@ -33,6 +34,7 @@ export interface MoneyCellProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 const sizeClass: Record<NonNullable<MoneyCellProps["size"]>, string> = {
   display: "text-display",
+  kpi: "text-kpi",
   h2: "text-h2",
   body: "text-body",
   small: "text-small",
@@ -51,7 +53,7 @@ export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(
     { amount, size = "body", splitDecimals, tone = "default", className, ...rest },
     ref,
   ) => {
-    const split = splitDecimals ?? (size === "display" || size === "h2");
+    const split = splitDecimals ?? (size === "display" || size === "kpi" || size === "h2");
     const formatted = formatUSD(amount); // "$1,234.56" or "-$1,234.56"
     // Replace ASCII hyphen with proper minus and split into integer/decimal.
     const normalised = formatted.replace(/^-/, "−");

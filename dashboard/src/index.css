@@ -134,13 +134,20 @@
     font-feature-settings: "tnum" 1;
   }
 
-  /* Display sizes (display / h2 / h3) automatically use Unbounded.
-     Body sizes (body / small / eyebrow) stay on Inter via the default
-     sans-serif inheritance from <body>. This means a headline only
-     needs `text-h2` in markup — the font-family is implicit. */
+  /* Display sizes use Unbounded; body sizes use Inter. Both rules
+     are explicit so font-family doesn't accidentally inherit through
+     a nested span (e.g. a small `.00` decimal inside a `text-display`
+     dollar amount — without the body-side rule the decimal would
+     inherit Unbounded from its parent, which the spec disallows). */
   .text-display,
+  .text-kpi,
   .text-h2,
   .text-h3 {
     font-family: "Unbounded", "Inter", system-ui, sans-serif;
+  }
+  .text-body,
+  .text-small,
+  .text-eyebrow {
+    font-family: "Inter", system-ui, sans-serif;
   }
 }

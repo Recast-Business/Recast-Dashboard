@@ -136,6 +136,10 @@ const config: Config = {
         body: ["14px", { lineHeight: "1.5", fontWeight: "400" }],
         h3: ["18px", { lineHeight: "1.3", letterSpacing: "-0.01em", fontWeight: "700" }],
         h2: ["24px", { lineHeight: "1.25", letterSpacing: "-0.02em", fontWeight: "700" }],
+        // KPI-specific display size. Per spec: text-[30px] in the
+        // KPI tile recipe — slightly smaller than the page-title
+        // display (36px) so the hierarchy reads cleanly.
+        kpi: ["30px", { lineHeight: "1.1", letterSpacing: "-0.022em", fontWeight: "800" }],
         display: ["36px", { lineHeight: "1.1", letterSpacing: "-0.022em", fontWeight: "800" }],
       },
     },

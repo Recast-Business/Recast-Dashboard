@@ -88,17 +88,19 @@ export function Sidebar() {
   const { data: counts } = useNavCounts();
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r bg-background">
-      {/* Brand header */}
-      <div className="px-5 py-5">
-        <div className="flex items-center gap-2.5">
+    <aside className="flex h-screen w-52 flex-col border-r bg-background">
+      {/* Brand header — tighter than the old w-60 layout. The R-mark
+          stays at 28px (h-7); the wordmark uses a slightly smaller
+          base size so the logo lockup feels balanced in a 208px rail. */}
+      <div className="px-4 py-4">
+        <div className="flex items-center gap-2">
           <img
             src="/recast-mark.svg"
             alt="Recast"
             className="h-7 w-7 shrink-0 rounded"
           />
           <span
-            className="font-display text-base font-extrabold uppercase"
+            className="font-display text-sm font-extrabold uppercase"
             style={{ letterSpacing: "0.08em" }}
           >
             Recast
@@ -107,13 +109,13 @@ export function Sidebar() {
       </div>
 
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-3">
+      <nav className="flex-1 overflow-y-auto px-2 pb-2">
         {SECTIONS.map((section, i) => {
           const visible = section.items.filter((item) => canAccess(role, item.allow));
           if (visible.length === 0) return null;
           return (
-            <div key={i} className={cn(i > 0 && "mt-5")}>
-              <EyebrowLabel className="mb-2 px-3 text-steel">
+            <div key={i} className={cn(i > 0 && "mt-4")}>
+              <EyebrowLabel className="mb-1.5 px-2.5 text-steel">
                 {section.header}
               </EyebrowLabel>
               <div className="space-y-0.5">
@@ -127,7 +129,7 @@ export function Sidebar() {
                       end={item.to === "/finance"}
                       className={({ isActive }) =>
                         cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2 text-small font-medium transition-colors duration-base ease-out",
+                          "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-small font-medium transition-colors duration-base ease-out",
                           isActive
                             ? "bg-accent text-accent-foreground"
                             : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
@@ -137,7 +139,7 @@ export function Sidebar() {
                       <Icon className="h-4 w-4 shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
                       {count !== undefined && count > 0 ? (
-                        <span className="tabular ml-auto rounded-full bg-muted px-2 py-0.5 text-eyebrow text-steel">
+                        <span className="tabular ml-auto rounded-full bg-muted px-1.5 py-0.5 text-eyebrow text-steel">
                           {count}
                         </span>
                       ) : null}
@@ -150,11 +152,11 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer: user chip + theme + sign out */}
-      <div className="space-y-2 border-t p-3">
+      {/* Footer: user chip + theme + sign out — tightened padding. */}
+      <div className="space-y-1.5 border-t p-2">
         <button
           type="button"
-          className="flex w-full items-center gap-2.5 rounded-md p-2 text-left transition-colors duration-base ease-out hover:bg-accent/50"
+          className="flex w-full items-center gap-2 rounded-md p-1.5 text-left transition-colors duration-base ease-out hover:bg-accent/50"
           onClick={() => signOut()}
           title="Sign out"
         >
@@ -173,7 +175,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-steel"
+          className="h-8 w-full justify-start text-steel"
           onClick={() => signOut()}
         >
           <LogOut className="mr-2 h-3.5 w-3.5" /> Sign out

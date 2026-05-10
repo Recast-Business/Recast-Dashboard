@@ -106,7 +106,9 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
         ) : null}
       </div>
       <div className={cn("flex items-baseline", compact ? "mt-1" : "mt-2")}>
-        <MoneyCell amount={amount} size={compact ? "h2" : "display"} tone={tone === "default" ? "default" : tone} />
+        {/* Per spec: KPI value is 30px (text-kpi), not 36px (text-display).
+            That keeps page-title > KPI value in the visual hierarchy. */}
+        <MoneyCell amount={amount} size={compact ? "h2" : "kpi"} tone={tone === "default" ? "default" : tone} />
       </div>
       {sparkline ? (
         <div className="mt-2 -mx-1">
