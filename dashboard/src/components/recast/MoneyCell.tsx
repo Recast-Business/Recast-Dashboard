@@ -28,7 +28,7 @@ export interface MoneyCellProps extends React.HTMLAttributes<HTMLSpanElement> {
    */
   splitDecimals?: boolean;
   /** Visual emphasis colour. */
-  tone?: "default" | "muted" | "paid" | "overdue";
+  tone?: "default" | "muted" | "paid" | "overdue" | "partial";
 }
 
 const sizeClass: Record<NonNullable<MoneyCellProps["size"]>, string> = {
@@ -43,6 +43,7 @@ const toneClass: Record<NonNullable<MoneyCellProps["tone"]>, string> = {
   muted: "text-steel",
   paid: "text-paid",
   overdue: "text-overdue",
+  partial: "text-partial",
 };
 
 export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(

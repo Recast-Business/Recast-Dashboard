@@ -2,79 +2,122 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { EyebrowLabel } from "./EyebrowLabel";
 import { MoneyCell } from "./MoneyCell";
+import { Sparkline } from "./Sparkline";
 
 /**
  * Phase L primitive: the 4-up KPI tile.
  *
  * Layout (matches the Claude Design Overview mockup):
  *
- *   ┌─ tile ──────────────────────────┐
- *   │  EYEBROW LABEL    +12.4%        │  ← deltaPct sits inline with eyebrow
- *   │                                 │
- *   │  $118,420.00                    │  ← display amount, tabular
- *   │                                 │
- *   │  vs $105,400 Jun                │  ← vs comparison line (steel)
- *   │  6 items · oldest 12d           │  ← optional meta line
- *   └─────────────────────────────────┘
+ *   ┌─ tile ────────────────────────────┐
+ *   │  ↗ EYEBROW LABEL    [+12.4%]      │  ← icon + label, deltaPct pill right
+ *   │                                   │
+ *   │  $118,420.00                      │  ← display amount (tinted by tone)
+ *   │                                   │
+ *   │  ╱╲    ╱╲                         │  ← sparkline (12-month series)
+ *   │     ╲ ╱  ╲                        │
+ *   │                                   │
+ *   │  vs $105,400 Jun                  │  ← vs comparison line (steel)
+ *   └───────────────────────────────────┘
  *
- * The delta colour uses the brand status enum (paid/overdue) — never
- * shadcn semantic green/red. Outflow tiles invert the sign mapping
- * (negative pct = paid green = good = less spending).
+ * Tone enum:
+ *   default  → neutral (Inflow/Outflow/Net at rest)
+ *   paid     → green (positive emphasis)
+ *   overdue  → red (negative emphasis)
+ *   partial  → amber (warning — used on Outstanding when items > 0)
  *
  * See dashboard/docs/DESIGN.md "KPI tile" recipe.
  */
 
 interface KpiTileProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
-  /** Eyebrow label above the number, e.g. "Inflow this month". */
   label: string;
-  /** Primary amount. Pass a number; MoneyCell handles formatting. */
   amount: number;
-  /**
-   * Inline percentage badge next to the eyebrow label, e.g.
-   *   { tone: "paid", text: "+12.4%" }
-   */
+  /** Lucide icon shown to the left of the eyebrow label. */
+  icon?: React.ComponentType<{ className?: string }>;
+  /** Inline pill next to the eyebrow, e.g. { tone: "paid", text: "+12.4%" }. */
   deltaPct?: {
-    tone?: "paid" | "overdue" | "muted";
+    tone?: "paid" | "overdue" | "muted" | "partial";
     text: string;
   };
   /** Comparison line below the amount, e.g. "vs $105,400 Jun". */
   vs?: string;
-  /** Optional secondary metadata line (e.g. "Oldest 12 d"). */
+  /** Optional secondary metadata line. */
   meta?: string;
+  /**
+   * Mini line chart below the amount. Pass 12 monthly values; the
+   * component normalises them to the available width.
+   */
+  sparkline?: {
+    values: number[];
+    tone?: "paid" | "overdue" | "partial" | "electric" | "muted";
+  };
   /** Render as compact tile (smaller display, less padding). */
   compact?: boolean;
+  /**
+   * Override the amount's tone colour. Used on the Outstanding tile
+   * when something is overdue (turns the entire $ display amber).
+   */
+  tone?: "default" | "paid" | "overdue" | "partial";
 }
 
-const toneClass: Record<NonNullable<KpiTileProps["deltaPct"]>["tone"] & string, string> = {
-  paid: "text-paid",
-  overdue: "text-overdue",
-  muted: "text-steel",
+const deltaToneClass: Record<NonNullable<KpiTileProps["deltaPct"]>["tone"] & string, string> = {
+  paid: "bg-paid-tint text-paid",
+  overdue: "bg-overdue-tint text-overdue",
+  partial: "bg-partial-tint text-partial",
+  muted: "bg-unpaid-tint text-steel",
 };
 
 export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
-  ({ label, amount, deltaPct, vs, meta, compact, className, ...rest }, ref) => (
+  (
+    { label, amount, icon: Icon, deltaPct, vs, meta, sparkline, compact, tone = "default", className, ...rest },
+    ref,
+  ) => (
     <div
       ref={ref}
       className={cn(
         "rounded-lg border bg-card",
         compact ? "p-tile-sm" : "p-tile-md",
+        // When tone is non-default, accent the border so the tile
+        // reads as warning/positive at a glance.
+        tone === "partial" && "border-partial/30",
+        tone === "overdue" && "border-overdue/30",
+        tone === "paid" && "border-paid/30",
         className,
       )}
       {...rest}
     >
       <div className="flex items-center justify-between gap-2">
-        <EyebrowLabel>{label}</EyebrowLabel>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 text-steel" /> : null}
+          <EyebrowLabel className="truncate">{label}</EyebrowLabel>
+        </div>
         {deltaPct ? (
-          <span className={cn("tabular text-eyebrow", toneClass[deltaPct.tone ?? "muted"])}>
+          <span
+            className={cn(
+              "tabular shrink-0 rounded-sm px-1.5 py-0.5 text-eyebrow",
+              deltaToneClass[deltaPct.tone ?? "muted"],
+            )}
+          >
             {deltaPct.text}
           </span>
         ) : null}
       </div>
       <div className={cn("flex items-baseline", compact ? "mt-1" : "mt-2")}>
-        <MoneyCell amount={amount} size={compact ? "h2" : "display"} />
+        <MoneyCell amount={amount} size={compact ? "h2" : "display"} tone={tone === "default" ? "default" : tone} />
       </div>
+      {sparkline ? (
+        <div className="mt-2 -mx-1">
+          <Sparkline
+            values={sparkline.values}
+            tone={sparkline.tone ?? "electric"}
+            width={140}
+            height={28}
+            className="w-full"
+          />
+        </div>
+      ) : null}
       {vs ? (
-        <div className="mt-1 text-small text-steel">{vs}</div>
+        <div className={cn("text-small text-steel", sparkline ? "mt-1" : "mt-1")}>{vs}</div>
       ) : null}
       {meta ? (
         <div className={cn("text-small text-steel", vs ? "mt-0.5" : "mt-1")}>{meta}</div>
