@@ -718,9 +718,11 @@ function ListPanel({
                     )}
                   </div>
 
-                  {/* RIGHT col — stacked: amount on top, badge or secondary below */}
+                  {/* RIGHT col — stacked: amount on top, badge or secondary below.
+                      Money in Unbounded (font-display) per user direction —
+                      matches the Overview page title's face. */}
                   <div className="flex flex-col items-end gap-0.5 shrink-0 leading-tight">
-                    <span className="tabular text-[13px] font-semibold text-white">
+                    <span className="tabular font-display text-[13px] font-bold text-white">
                       ${r.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     </span>
                     {mode === "ranked" && r.badge ? (

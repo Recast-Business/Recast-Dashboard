@@ -67,7 +67,12 @@ export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(
       return (
         <span
           ref={ref}
-          className={cn("tabular", sizeClass[size], toneClass[tone], className)}
+          // Per user direction: every $ figure renders in Unbounded
+          // (the same face as the "Overview" page title), not Inter.
+          // `font-display` is a Tailwind utility — it cascades AFTER
+          // the index.css base rule that maps body sizes to Inter,
+          // so it wins.
+          className={cn("tabular font-display", sizeClass[size], toneClass[tone], className)}
           {...rest}
         >
           {normalised}
@@ -88,7 +93,8 @@ export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(
     return (
       <span
         ref={ref}
-        className={cn("tabular inline-flex items-baseline gap-0.5", sizeClass[size], toneClass[tone], className)}
+        // Always Unbounded — see note above.
+        className={cn("tabular inline-flex items-baseline gap-0.5 font-display", sizeClass[size], toneClass[tone], className)}
         {...rest}
       >
         <span>{intPart}</span>
