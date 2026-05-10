@@ -26,7 +26,8 @@ interface OverdueRow {
     | "onlyfans"
     | "house_rent"
     | "house_utility"
-    | "vendor_invoice";
+    | "vendor_invoice"
+    | "talent_invoice";
   /** Display name — vendor name, creator name, utility name, invoice description, etc. */
   name: string;
   amount: number;
@@ -47,7 +48,8 @@ const SOURCE_LABEL: Record<OverdueRow["source"], string> = {
   onlyfans: "OnlyFans",
   house_rent: "Rent",
   house_utility: "Utility",
-  vendor_invoice: "Invoice",
+  vendor_invoice: "Vendor invoice",
+  talent_invoice: "Talent invoice",
 };
 
 /** Days between an arbitrary deadline date and `now`. */
@@ -203,6 +205,28 @@ function useOverdueRows() {
           amount: Number(r.amount) || 0,
           period_year: due.getFullYear(),
           period_month: due.getMonth() + 1,
+          paid_at: r.paid_at,
+          invoice_url: r.invoice_url,
+          days_overdue: daysOverdueFromDate(r.due_date),
+        });
+      }
+
+      // Talent invoices (M-6) — creator invoices past their due_date
+      const talentInv = await supabase
+        .from("talent_invoices")
+        .select("amount, amount_paid, due_date, paid_at, invoice_url, invoice_number, period_year, period_month, creator:creators(name)")
+        .eq("status", "overdue");
+      for (const r of (talentInv.data ?? []) as any[]) {
+        const remaining = Math.max(0, (Number(r.amount) || 0) - (Number(r.amount_paid) || 0));
+        if (remaining <= 0) continue;
+        const creatorName = r.creator?.name ?? "Creator";
+        const inv = r.invoice_number ? ` · ${r.invoice_number}` : "";
+        out.push({
+          source: "talent_invoice",
+          name: `${creatorName}${inv}`,
+          amount: remaining,
+          period_year: r.period_year,
+          period_month: r.period_month,
           paid_at: r.paid_at,
           invoice_url: r.invoice_url,
           days_overdue: daysOverdueFromDate(r.due_date),

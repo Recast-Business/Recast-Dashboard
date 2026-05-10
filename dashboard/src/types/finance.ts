@@ -332,6 +332,34 @@ export interface VendorInvoice {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Phase M-6: Talent Paying Us invoices
+// ─────────────────────────────────────────────────────────────────────
+
+/** A monthly invoice from Recast to a creator. One row per
+ *  (creator, year, month) — covers all platforms that creator earns on
+ *  that month. The Calculator (M-5) computes the amount; this row
+ *  tracks how the invoice is paid. */
+export interface TalentInvoice {
+  id: string;
+  creator_id: string;
+  period_year: number;
+  period_month: number; // 1-12
+  invoice_number: string | null;
+  amount: number;
+  due_date: string; // ISO date
+  invoice_url: string | null;
+  notes: string | null;
+  status: PaymentStatusV2;
+  amount_paid: number;
+  paid_at: string | null;
+  payment_method: PaymentMethod | null;
+  payment_reference: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Phase K-3: Payment allocation engine
 // ─────────────────────────────────────────────────────────────────────
 
