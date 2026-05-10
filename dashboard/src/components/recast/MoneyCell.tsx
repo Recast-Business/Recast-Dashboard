@@ -32,12 +32,16 @@ export interface MoneyCellProps extends React.HTMLAttributes<HTMLSpanElement> {
   tone?: "default" | "muted" | "paid" | "overdue" | "partial";
 }
 
+// Display sizes (display / kpi / h2) inherit weight from the size token
+// itself — Unbounded 800/700. Body sizes (body / small) need an explicit
+// font-medium bump because the spec says all $ figures inline are
+// Inter 500 with tabular-nums, but text-body alone is Inter 400.
 const sizeClass: Record<NonNullable<MoneyCellProps["size"]>, string> = {
   display: "text-display",
   kpi: "text-kpi",
   h2: "text-h2",
-  body: "text-body",
-  small: "text-small",
+  body: "text-body font-medium",
+  small: "text-small font-medium",
 };
 
 const toneClass: Record<NonNullable<MoneyCellProps["tone"]>, string> = {

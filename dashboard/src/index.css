@@ -147,7 +147,9 @@
   }
   .text-body,
   .text-small,
-  .text-eyebrow {
+  .text-eyebrow,
+  .text-pill,
+  .text-meta {
     font-family: "Inter", system-ui, sans-serif;
   }
 }

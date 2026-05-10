@@ -43,7 +43,10 @@ export const StatusPill = React.forwardRef<HTMLSpanElement, StatusPillProps>(
       <span
         ref={ref}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-eyebrow",
+          // Per spec: status pills use text-pill (Inter 600 / 11px /
+          // 0.06em / uppercase) — narrower tracking than text-eyebrow
+          // so they read as compact chips rather than section labels.
+          "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-pill uppercase",
           s.tint,
           s.text,
           className,

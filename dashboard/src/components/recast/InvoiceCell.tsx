@@ -48,8 +48,10 @@ export const InvoiceCell = React.forwardRef<HTMLButtonElement, InvoiceCellProps>
       )}
       {...rest}
     >
-      <div className="tabular text-body text-foreground">{formatUSD(amount, { decimals: 0 })}</div>
-      <div className="text-eyebrow text-steel">{ref_}</div>
+      {/* Money: Inter 500 14px tabular per spec. Invoice ref: meta
+          treatment (Inter 500 / 11px / 0.04em / regular case + tabular). */}
+      <div className="tabular text-body font-medium text-foreground">{formatUSD(amount, { decimals: 0 })}</div>
+      <div className="tabular text-meta text-steel">{ref_}</div>
     </button>
   ),
 );

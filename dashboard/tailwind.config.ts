@@ -129,18 +129,28 @@ const config: Config = {
         display: ["Unbounded", "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
-        // Recast typography scale — explicit roles so components
-        // don't ad-hoc text-xl/2xl combos.
+        // ── Recast typography scale ──
+        // Six explicit treatments. Three smaller-text variants
+        // (eyebrow / pill / meta) cover the nuance the spec calls
+        // out — wide-tracked caps for eyebrows, tight uppercase for
+        // pills, narrow regular-case for meta lines under amounts.
+        // Use these named roles instead of ad-hoc text-xl/2xl combos.
+
+        // Body sizes (always Inter — see index.css base rule)
+        meta:    ["11px", { lineHeight: "1.4", letterSpacing: "0.04em", fontWeight: "500" }],
+        pill:    ["11px", { lineHeight: "1.4", letterSpacing: "0.06em", fontWeight: "600" }],
         eyebrow: ["11px", { lineHeight: "1.4", letterSpacing: "0.13em", fontWeight: "600" }],
-        small: ["12px", { lineHeight: "1.4", fontWeight: "500" }],
-        body: ["14px", { lineHeight: "1.5", fontWeight: "400" }],
-        h3: ["18px", { lineHeight: "1.3", letterSpacing: "-0.01em", fontWeight: "700" }],
-        h2: ["24px", { lineHeight: "1.25", letterSpacing: "-0.02em", fontWeight: "700" }],
+        small:   ["12px", { lineHeight: "1.4", fontWeight: "500" }],
+        body:    ["14px", { lineHeight: "1.5", fontWeight: "400" }],
+
+        // Display sizes (always Unbounded — see index.css base rule)
+        h3:      ["18px", { lineHeight: "1.3",  letterSpacing: "-0.01em",  fontWeight: "700" }],
+        h2:      ["24px", { lineHeight: "1.25", letterSpacing: "-0.02em",  fontWeight: "700" }],
         // KPI-specific display size. Per spec: text-[30px] in the
         // KPI tile recipe — slightly smaller than the page-title
         // display (36px) so the hierarchy reads cleanly.
-        kpi: ["30px", { lineHeight: "1.1", letterSpacing: "-0.022em", fontWeight: "800" }],
-        display: ["36px", { lineHeight: "1.1", letterSpacing: "-0.022em", fontWeight: "800" }],
+        kpi:     ["30px", { lineHeight: "1.1",  letterSpacing: "-0.022em", fontWeight: "800" }],
+        display: ["36px", { lineHeight: "1.1",  letterSpacing: "-0.022em", fontWeight: "800" }],
       },
     },
   },

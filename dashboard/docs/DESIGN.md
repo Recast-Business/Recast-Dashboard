@@ -53,14 +53,43 @@ font-display font-extrabold uppercase   letter-spacing: 0.08em
 
 ### Typography — display + body, two faces
 
+> **Rule of thumb:** tight tracking + Unbounded for big things. Body
+> Inter for everything ≤ 16px. Eyebrows are the one wide-tracked
+> exception. The size token alone resolves the family — a headline
+> only needs `text-h2` in markup; `font-display` is implicit.
+
+**Display (Unbounded — applied automatically by index.css)**
+
 | Class | Face / weight / size / tracking | Use |
 |---|---|---|
 | `text-display` | Unbounded 800 · 36px · −0.022em · `tabular-nums` | Page title, hero number |
+| `text-kpi` | Unbounded 800 · **30px** · −0.022em · `tabular-nums` | KPI tile value (smaller than page title — keeps hierarchy) |
 | `text-h2` | Unbounded 700 · 24px · −0.02em | Section title |
 | `text-h3` | Unbounded 700 · 18px · −0.01em | Card title |
-| `text-body` | Inter 400 · 14px · 1.5 line-height | Default body |
-| `text-small` | Inter 500 · 12px · 1.4 | Caption, footnote |
-| `text-eyebrow` | Inter 600 · 11px · 0.13em caps | Section label |
+
+**Body (Inter — applied automatically by index.css)**
+
+| Class | Face / weight / size / tracking | Use |
+|---|---|---|
+| `text-body` | Inter 400 · 14px · 1.5 line-height | Default body — creator names, vendor descriptions, list items |
+| `text-body font-medium` | Inter **500** · 14px · `tabular-nums` | All `$` figures inline (always tabular) |
+| `text-small` | Inter 500 · 12px · 1.4 | Caption, footnote, "vs $X Mon" comparison line |
+| `text-eyebrow` | Inter 600 · 11px · **0.13em** caps | Section label only — paired with the 24px Electric Blue rule |
+| `text-pill` | Inter 600 · 11px · **0.06em** uppercase | Status pills (paid / partial / overdue / unpaid) |
+| `text-meta` | Inter 500 · 11px · **0.04em** regular case | Micro / meta — invoice refs (`INV-0362`), subtitles ("5 items · sorted by days late"), delta pills (`+12.4%`), days-late labels (`12d late`) |
+
+**The three smaller-text treatments** are the most common confusion
+point. Pick by tracking + case:
+
+```
+0.04em · regular case    →  text-meta    (Inter 500 / 11px / steel)
+0.06em · UPPERCASE       →  text-pill    (Inter 600 / 11px / semantic)
+0.13em · UPPERCASE       →  text-eyebrow (Inter 600 / 11px / steel + blue rule)
+```
+
+If you're showing data under a number, captioning a row, or labelling
+a delta — **`text-meta`**. If it's a payment status — **`text-pill`**.
+If it's a section header that anchors a major block — **`text-eyebrow`**.
 
 Wordmark is `font-display` weight 800 uppercase with `letter-spacing:
 0.08em` — already wired into `Sidebar.tsx`. KPI tile values use

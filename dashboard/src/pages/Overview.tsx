@@ -212,7 +212,10 @@ export function OverviewPage() {
             {ytdDeltaPct != null ? (
               <span
                 className={cn(
-                  "tabular rounded-sm px-1.5 py-0.5 text-eyebrow",
+                  // YoY delta pill: meta treatment (Inter 500 / 11px /
+                  // 0.04em) — not eyebrow caps. Matches the +18.2% YoY
+                  // pill style from the mockup.
+                  "tabular rounded-sm px-1.5 py-0.5 text-meta",
                   ytdDeltaPct >= 0 ? "bg-paid-tint text-paid" : "bg-overdue-tint text-overdue",
                 )}
               >
@@ -306,7 +309,7 @@ function SearchInput() {
         placeholder="Search…"
         className="h-9 w-56 pl-8 pr-12 text-small"
       />
-      <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border bg-muted px-1 py-0.5 font-mono text-eyebrow text-steel">
+      <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border bg-muted px-1 py-0.5 font-mono text-meta text-steel">
         ⌘K
       </kbd>
     </div>
@@ -433,7 +436,7 @@ function OverdueBanner({
               {item.name} · {MONTH_LABELS[item.period_month - 1]}
             </span>
             <MoneyCell amount={item.amount} size="small" splitDecimals={false} className="font-semibold" />
-            <span className="w-16 shrink-0 text-right text-eyebrow text-overdue">
+            <span className="w-16 shrink-0 text-right text-meta text-overdue">
               {item.days_overdue}d late
             </span>
           </div>
@@ -611,16 +614,19 @@ function ListPanel({
 
   return (
     <Card className="flex h-full flex-col p-tile-md">
-      {/* Header: title + eyebrow on left, link on right */}
+      {/* Header: title + meta subtitle on left, link on right.
+          The subtitle is meta treatment (Inter 500 / 11px / 0.04em /
+          regular case), NOT eyebrow caps — matches "5 items · sorted
+          by days late" in the mockup. */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-h3 font-semibold tracking-tight">{title}</h3>
-          <EyebrowLabel className="mt-1">{eyebrow}</EyebrowLabel>
+          <h3 className="text-h3">{title}</h3>
+          <div className="mt-1 text-meta text-steel">{eyebrow}</div>
         </div>
         {headerLink ? (
           <Link
             to={headerLink.to}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1 text-eyebrow text-steel transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-foreground"
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1 text-meta text-steel transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-foreground"
           >
             {headerLink.label}
             <span className="text-electric">↗</span>
@@ -647,7 +653,7 @@ function ListPanel({
                 <li key={i} className="space-y-1.5">
                   <div className="flex items-center gap-3">
                     {r.rank ? (
-                      <span className="tabular w-6 shrink-0 text-eyebrow text-steel">
+                      <span className="tabular w-6 shrink-0 text-meta text-steel">
                         {r.rank}
                       </span>
                     ) : null}
@@ -656,7 +662,10 @@ function ListPanel({
                       <div className="truncate text-body font-medium text-foreground">
                         {r.primary}
                       </div>
-                      <div className="truncate text-eyebrow text-steel">
+                      {/* Secondary line: meta treatment, not eyebrow.
+                          Mockup renders "Vendor · Software" in regular
+                          case Inter 500, NOT all-caps tracked text. */}
+                      <div className="truncate text-meta text-steel">
                         {r.secondary}
                       </div>
                     </div>

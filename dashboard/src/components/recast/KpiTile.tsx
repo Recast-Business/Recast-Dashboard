@@ -97,7 +97,10 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
         {deltaPct ? (
           <span
             className={cn(
-              "tabular shrink-0 rounded-sm px-1.5 py-0.5 text-eyebrow",
+              // KPI delta pill: meta treatment (Inter 500 / 11px /
+              // 0.04em / regular case) — not the wide-tracked eyebrow.
+              // The pill is visual chrome, not a section label.
+              "tabular shrink-0 rounded-sm px-1.5 py-0.5 text-meta",
               deltaToneClass[deltaPct.tone ?? "muted"],
             )}
           >
