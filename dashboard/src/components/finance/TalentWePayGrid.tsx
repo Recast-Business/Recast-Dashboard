@@ -1,0 +1,494 @@
+import * as React from "react";
+import { Plus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
+import { EyebrowLabel, InvoiceCell, MoneyCell } from "@/components/recast";
+import { useVendors } from "@/hooks/useVendors";
+import { useVendorPaymentsByVendors } from "@/hooks/useVendorPayments";
+import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
+import { VendorDialog } from "@/components/finance/VendorDialog";
+import type { PaymentStatusV2, VendorPayment } from "@/types/finance";
+import { cn, formatUSD } from "@/lib/utils";
+
+/**
+ * Phase L (C3): Talent We Pay — sister grid to C2 (Talent Paying Us).
+ *
+ * Same canonical recipes as TalentInvoiceGrid:
+ *   • Cell-IS-the-invoice with <InvoiceCell> (status border-l +
+ *     6×6 corner pip + 5–7% tint)
+ *   • Sticky-left first column with bg #0d0d0d
+ *   • Current-month header bold + white, future months at 40% opacity
+ *   • Reconciliation strip footer with the 4th cell tinted Electric
+ *     Blue 6% at 30px display weight
+ *   • Eyebrow with 24px Electric Blue rule prefix
+ *
+ * Data shape difference vs C2:
+ *   • Rows = vendors WHERE kind='talent_we_pay' (one-off contractors,
+ *     non-creator humans we pay flat amounts)
+ *   • Cells = vendor_payments rows for the year, indexed by vendor_id
+ *     × month
+ *   • Cell click → PaymentCellDialog (existing vendor-payment editor),
+ *     not the talent_invoices dialog used in C2
+ */
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+interface Props {
+  year: number;
+}
+
+export function TalentWePayGrid({ year }: Props) {
+  const { data: vendors, isLoading: vendorsLoading } = useVendors({ kind: "talent_we_pay" });
+
+  const [search, setSearch] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
+  const [vendorDialogOpen, setVendorDialogOpen] = React.useState(false);
+  const [editingCell, setEditingCell] = React.useState<{
+    vendorId: string;
+    month: number;
+    existing: VendorPayment | null;
+  } | null>(null);
+
+  const filtered = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let rows = vendors ?? [];
+    if (q) {
+      rows = rows.filter((v) =>
+        [v.name, v.contact_name, v.contact_email, v.notes].some(
+          (f) => f && f.toLowerCase().includes(q),
+        ),
+      );
+    }
+    return rows;
+  }, [vendors, search]);
+
+  const ids = React.useMemo(() => filtered.map((v) => v.id), [filtered]);
+  const { data: paymentsByVendor, isLoading: paymentsLoading } = useVendorPaymentsByVendors(ids, year);
+
+  // Apply status filter after loading payments (vendor row stays visible
+  // if any of their cells matches).
+  const filteredByStatus = React.useMemo(() => {
+    if (statusFilter === "all") return filtered;
+    return filtered.filter((v) => {
+      const cells = paymentsByVendor?.[v.id] ?? {};
+      return Object.values(cells).some((p) => p.status === statusFilter);
+    });
+  }, [filtered, paymentsByVendor, statusFilter]);
+
+  // "Now" cursor — current month if we're in this year, else null.
+  const now = new Date();
+  const currentMonthIdx =
+    year === now.getFullYear() ? now.getMonth() : null;
+
+  // Reconciliation totals.
+  const totals = React.useMemo(() => {
+    let totalBilled = 0;
+    let totalPaid = 0;
+    let cellCount = 0;
+    let paidCount = 0;
+    for (const v of filteredByStatus) {
+      const cells = paymentsByVendor?.[v.id] ?? {};
+      for (let m = 1; m <= 12; m++) {
+        const p = cells[m];
+        if (!p) continue;
+        cellCount++;
+        totalBilled += Number(p.amount) || 0;
+        if (p.status === "paid") {
+          paidCount++;
+          totalPaid += Number(p.amount) || 0;
+        }
+      }
+    }
+    return {
+      totalBilled,
+      totalPaid,
+      cellCount,
+      paidCount,
+      outstanding: Math.max(0, totalBilled - totalPaid),
+      pctPaid: cellCount > 0 ? Math.round((paidCount / cellCount) * 100) : 0,
+    };
+  }, [filteredByStatus, paymentsByVendor]);
+
+  const csvRows = React.useMemo(() => {
+    const rows: { name: string; month: string; amount: number; status: string }[] = [];
+    for (const v of filteredByStatus) {
+      const cells = paymentsByVendor?.[v.id] ?? {};
+      for (let m = 1; m <= 12; m++) {
+        const p = cells[m];
+        if (!p) continue;
+        rows.push({
+          name: v.name,
+          month: `${MONTHS[m - 1]} ${year}`,
+          amount: Number(p.amount) || 0,
+          status: p.status,
+        });
+      }
+    }
+    return rows;
+  }, [filteredByStatus, paymentsByVendor, year]);
+
+  const isLoading = vendorsLoading || paymentsLoading;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <EyebrowLabel withRule>Talent We Pay · {year}</EyebrowLabel>
+          <h2 className="mt-2 font-display text-h2 font-bold tracking-[-0.02em]">
+            Outgoing
+          </h2>
+          <p className="mt-1 max-w-[60ch] text-[13px] text-steel">
+            One-off contractors and collaborators Recast pays a flat
+            amount. Click any cell to log or edit the monthly payment.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ExportCSVButton
+            filename={`recast-talent-we-pay-${year}.csv`}
+            rows={csvRows}
+            label="Export CSV"
+            disabled={csvRows.length === 0}
+            columns={[
+              { header: "Name",   value: (r) => r.name },
+              { header: "Month",  value: (r) => r.month },
+              { header: "Amount", value: (r) => r.amount.toFixed(2) },
+              { header: "Status", value: (r) => r.status },
+            ]}
+          />
+          <Button onClick={() => setVendorDialogOpen(true)} size="sm" className="h-8">
+            <Plus className="mr-1 h-3.5 w-3.5" /> Add talent
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Filter row ─────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel" strokeWidth={1.5} />
+          <Input
+            placeholder="Search talent…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 w-[240px] rounded-md bg-card pl-8 text-[13px] placeholder:text-steel"
+          />
+        </div>
+        <StatusFilterChips value={statusFilter} onChange={setStatusFilter} />
+        <span className="ml-auto text-[12px] text-steel">
+          {filteredByStatus.length} {filteredByStatus.length === 1 ? "person" : "people"} · {totals.cellCount} payment{totals.cellCount === 1 ? "" : "s"} YTD
+        </span>
+      </div>
+
+      {/* ── Grid ───────────────────────────────────────────────────── */}
+      {isLoading ? (
+        <Skeleton className="h-[420px] w-full rounded-lg" />
+      ) : filteredByStatus.length === 0 ? (
+        <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
+          {vendors?.length
+            ? "No matches for the current filter."
+            : "No outgoing talent yet — click Add talent to log your first contractor."}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border bg-card">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-rule">
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-10 min-w-[180px] bg-[#0d0d0d] px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.13em] text-steel"
+                  >
+                    Talent
+                  </th>
+                  {MONTHS.map((label, i) => {
+                    const isCurrent = currentMonthIdx === i;
+                    const isFuture = currentMonthIdx !== null && i > currentMonthIdx;
+                    return (
+                      <th
+                        key={label}
+                        scope="col"
+                        className={cn(
+                          "min-w-[88px] px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.13em]",
+                          isCurrent
+                            ? "text-white"
+                            : isFuture
+                              ? "text-steel/40"
+                              : "text-steel",
+                        )}
+                      >
+                        {label}
+                        {isCurrent ? <span className="ml-1 text-electric">·</span> : null}
+                      </th>
+                    );
+                  })}
+                  <th
+                    scope="col"
+                    className="min-w-[110px] px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-[0.13em] text-steel"
+                  >
+                    YTD
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredByStatus.map((v) => {
+                  const cells = paymentsByVendor?.[v.id] ?? {};
+                  let total = 0;
+                  let cellTotal = 0;
+                  for (let m = 1; m <= 12; m++) {
+                    const p = cells[m];
+                    if (p) {
+                      total += Number(p.amount) || 0;
+                      cellTotal++;
+                    }
+                  }
+                  return (
+                    <tr
+                      key={v.id}
+                      className="border-b border-rule transition-colors duration-base ease-out hover:bg-white/[0.04]"
+                    >
+                      {/* Sticky-left talent column per spec §11 */}
+                      <td className="sticky left-0 z-10 bg-[#0d0d0d] px-4 py-2">
+                        <div className="text-[13px] font-medium text-white">
+                          {v.name}
+                        </div>
+                        <div className="text-[11px] text-steel">
+                          {v.payment_method
+                            ? PAYMENT_METHOD_SHORT[v.payment_method] ?? v.payment_method
+                            : "Unspecified"}
+                        </div>
+                      </td>
+
+                      {MONTHS.map((_label, i) => {
+                        const month = i + 1;
+                        const p = cells[month];
+                        const isFuture =
+                          currentMonthIdx !== null && i > currentMonthIdx;
+                        return (
+                          <td key={month} className="p-1 align-middle">
+                            {p && p.amount != null ? (
+                              <InvoiceCell
+                                amount={Number(p.amount) || 0}
+                                ref_={p.invoice_url ? "↗ link" : "—"}
+                                status={p.status}
+                                future={isFuture}
+                                onClick={() =>
+                                  setEditingCell({ vendorId: v.id, month, existing: p })
+                                }
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingCell({
+                                    vendorId: v.id,
+                                    month,
+                                    existing: p ?? null,
+                                  })
+                                }
+                                className={cn(
+                                  "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
+                                  isFuture && "opacity-50",
+                                )}
+                                title={`Log ${MONTHS[month - 1]} ${year} payment for ${v.name}`}
+                              >
+                                +
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+
+                      {/* YTD column */}
+                      <td className="px-3 py-2 text-right">
+                        {total > 0 ? (
+                          <div className="flex flex-col items-end leading-tight">
+                            <MoneyCell
+                              amount={total}
+                              size="body"
+                              splitDecimals={false}
+                            />
+                            <span className="text-[10px] text-steel">
+                              {cellTotal} {cellTotal === 1 ? "payment" : "payments"}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[12px] text-steel">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reconciliation strip per spec §11 ─────────────────────── */}
+      {!isLoading && filteredByStatus.length > 0 ? (
+        <ReconciliationStrip totals={totals} />
+      ) : null}
+
+      {/* Cell edit dialog */}
+      {editingCell ? (
+        <PaymentCellDialog
+          open
+          onOpenChange={(o) => !o && setEditingCell(null)}
+          vendorId={editingCell.vendorId}
+          year={year}
+          month={editingCell.month}
+          existing={editingCell.existing}
+        />
+      ) : null}
+
+      {/* Vendor add dialog */}
+      <VendorDialog
+        open={vendorDialogOpen}
+        onOpenChange={setVendorDialogOpen}
+        defaultKind="talent_we_pay"
+        vendor={null}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Helpers (mirrored from C2 for one-page-fits-the-spec coherence)
+// ─────────────────────────────────────────────────────────────────────
+
+const PAYMENT_METHOD_SHORT: Record<string, string> = {
+  auto_pay: "Auto pay",
+  paypal: "PayPal",
+  domestic_wire: "Wire",
+  international_transfer: "Intl wire",
+  bank_ach: "ACH",
+  zelle: "Zelle",
+  invoice_link: "Invoice link",
+  website_link: "Website",
+  credit_card: "Card",
+};
+
+function StatusFilterChips({
+  value,
+  onChange,
+}: {
+  value: PaymentStatusV2 | "all";
+  onChange: (v: PaymentStatusV2 | "all") => void;
+}) {
+  const options: { v: PaymentStatusV2 | "all"; label: string; tone?: "paid" | "partial" | "overdue" }[] = [
+    { v: "all", label: "All" },
+    { v: "paid", label: "Paid", tone: "paid" },
+    { v: "partial", label: "Partial", tone: "partial" },
+    { v: "overdue", label: "Overdue", tone: "overdue" },
+    { v: "unpaid", label: "Unpaid" },
+  ];
+  return (
+    <div className="inline-flex items-center rounded-md border bg-card p-0.5">
+      {options.map((o) => {
+        const active = value === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            className={cn(
+              "rounded-sm px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors duration-base ease-out",
+              active ? "bg-white/[0.06] text-white" : "text-steel hover:text-white",
+            )}
+          >
+            {o.tone && active ? (
+              <span
+                className={cn(
+                  "mr-1.5 inline-block h-1.5 w-1.5 rounded-full",
+                  o.tone === "paid" && "bg-paid",
+                  o.tone === "partial" && "bg-partial",
+                  o.tone === "overdue" && "bg-overdue",
+                )}
+              />
+            ) : null}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReconciliationStrip({
+  totals,
+}: {
+  totals: {
+    totalBilled: number;
+    totalPaid: number;
+    cellCount: number;
+    paidCount: number;
+    outstanding: number;
+    pctPaid: number;
+  };
+}) {
+  return (
+    <div className="grid grid-cols-1 overflow-hidden rounded-lg border sm:grid-cols-2 lg:grid-cols-4">
+      <ReconciliationCell
+        label="Payments cleared"
+        value={`${totals.paidCount}/${totals.cellCount}`}
+        sub={`${totals.pctPaid}% of logged`}
+      />
+      <ReconciliationCell
+        label="Total billed"
+        value={formatUSD(totals.totalBilled, { decimals: 0 })}
+        sub="YTD obligations"
+      />
+      <ReconciliationCell
+        label="Total paid out"
+        value={formatUSD(totals.totalPaid, { decimals: 0 })}
+        sub="Cleared receipts"
+      />
+      <ReconciliationCell
+        label="Outstanding"
+        value={formatUSD(totals.outstanding, { decimals: 0 })}
+        sub="Unpaid + partial + overdue"
+        emphasised
+        tone="electric"
+      />
+    </div>
+  );
+}
+
+function ReconciliationCell({
+  label,
+  value,
+  sub,
+  emphasised,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  emphasised?: boolean;
+  tone?: "electric";
+}) {
+  return (
+    <div
+      className={cn(
+        "border-rule px-tile-md py-3 not-last:border-r",
+        tone === "electric" && "bg-[rgba(37,99,235,0.06)]",
+      )}
+    >
+      <div className="text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "tabular mt-2 font-display font-extrabold leading-none tracking-[-0.022em] text-white",
+          emphasised ? "text-[30px]" : "text-[22px]",
+        )}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-[11px] text-steel">{sub}</div>
+    </div>
+  );
+}
+
