@@ -74,11 +74,9 @@ const SECTIONS: NavSection[] = [
   {
     header: "Ledgers",
     items: [
-      // C4: Vendors is now its own top-level route with full
-      // index + detail pages. House still lives as a Finance tab
-      // until C5 retargets it.
+      // C4 + C5: Both Ledgers entries are now full top-level routes.
       { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
-      { to: "/finance", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
+      { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
     ],
   },
 ];

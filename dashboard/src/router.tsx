@@ -16,6 +16,7 @@ import { BriefsPage } from "@/pages/Briefs";
 import { ActivityPage } from "@/pages/Activity";
 import { VendorsPage } from "@/pages/Vendors";
 import { VendorDetailPage } from "@/pages/VendorDetail";
+import { HousePage } from "@/pages/House";
 import { RoleRedirect } from "@/auth/RoleRedirect";
 
 export const router = createBrowserRouter([
@@ -135,6 +136,16 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance"]}>
             <VendorDetailPage />
+          </ProtectedRoute>
+        ),
+      },
+      // C5: Frazier's House — promoted from Finance tab to its own
+      // top-level route under the Ledgers sidebar group.
+      {
+        path: "house",
+        element: (
+          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+            <HousePage />
           </ProtectedRoute>
         ),
       },
