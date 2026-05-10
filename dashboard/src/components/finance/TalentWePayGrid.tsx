@@ -297,12 +297,22 @@ export function TalentWePayGrid({ year }: Props) {
                                 : "Unspecified"}
                             </div>
                           </div>
-                          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100 focus-within:opacity-100">
+                          {/* Always-visible action icons. Spec §11
+                              suggests "actions hide until row hover"
+                              but user feedback was that the icons
+                              were so muted they read as absent. Now
+                              shown at 70% steel by default; hover
+                              promotes to full white on a 6% tint
+                              background so it's clear they're
+                              interactive. The destructive confirm
+                              dialog still gates the actual delete. */}
+                          <div className="flex shrink-0 items-center gap-0.5">
                             <button
                               type="button"
                               onClick={() => openEditVendor(v)}
                               title="Edit talent details"
-                              className="rounded-sm p-1 text-steel transition-colors duration-base ease-out hover:bg-white/[0.06] hover:text-white"
+                              aria-label={`Edit ${v.name}`}
+                              className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
                             >
                               <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
                             </button>
@@ -310,8 +320,9 @@ export function TalentWePayGrid({ year }: Props) {
                               type="button"
                               onClick={() => onDeleteVendor(v)}
                               title="Delete talent"
+                              aria-label={`Delete ${v.name}`}
                               disabled={del.isPending}
-                              className="rounded-sm p-1 text-steel transition-colors duration-base ease-out hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                              className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-overdue/40 hover:bg-overdue/10 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                             </button>
