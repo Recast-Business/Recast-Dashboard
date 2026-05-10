@@ -8,7 +8,7 @@ export function UnauthorizedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <div className="max-w-md space-y-4 text-center">
-        <h1 className="text-2xl font-semibold">Access restricted</h1>
+        <h1 className="text-h2 tracking-tight">Access restricted</h1>
         <p className="text-muted-foreground">
           Your role doesn't have access to this page.
         </p>

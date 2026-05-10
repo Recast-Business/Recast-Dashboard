@@ -10,7 +10,7 @@ export function PotentialPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">★ Potential</h1>
+        <h1 className="text-h2 tracking-tight">★ Potential</h1>
         <p className="text-sm text-muted-foreground">
           Starred creators across the Roster and Leads. Use this shortlist to
           narrow in on who to pitch next.

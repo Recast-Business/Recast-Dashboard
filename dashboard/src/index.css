@@ -133,4 +133,14 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
+
+  /* Display sizes (display / h2 / h3) automatically use Unbounded.
+     Body sizes (body / small / eyebrow) stay on Inter via the default
+     sans-serif inheritance from <body>. This means a headline only
+     needs `text-h2` in markup — the font-family is implicit. */
+  .text-display,
+  .text-h2,
+  .text-h3 {
+    font-family: "Unbounded", "Inter", system-ui, sans-serif;
+  }
 }

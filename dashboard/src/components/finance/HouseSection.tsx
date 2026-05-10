@@ -232,7 +232,7 @@ function BedroomsRentPanel({
     <div className="space-y-2">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Bedrooms — Rent</h2>
+          <h2 className="text-h3 tracking-tight">Bedrooms — Rent</h2>
           <p className="text-sm text-muted-foreground">
             Click any month cell to toggle paid · Right-click for amount/notes/date.
           </p>
@@ -503,7 +503,7 @@ function UtilitiesPanel({
     <div className="space-y-2">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Utilities</h2>
+          <h2 className="text-h3 tracking-tight">Utilities</h2>
           <p className="text-sm text-muted-foreground">
             Click a month cell to enter the bill amount and status. Splits across {activeResidentCount}{" "}
             active resident{activeResidentCount === 1 ? "" : "s"}.
@@ -725,7 +725,7 @@ function PerResidentSplitPanel({
   return (
     <div className="space-y-2">
       <div>
-        <h2 className="text-lg font-semibold">All Splits — Utilities per resident</h2>
+        <h2 className="text-h3 tracking-tight">All Splits — Utilities per resident</h2>
         <p className="text-sm text-muted-foreground">
           Equal-per-head split of monthly utility bills. Cent remainders go to Frazier so each
           column reconciles to the utility total exactly.

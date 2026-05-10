@@ -38,7 +38,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Recast Dashboard</CardTitle>
+          <CardTitle className="text-h2 tracking-tight">Recast Dashboard</CardTitle>
           <CardDescription>Sign in to continue.</CardDescription>
         </CardHeader>
         <CardContent>

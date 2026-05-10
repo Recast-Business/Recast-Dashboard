@@ -69,7 +69,7 @@ export function OFIncomeSection({ year }: Props) {
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">OnlyFans income</h2>
+          <h2 className="text-h3 tracking-tight">OnlyFans income</h2>
           <p className="text-sm text-muted-foreground">
             One deal per (creator, page). A creator can have multiple pages.
             Recast's commission is variable per deal.

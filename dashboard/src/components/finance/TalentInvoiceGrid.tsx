@@ -111,7 +111,7 @@ export function TalentInvoiceGrid({ year }: Props) {
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Talent Paying Us — invoices</h2>
+          <h2 className="text-h3 tracking-tight">Talent Paying Us — invoices</h2>
           <p className="text-sm text-muted-foreground">
             One invoice per creator per month. Click any month cell to view or
             create the invoice. The Calculator section computes the amount.

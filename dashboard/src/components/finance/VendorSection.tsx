@@ -86,7 +86,7 @@ export function VendorSection({ division, kind, title, description, year, showDi
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 className="text-h3 tracking-tight">{title}</h2>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center gap-2">

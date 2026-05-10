@@ -19,7 +19,7 @@ export function RebuildingPage({ section, detail }: Props) {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
           <Construction className="h-6 w-6" />
         </div>
-        <h1 className="text-xl font-semibold">{section} is being rebuilt</h1>
+        <h1 className="text-h3 tracking-tight">{section} is being rebuilt</h1>
         <p className="text-sm text-muted-foreground">
           {detail ??
             "We're upgrading this section with new finance, vendor and campaign tooling. The previous version has been retired and the new one will be back online shortly."}
