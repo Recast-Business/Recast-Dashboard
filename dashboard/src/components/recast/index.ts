@@ -14,3 +14,4 @@ export { MoneyCell, type MoneyCellProps } from "./MoneyCell";
 export { StatusPill, type PillStatus } from "./StatusPill";
 export { KpiTile } from "./KpiTile";
 export { InvoiceCell } from "./InvoiceCell";
+export { Avatar } from "./Avatar";

@@ -15,7 +15,9 @@ import {
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import {
+  Avatar,
   EyebrowLabel,
   KpiTile,
   MoneyCell,
@@ -74,9 +76,9 @@ export function OverviewPage() {
   const prevMonth = data?.monthly && prevMonthIdx >= 0 ? data.monthly[prevMonthIdx] : null;
   const prevMonthLabel = prevMonthIdx >= 0 ? MONTH_LABELS[prevMonthIdx] : "—";
 
-  const inflowDelta = deltaText(data?.inflow_this_month ?? 0, prevMonth?.inflow ?? 0, prevMonthLabel);
-  const outflowDelta = deltaText(data?.outflow_this_month ?? 0, prevMonth?.outflow ?? 0, prevMonthLabel, /* invert */ true);
-  const netDelta = deltaText(data?.net_this_month ?? 0, prevMonth?.net ?? 0, prevMonthLabel);
+  const inflowDelta = splitDelta(data?.inflow_this_month ?? 0, prevMonth?.inflow ?? 0, prevMonthLabel);
+  const outflowDelta = splitDelta(data?.outflow_this_month ?? 0, prevMonth?.outflow ?? 0, prevMonthLabel, /* invert */ true);
+  const netDelta = splitDelta(data?.net_this_month ?? 0, prevMonth?.net ?? 0, prevMonthLabel);
 
   // YTD totals + YoY% for the chart header.
   const ytd = sumNet(data?.monthly ?? []);
@@ -95,14 +97,29 @@ export function OverviewPage() {
             <h1 className="font-display text-h2 font-semibold tracking-tight">
               Overview
             </h1>
-            <LiveSyncChip />
+            <LiveSyncChip year={year} />
           </div>
           <p className="mt-1 text-small text-muted-foreground">
             What&apos;s coming in, what&apos;s going out, what&apos;s overdue. KPIs
             are for {monthLabel}; the trend below covers {year}.
           </p>
         </div>
-        <YearSelector value={year} onChange={setYear} />
+        <div className="flex items-center gap-2">
+          <ExportCSVButton
+            filename={`recast-overdue-${year}.csv`}
+            rows={data?.most_overdue ?? []}
+            label="Export"
+            disabled={!data?.most_overdue.length}
+            columns={[
+              { header: "Section", value: (r) => SECTION_LABEL[r.source] ?? r.source },
+              { header: "Name", value: (r) => r.name },
+              { header: "Period", value: (r) => `${MONTH_LABELS[r.period_month - 1]} ${r.period_year}` },
+              { header: "Amount", value: (r) => r.amount.toFixed(2) },
+              { header: "Days late", value: (r) => String(r.days_overdue) },
+            ]}
+          />
+          <YearSelector value={year} onChange={setYear} />
+        </div>
       </div>
 
       {/* ── Overdue alert banner ───────────────────────────────────── */}
@@ -128,30 +145,33 @@ export function OverviewPage() {
             <KpiTile
               label="Inflow this month"
               amount={data.inflow_this_month}
-              delta={inflowDelta}
+              deltaPct={inflowDelta?.pct}
+              vs={inflowDelta?.vs}
             />
             <KpiTile
               label="Outflow this month"
               amount={data.outflow_this_month}
-              delta={outflowDelta}
+              deltaPct={outflowDelta?.pct}
+              vs={outflowDelta?.vs}
             />
             <KpiTile
               label="Net this month"
               amount={data.net_this_month}
-              delta={netDelta}
+              deltaPct={netDelta?.pct}
+              vs={netDelta?.vs ?? "Inflow − Outflow"}
             />
             <KpiTile
               label="Outstanding overdue"
               amount={data.outstanding_overdue}
+              deltaPct={
+                data.most_overdue.length
+                  ? { tone: "overdue", text: `${data.most_overdue.length} item${data.most_overdue.length === 1 ? "" : "s"}` }
+                  : { tone: "paid", text: "All clear" }
+              }
               meta={
                 data.most_overdue.length
-                  ? `${data.most_overdue.length} item${data.most_overdue.length === 1 ? "" : "s"} · oldest ${data.most_overdue[0].days_overdue}d`
+                  ? `Oldest ${data.most_overdue[0].days_overdue}d · ${new Set(data.most_overdue.map(o => o.source)).size} sections`
                   : "Nothing overdue"
-              }
-              delta={
-                data.outstanding_overdue > 0
-                  ? { tone: "overdue", text: "Click → Finance" }
-                  : { tone: "paid", text: "All clear" }
               }
             />
           </>
@@ -223,6 +243,7 @@ export function OverviewPage() {
           empty="No talent performance recorded yet this month."
           loading={isLoading}
           rows={(data?.top_talents ?? []).map((t) => ({
+            avatarName: t.name,
             primary: t.name,
             secondary: `${SECTION_LABEL[t.source]} · commission ${formatUSDCompact(t.commission)}`,
             value: t.gross,
@@ -235,6 +256,7 @@ export function OverviewPage() {
           empty="No vendor payments logged yet this month."
           loading={isLoading}
           rows={(data?.top_vendors ?? []).map((v) => ({
+            avatarName: v.name,
             primary: v.name,
             secondary: "Vendor",
             value: v.paid,
@@ -250,11 +272,11 @@ export function OverviewPage() {
 // Live-sync chip (top of header)
 // ─────────────────────────────────────────────────────────────────────
 
-function LiveSyncChip() {
+function LiveSyncChip({ year }: { year: number }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-paid/30 bg-paid-tint px-2.5 py-0.5 text-eyebrow text-paid">
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-paid" />
-      Live · synced 30s
+      Live · synced 30s · {year} YTD
     </span>
   );
 }
@@ -435,6 +457,8 @@ function FlowChart({
 
 interface ListRow {
   rank?: string;
+  /** When set, renders a 2-letter avatar derived from this name. */
+  avatarName?: string;
   primary: string;
   secondary: string;
   value: number;
@@ -483,6 +507,9 @@ function ListPanel({
                 {r.rank ? (
                   <span className="tabular w-6 text-eyebrow text-steel">{r.rank}</span>
                 ) : null}
+                {r.avatarName ? (
+                  <Avatar name={r.avatarName} size="sm" />
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-body font-medium text-foreground">
                     {r.primary}
@@ -524,21 +551,26 @@ function KpiSkeleton() {
   );
 }
 
-function deltaText(
+/**
+ * Returns the % delta (for inline eyebrow) and the comparison line
+ * (for below the amount) as separate strings, so KpiTile can render
+ * them in their own slots. Outflow inverts the sign mapping (less
+ * spend = paid green = good).
+ */
+function splitDelta(
   current: number,
   prev: number,
   prevLabel: string,
   invertSign: boolean = false,
-): { tone: "paid" | "overdue" | "muted"; text: string } | undefined {
+): { pct: { tone: "paid" | "overdue"; text: string }; vs: string } | undefined {
   if (prev === 0) return undefined;
-  const pct = ((current - prev) / Math.abs(prev)) * 100;
-  // For outflow, "down" is good (less spending) → flip the tone.
-  const positive = invertSign ? pct < 0 : pct >= 0;
+  const pctNum = ((current - prev) / Math.abs(prev)) * 100;
+  const positive = invertSign ? pctNum < 0 : pctNum >= 0;
   const tone = positive ? "paid" : "overdue";
-  const sign = pct >= 0 ? "+" : "";
+  const sign = pctNum >= 0 ? "+" : "";
   return {
-    tone,
-    text: `${sign}${pct.toFixed(1)}% vs ${formatUSDCompact(prev)} ${prevLabel}`,
+    pct: { tone, text: `${sign}${pctNum.toFixed(1)}%` },
+    vs: `vs ${formatUSDCompact(prev)} ${prevLabel}`,
   };
 }
 

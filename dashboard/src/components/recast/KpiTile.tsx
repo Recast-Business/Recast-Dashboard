@@ -6,13 +6,20 @@ import { MoneyCell } from "./MoneyCell";
 /**
  * Phase L primitive: the 4-up KPI tile.
  *
- * Composition: eyebrow label + tabular display amount + delta line.
- * Used on the Overview page (Inflow / Outflow / Net / Outstanding) and
- * in compact form on Vendor / House detail pages (YTD totals strip).
+ * Layout (matches the Claude Design Overview mockup):
  *
- * The delta colour is intentionally not `text-success` / `text-destructive`
- * — those are shadcn semantic. We use the brand status enum (paid/overdue)
- * so the language stays consistent with invoice colouring.
+ *   ┌─ tile ──────────────────────────┐
+ *   │  EYEBROW LABEL    +12.4%        │  ← deltaPct sits inline with eyebrow
+ *   │                                 │
+ *   │  $118,420.00                    │  ← display amount, tabular
+ *   │                                 │
+ *   │  vs $105,400 Jun                │  ← vs comparison line (steel)
+ *   │  6 items · oldest 12d           │  ← optional meta line
+ *   └─────────────────────────────────┘
+ *
+ * The delta colour uses the brand status enum (paid/overdue) — never
+ * shadcn semantic green/red. Outflow tiles invert the sign mapping
+ * (negative pct = paid green = good = less spending).
  *
  * See dashboard/docs/DESIGN.md "KPI tile" recipe.
  */
@@ -23,27 +30,29 @@ interface KpiTileProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "child
   /** Primary amount. Pass a number; MoneyCell handles formatting. */
   amount: number;
   /**
-   * Comparison line shown below the amount, e.g.
-   *  { tone: "paid", text: "+12.4% vs $105,400 Jun" }
+   * Inline percentage badge next to the eyebrow label, e.g.
+   *   { tone: "paid", text: "+12.4%" }
    */
-  delta?: {
+  deltaPct?: {
     tone?: "paid" | "overdue" | "muted";
     text: string;
   };
-  /** Optional secondary metadata line above the delta (e.g. "Oldest 12 d"). */
+  /** Comparison line below the amount, e.g. "vs $105,400 Jun". */
+  vs?: string;
+  /** Optional secondary metadata line (e.g. "Oldest 12 d"). */
   meta?: string;
   /** Render as compact tile (smaller display, less padding). */
   compact?: boolean;
 }
 
-const toneClass: Record<NonNullable<KpiTileProps["delta"]>["tone"] & string, string> = {
+const toneClass: Record<NonNullable<KpiTileProps["deltaPct"]>["tone"] & string, string> = {
   paid: "text-paid",
   overdue: "text-overdue",
   muted: "text-steel",
 };
 
 export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
-  ({ label, amount, delta, meta, compact, className, ...rest }, ref) => (
+  ({ label, amount, deltaPct, vs, meta, compact, className, ...rest }, ref) => (
     <div
       ref={ref}
       className={cn(
@@ -53,17 +62,22 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
       )}
       {...rest}
     >
-      <EyebrowLabel>{label}</EyebrowLabel>
+      <div className="flex items-center justify-between gap-2">
+        <EyebrowLabel>{label}</EyebrowLabel>
+        {deltaPct ? (
+          <span className={cn("tabular text-eyebrow", toneClass[deltaPct.tone ?? "muted"])}>
+            {deltaPct.text}
+          </span>
+        ) : null}
+      </div>
       <div className={cn("flex items-baseline", compact ? "mt-1" : "mt-2")}>
         <MoneyCell amount={amount} size={compact ? "h2" : "display"} />
       </div>
-      {meta ? (
-        <div className="mt-1 text-small text-steel">{meta}</div>
+      {vs ? (
+        <div className="mt-1 text-small text-steel">{vs}</div>
       ) : null}
-      {delta ? (
-        <div className={cn("mt-1 text-small tabular", toneClass[delta.tone ?? "muted"])}>
-          {delta.text}
-        </div>
+      {meta ? (
+        <div className={cn("text-small text-steel", vs ? "mt-0.5" : "mt-1")}>{meta}</div>
       ) : null}
     </div>
   ),
