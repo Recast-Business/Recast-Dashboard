@@ -17,6 +17,7 @@ import {
 import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
 import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
+import { UtilitySplitsPanel } from "@/components/finance/UtilitySplitsPanel";
 import { useConfirm } from "@/hooks/useConfirm";
 import type {
   HouseRentPayment,
@@ -454,6 +455,18 @@ export function HousePage() {
           </div>
         )}
       </Card>
+
+      {/* ── M-3b: Per-resident utility splits ───────────────────────
+          Sits between the Utilities grid and the reconciliation strip
+          so the page reads top-to-bottom: rent obligations → utility
+          obligations → who-owes-what split → totals. */}
+      {!isLoading && activeResidentCount > 0 && (utilities?.length ?? 0) > 0 ? (
+        <UtilitySplitsPanel
+          residents={residents ?? []}
+          utilByUtility={utilByUtility}
+          currentMonthIdx={currentMonthIdx}
+        />
+      ) : null}
 
       {/* ── Reconciliation strip — combined rent + utility ─────────── */}
       {!isLoading && ((rentGroups?.length ?? 0) > 0 || (utilities?.length ?? 0) > 0) ? (
