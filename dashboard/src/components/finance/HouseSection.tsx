@@ -26,6 +26,7 @@ import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
 import { LogReceiptDialog } from "@/components/finance/LogReceiptDialog";
+import { HousePaymentEntryBox } from "@/components/finance/HousePaymentEntryBox";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
@@ -87,6 +88,8 @@ export function HouseSection({ year }: Props) {
             residents={residents ?? []}
             rentByGroup={rentByGroup ?? {}}
           />
+          {/* Phase M-3: central rent payment entry replaces per-row Pay buttons */}
+          <HousePaymentEntryBox year={year} residents={activeResidents} />
           <UtilitiesPanel
             year={year}
             utilities={utilities ?? []}
@@ -129,7 +132,6 @@ function BedroomsRentPanel({
     group: RentGroup;
     month: number;
   } | null>(null);
-  const [payTarget, setPayTarget] = React.useState<RentGroup | null>(null);
 
   // Group residents by rent_group_id so we can display "Harriet, Keenan" inline
   // for the H&K row, single name for solo groups.
@@ -141,14 +143,6 @@ function BedroomsRentPanel({
     }
     return map;
   }, [residents]);
-
-  // For "Pay" + LogReceiptDialog: receipts still target a specific resident
-  // (payment_receipts.resident_id is required). For groups with multiple
-  // residents, we use the first one — the M-2 reconcile trigger walks the
-  // group regardless of which resident the receipt was logged against.
-  function firstResidentInGroup(group: RentGroup): HouseResident | null {
-    return residentsByGroup[group.id]?.[0] ?? null;
-  }
 
   async function quickToggleRent(
     group: RentGroup,
@@ -324,29 +318,17 @@ function BedroomsRentPanel({
                     {ytd > 0 ? formatUSD(ytd, { decimals: 2 }) : "—"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => setPayTarget(g)}
-                      title={
-                        isMultiResident
-                          ? `Log a rent payment for the ${g.label} group (FIFO across their oldest unpaid months)`
-                          : `Log a rent payment for ${g.label} (FIFO)`
-                      }
-                    >
-                      <Wallet className="mr-1 h-3 w-3" /> Pay
-                    </Button>
-                    {/* Edit/delete operate on the FIRST resident in the group.
-                        For 1:1 groups this is identical to old behaviour.
-                        For H&K, edit Harriet directly; the Resident dialog
-                        handles their fields. M-3 will rebuild this UI. */}
+                    {/* Phase M-3: per-row Pay button removed — central
+                        Payment Entry Box below replaces it. Edit/Delete
+                        operate on the first resident in the group; M-3
+                        leaves this minimal until M-7 redoes the resident-
+                        management UI. */}
                     {groupResidents[0] && (
                       <>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="ml-1 h-7 w-7 p-0"
+                          className="h-7 w-7 p-0"
                           onClick={() => {
                             setEditingResident(groupResidents[0]);
                             setDialogOpen(true);
@@ -372,6 +354,41 @@ function BedroomsRentPanel({
                 </TableRow>
               );
             })}
+            {/* Phase M-3: total reconciliation row — sum of cell amounts per
+                column should match the sum of rent_groups.monthly_rent.
+                If they diverge it's a flag for Frazier to look into. */}
+            {(() => {
+              // Per-month totals across all groups
+              const monthTotals: number[] = Array(12).fill(0);
+              let totalAllRent = 0;
+              for (const g of rentGroups) {
+                totalAllRent += Number(g.monthly_rent) || 0;
+                const cells = rentByGroup[g.id] ?? {};
+                for (let m = 1; m <= 12; m++) {
+                  const c = cells[m];
+                  monthTotals[m - 1] += Number(c?.amount) || 0;
+                }
+              }
+              const grandTotal = monthTotals.reduce((s, t) => s + t, 0);
+              return (
+                <TableRow className="bg-muted/30 text-xs font-semibold">
+                  <TableCell className="sticky left-0 z-10 bg-muted/30">TOTAL</TableCell>
+                  <TableCell />
+                  <TableCell className="font-mono tabular-nums">
+                    {formatUSD(totalAllRent, { decimals: 2 })}
+                  </TableCell>
+                  {monthTotals.map((t, i) => (
+                    <TableCell key={i} className="text-center tabular-nums">
+                      {t > 0 ? formatUSD(t, { decimals: 0 }) : "—"}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right tabular-nums">
+                    {grandTotal > 0 ? formatUSD(grandTotal, { decimals: 0 }) : "—"}
+                  </TableCell>
+                  <TableCell />
+                </TableRow>
+              );
+            })()}
           </TableBody>
         </Table>
       </div>
@@ -405,28 +422,9 @@ function BedroomsRentPanel({
         />
       )}
 
-      {payTarget && (() => {
-        // Receipt needs a resident_id; for H&K we pick the first one.
-        // Trigger groups them on save so it doesn't matter which.
-        const target = firstResidentInGroup(payTarget);
-        if (!target) {
-          // Edge case: a rent group with no residents (shouldn't happen
-          // post-migration, but guard anyway). Close silently.
-          return null;
-        }
-        return (
-          <LogReceiptDialog
-            open
-            onOpenChange={(o) => !o && setPayTarget(null)}
-            mode={{
-              kind: "house_rent",
-              residentId: target.id,
-              residentName: payTarget.label,
-              monthlyRent: payTarget.monthly_rent,
-            }}
-          />
-        );
-      })()}
+      {/* Phase M-3: per-row LogReceiptDialog removed — central
+          HousePaymentEntryBox below the rent table handles all rent
+          receipts via FIFO. */}
     </div>
   );
 }
@@ -770,6 +768,22 @@ function PerResidentSplitPanel({
                 </TableRow>
               );
             })}
+            {/* Phase M-3: TOTAL row — column sums must match the utility
+                bill totals (cent-rounding sends remainders to Frazier,
+                so each column reconciles exactly). */}
+            <TableRow className="bg-muted/30 text-xs font-semibold">
+              <TableCell className="sticky left-0 z-10 bg-muted/30">TOTAL</TableCell>
+              {monthlyTotals.map((t, mIdx) => (
+                <TableCell key={mIdx} className="text-center tabular-nums">
+                  {t > 0 ? formatUSD(t, { decimals: 2 }) : "—"}
+                </TableCell>
+              ))}
+              <TableCell className="text-right tabular-nums">
+                {monthlyTotals.reduce((s, t) => s + t, 0) > 0
+                  ? formatUSD(monthlyTotals.reduce((s, t) => s + t, 0), { decimals: 2 })
+                  : "—"}
+              </TableCell>
+            </TableRow>
           </TableBody>
         </Table>
       </div>

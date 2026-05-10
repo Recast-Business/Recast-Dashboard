@@ -161,6 +161,27 @@ interface ObligorRef {
   utility_id?: string;
 }
 
+/** Phase M-3: All house-rent receipts in the year, newest first, joined to
+ *  resident name. Drives the per-person payment history panel. */
+export function useHouseRentReceipts(year: number) {
+  return useQuery({
+    queryKey: ["payment-receipts", "house_rent", year],
+    queryFn: async () => {
+      const start = `${year}-01-01`;
+      const end = `${year}-12-31`;
+      const { data, error } = await supabase
+        .from("payment_receipts")
+        .select("*, allocations:payment_allocations(*), resident:house_residents(id, name, rent_group_id)")
+        .eq("source", "house_rent")
+        .gte("received_at", start)
+        .lte("received_at", end)
+        .order("received_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 /** Receipts for one specific obligor — newest first. Pass `enabled=false`
  *  to skip the query when the dialog is closed. */
 export function useReceiptsForObligor(ref: ObligorRef | null, enabled = true) {
