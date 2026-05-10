@@ -34,7 +34,7 @@ export function CalculatorPage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calculator</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Calculator</h1>
           <p className="text-sm text-muted-foreground">
             Performance and revenue math. Enter raw numbers per platform —
             gross / net / commission splits compute automatically and feed

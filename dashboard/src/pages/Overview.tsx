@@ -59,7 +59,7 @@ export function OverviewPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Overview</h1>
           <p className="text-sm text-muted-foreground">
             Live snapshot of Recast finance. KPIs are for {monthLabel}; the
             trend below covers the selected year.

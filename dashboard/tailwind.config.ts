@@ -60,7 +60,12 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
+        // Phase L brand fonts
         sans: ["Inter", "system-ui", "sans-serif"],
+        // Unbounded for headings + branded wordmark; falls back through
+        // the same neutral system stack so a font load failure stays
+        // readable.
+        display: ["Unbounded", "Inter", "system-ui", "sans-serif"],
       },
     },
   },

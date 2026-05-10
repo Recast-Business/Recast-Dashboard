@@ -45,9 +45,23 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-background">
+      {/* Phase L: branded header — Unbounded wordmark + Electric-Blue
+          R-mark. Mirrors the Linear/Attio/Stripe pattern of letting the
+          name carry the brand without a heavy logo dropping into the
+          chrome. */}
       <div className="border-b px-5 py-5">
-        <div className="text-base font-semibold tracking-tight">Recast</div>
-        <div className="text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary font-display text-sm font-bold text-primary-foreground"
+            aria-hidden="true"
+          >
+            R
+          </span>
+          <span className="font-display text-lg font-semibold tracking-tight">
+            Recast
+          </span>
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
           {role ? `${role[0].toUpperCase()}${role.slice(1)} workspace` : "Workspace"}
         </div>
       </div>
