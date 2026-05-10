@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { EyebrowLabel } from "@/components/recast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -438,11 +439,18 @@ export function ScoutPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Top eyebrow strip — canonical page anchor. */}
+      <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
+        Pipeline · Scout
+      </div>
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-h2">Scout</h1>
-          <p className="text-sm text-muted-foreground">
+          <EyebrowLabel withRule>Live · Twitch + Kick</EyebrowLabel>
+          <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
+            Scout
+          </h1>
+          <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
             Live Twitch and Kick scouting — scrapes current streams that match
             your filters.
           </p>

@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OFIncomeSection } from "@/components/finance/OFIncomeSection";
 import { TeleIncomeSection } from "@/components/finance/TeleIncomeSection";
 import { EFuseIncomeSummary } from "@/components/finance/EFuseIncomeSummary";
+import { EyebrowLabel } from "@/components/recast";
 
 /**
  * Phase M-5: Calculator page — the math home Gustavo asked for.
@@ -31,14 +32,21 @@ export function CalculatorPage() {
   const [year, setYear] = React.useState(currentYear);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Top eyebrow strip — canonical page anchor. */}
+      <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
+        Workspace · Calculator
+      </div>
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-h2">Calculator</h1>
-          <p className="text-sm text-muted-foreground">
+          <EyebrowLabel withRule>Calculator · {year}</EyebrowLabel>
+          <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
+            Calculator
+          </h1>
+          <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
             Performance and revenue math. Enter raw numbers per platform —
             gross / net / commission splits compute automatically and feed
-            the Talent section's invoices.
+            the Talent section&apos;s invoices.
           </p>
         </div>
         <YearSelector value={year} onChange={setYear} />

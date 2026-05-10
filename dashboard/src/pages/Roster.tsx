@@ -23,6 +23,7 @@ import {
 } from "@/hooks/useCreators";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useAuth } from "@/auth/AuthProvider";
+import { EyebrowLabel } from "@/components/recast";
 
 export function RosterPage() {
   const { role } = useAuth();
@@ -83,12 +84,19 @@ export function RosterPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Top eyebrow strip — canonical page anchor (matches Vendors / House). */}
+      <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
+        Workspace · Roster
+      </div>
       <div>
-        <h1 className="text-h2">Roster</h1>
-        <p className="text-sm text-muted-foreground">
+        <EyebrowLabel withRule>Signed creators</EyebrowLabel>
+        <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
+          Roster
+        </h1>
+        <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
           Creators signed to Recast. These appear in Campaigns and Briefs by
-          default.
+          default. Click any name to open the full creator profile.
         </p>
       </div>
 

@@ -22,6 +22,7 @@ import {
   useBulkSetOutreachStatus,
 } from "@/hooks/useCreators";
 import { useAuth } from "@/auth/AuthProvider";
+import { EyebrowLabel } from "@/components/recast";
 import { useConfirm } from "@/hooks/useConfirm";
 
 const OUTREACH_STATUSES = [
@@ -150,12 +151,19 @@ export function LeadsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Top eyebrow strip — canonical page anchor. */}
+      <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
+        Pipeline · Leads
+      </div>
       <div>
-        <h1 className="text-h2">Leads</h1>
-        <p className="text-sm text-muted-foreground">
-          Scouted and contacted creators who aren't signed to Recast yet. Promote
-          to the Roster when a deal is agreed.
+        <EyebrowLabel withRule>Outreach + unsigned</EyebrowLabel>
+        <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
+          Leads
+        </h1>
+        <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
+          Scouted and contacted creators who aren&apos;t signed to Recast yet.
+          Promote to the Roster when a deal is agreed.
         </p>
       </div>
 

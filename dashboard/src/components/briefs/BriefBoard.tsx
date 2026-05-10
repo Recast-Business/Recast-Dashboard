@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { EyebrowLabel } from "@/components/recast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,8 +68,11 @@ export function BriefBoard() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-h2">Brief Builder</h1>
-          <p className="text-sm text-muted-foreground">
+          <EyebrowLabel withRule>Pipeline · Brief Builder</EyebrowLabel>
+          <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
+            Brief Builder
+          </h1>
+          <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
             Move a card to Exclusive to auto-create a campaign record.
           </p>
         </div>
