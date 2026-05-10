@@ -27,6 +27,23 @@ export function useVendors(filter: VendorFilter = {}) {
   });
 }
 
+/** Fetch a single vendor by id — drives the C4b detail page. */
+export function useVendor(id: string | undefined) {
+  return useQuery({
+    queryKey: ["vendors", "single", id],
+    enabled: !!id,
+    queryFn: async (): Promise<Vendor> => {
+      const { data, error } = await supabase
+        .from("vendors")
+        .select("*")
+        .eq("id", id!)
+        .single();
+      if (error) throw error;
+      return data as Vendor;
+    },
+  });
+}
+
 export interface VendorInput {
   name: string;
   kind: VendorKind;

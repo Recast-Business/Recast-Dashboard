@@ -74,10 +74,10 @@ const SECTIONS: NavSection[] = [
   {
     header: "Ledgers",
     items: [
-      // Vendors and Frazier's House live as Finance tabs today —
-      // these placeholders give the IA the right shape now and can be
-      // retargeted to /vendors and /house when C4/C5 lands.
-      { to: "/finance", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
+      // C4: Vendors is now its own top-level route with full
+      // index + detail pages. House still lives as a Finance tab
+      // until C5 retargets it.
+      { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
       { to: "/finance", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
     ],
   },

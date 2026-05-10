@@ -14,6 +14,8 @@ import { CreatorProfilePage } from "@/pages/CreatorProfile";
 import { ScoutPage } from "@/pages/Scout";
 import { BriefsPage } from "@/pages/Briefs";
 import { ActivityPage } from "@/pages/Activity";
+import { VendorsPage } from "@/pages/Vendors";
+import { VendorDetailPage } from "@/pages/VendorDetail";
 import { RoleRedirect } from "@/auth/RoleRedirect";
 
 export const router = createBrowserRouter([
@@ -115,6 +117,24 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance"]}>
             <ActivityPage />
+          </ProtectedRoute>
+        ),
+      },
+      // C4: Vendors index + detail. Both admin/partner/finance.
+      // Falls under the "Ledgers" sidebar group.
+      {
+        path: "vendors",
+        element: (
+          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+            <VendorsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "vendors/:id",
+        element: (
+          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+            <VendorDetailPage />
           </ProtectedRoute>
         ),
       },
