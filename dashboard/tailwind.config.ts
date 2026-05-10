@@ -124,9 +124,11 @@ const config: Config = {
         out: "var(--ease-out)",
       },
       fontFamily: {
-        // Inter for everything; Unbounded for headings + wordmark.
+        // Inter for everything; Unbounded for headings + wordmark;
+        // JetBrains Mono for tabular ranks + keyboard shortcut hints.
         sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Unbounded", "Inter", "system-ui", "sans-serif"],
+        display: ["Unbounded", "Monument Extended", "Inter", "system-ui", "sans-serif"],
+        mono: ["\"JetBrains Mono\"", "ui-monospace", "monospace"],
       },
       fontSize: {
         // ── Recast typography scale ──

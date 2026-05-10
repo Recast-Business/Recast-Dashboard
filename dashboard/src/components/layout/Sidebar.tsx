@@ -19,7 +19,7 @@ import type { UserRole } from "@/types/database";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { Avatar, EyebrowLabel } from "@/components/recast";
+import { Avatar } from "@/components/recast";
 import { useNavCounts } from "@/hooks/useNavCounts";
 
 /**
@@ -88,19 +88,19 @@ export function Sidebar() {
   const { data: counts } = useNavCounts();
 
   return (
-    <aside className="flex h-screen w-52 flex-col border-r bg-background">
-      {/* Brand header — tighter than the old w-60 layout. The R-mark
-          stays at 28px (h-7); the wordmark uses a slightly smaller
-          base size so the logo lockup feels balanced in a 208px rail. */}
-      <div className="px-4 py-4">
-        <div className="flex items-center gap-2">
+    <aside className="flex h-screen w-60 flex-col border-r bg-background">
+      {/* Brand header — canonical spec §3: padding 22px 14px 14px,
+          R-mark 28×28 / 4px radius, wordmark Unbounded 800 / 14px /
+          0.08em (the only place positive tracking is used). */}
+      <div className="px-3.5 pb-3.5 pt-[22px]">
+        <div className="flex items-center gap-2.5">
           <img
             src="/recast-mark.svg"
             alt="Recast"
             className="h-7 w-7 shrink-0 rounded"
           />
           <span
-            className="font-display text-sm font-extrabold uppercase"
+            className="font-display text-[14px] font-extrabold uppercase"
             style={{ letterSpacing: "0.08em" }}
           >
             Recast
@@ -108,16 +108,23 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-2">
+      {/* Nav sections — canonical spec §3:
+          - Section title: Inter 600 / 10px / 0.14em uppercase / steel,
+            padded "0 10px 8px"
+          - Item: Inter 500 / 13px / padding 7px 10px / radius 6px,
+            inactive color rgba(255,255,255,0.62), hover bg --row-hover,
+            active bg rgba(37,99,235,0.12) + white text + blue icon
+          - Badge: 10px tabular / bg rgba(255,255,255,0.06) /
+            color steel / padding 1px 6px / rounded-full */}
+      <nav className="flex-1 overflow-y-auto px-3.5 pb-3.5">
         {SECTIONS.map((section, i) => {
           const visible = section.items.filter((item) => canAccess(role, item.allow));
           if (visible.length === 0) return null;
           return (
-            <div key={i} className={cn(i > 0 && "mt-4")}>
-              <EyebrowLabel className="mb-1.5 px-2.5 text-steel">
+            <div key={i} className={cn(i > 0 && "mt-5")}>
+              <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
                 {section.header}
-              </EyebrowLabel>
+              </div>
               <div className="space-y-0.5">
                 {visible.map((item) => {
                   const Icon = item.icon;
@@ -129,20 +136,24 @@ export function Sidebar() {
                       end={item.to === "/finance"}
                       className={({ isActive }) =>
                         cn(
-                          "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-small font-medium transition-colors duration-base ease-out",
+                          "group flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] font-medium transition-colors duration-base ease-out",
                           isActive
-                            ? "bg-accent text-accent-foreground"
-                            : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground",
+                            ? "bg-[var(--rc-nav-active)] text-white"
+                            : "text-white/[0.62] hover:bg-[var(--rc-row-hover)] hover:text-white",
                         )
                       }
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {count !== undefined && count > 0 ? (
-                        <span className="tabular ml-auto rounded-full bg-muted px-1.5 py-0.5 text-eyebrow text-steel">
-                          {count}
-                        </span>
-                      ) : null}
+                      {({ isActive }) => (
+                        <>
+                          <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-electric")} />
+                          <span className="flex-1 truncate">{item.label}</span>
+                          {count !== undefined && count > 0 ? (
+                            <span className="tabular rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] text-steel">
+                              {count}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
                     </NavLink>
                   );
                 })}
@@ -152,20 +163,25 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer: user chip + theme + sign out — tightened padding. */}
-      <div className="space-y-1.5 border-t p-2">
+      {/* Footer per spec §3:
+          - 28px circular blue avatar + initials
+          - email Inter 600 / 12.5px
+          - role Inter 400 / 10px / steel
+          - chevron icon button
+          - 3-segment theme toggle below */}
+      <div className="space-y-2 border-t p-2.5">
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-md p-1.5 text-left transition-colors duration-base ease-out hover:bg-accent/50"
+          className="flex w-full items-center gap-2 rounded-md p-1.5 text-left transition-colors duration-base ease-out hover:bg-[var(--rc-row-hover)]"
           onClick={() => signOut()}
           title="Sign out"
         >
           <Avatar name={user?.email ?? "??"} size="sm" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-small font-medium text-foreground">
+            <div className="truncate text-[12.5px] font-semibold leading-snug text-white">
               {user?.email ?? "—"}
             </div>
-            <div className="text-eyebrow text-steel">
+            <div className="text-[10px] leading-snug text-steel">
               {role ? `${role[0].toUpperCase()}${role.slice(1)} · Ops` : "Workspace"}
             </div>
           </div>

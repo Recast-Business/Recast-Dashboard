@@ -15,7 +15,8 @@ import { cn } from "@/lib/utils";
  */
 
 const SIZES = {
-  xs: "h-5 w-5 text-[10px]",
+  // 22px per spec §9 — used in Top Talent / Top Vendor list rows.
+  xs: "h-[22px] w-[22px] text-[9.5px] tracking-[0.03em]",
   sm: "h-7 w-7 text-[11px]",
   md: "h-8 w-8 text-xs",
   lg: "h-10 w-10 text-sm",
@@ -40,7 +41,19 @@ interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   name: string;
   size?: keyof typeof SIZES;
   shape?: "circle" | "square";
+  /**
+   * Override the hash-based palette with a fixed tint:
+   *   • "talent" — bg rgba(37,99,235,0.18) / colour blue-lt (per spec §9)
+   *   • "vendor" — bg rgba(107,114,128,0.18) / colour #d1d5db
+   */
+  tint?: "auto" | "talent" | "vendor";
 }
+
+const TINT_CLASS: Record<NonNullable<AvatarProps["tint"]>, string> = {
+  auto: "",
+  talent: "bg-[rgba(37,99,235,0.18)] text-electric-lt",
+  vendor: "bg-[rgba(107,114,128,0.18)] text-[#d1d5db]",
+};
 
 function initials(name: string): string {
   const trimmed = name.trim();
@@ -66,17 +79,17 @@ function paletteIndex(name: string): number {
 }
 
 export const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
-  ({ name, size = "md", shape = "circle", className, ...rest }, ref) => {
+  ({ name, size = "md", shape = "circle", tint = "auto", className, ...rest }, ref) => {
     const inits = initials(name);
-    const hue = PALETTE[paletteIndex(name)];
+    const palette = tint === "auto" ? PALETTE[paletteIndex(name)] : TINT_CLASS[tint];
     return (
       <div
         ref={ref}
         className={cn(
-          "inline-flex shrink-0 select-none items-center justify-center font-semibold tracking-tight",
+          "inline-flex shrink-0 select-none items-center justify-center font-bold",
           SIZES[size],
           shape === "circle" ? "rounded-full" : "rounded-sm",
-          hue,
+          palette,
           className,
         )}
         aria-label={name}

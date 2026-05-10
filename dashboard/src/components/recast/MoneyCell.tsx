@@ -75,6 +75,16 @@ export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(
       );
     }
 
+    // Decimal-cents recipe per the canonical spec:
+    //   • on KPI / display sizes (the "Stripe large + small" pattern):
+    //     18px / 600 / rgba(255,255,255,0.5) — distinct chunky size
+    //   • on h2 size: 12px / 500 / steel — proportional
+    //   • body / small: never split (too noisy in cells)
+    const isLargeSplit = size === "display" || size === "kpi";
+    const decimalClass = isLargeSplit
+      ? "text-[18px] font-semibold leading-none text-white/50"
+      : "text-small text-steel";
+
     return (
       <span
         ref={ref}
@@ -82,7 +92,7 @@ export const MoneyCell = React.forwardRef<HTMLSpanElement, MoneyCellProps>(
         {...rest}
       >
         <span>{intPart}</span>
-        <span className="text-small text-steel">.{decPart}</span>
+        <span className={decimalClass}>.{decPart}</span>
       </span>
     );
   },

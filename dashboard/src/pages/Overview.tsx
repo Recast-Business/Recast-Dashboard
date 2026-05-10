@@ -5,6 +5,9 @@ import {
   AlertOctagon,
   ArrowDownLeft,
   ArrowUpRight,
+  Calendar,
+  ChevronDown,
+  CircleDot,
   Clock,
   Search,
   TrendingUp,
@@ -31,7 +34,6 @@ import {
   EyebrowLabel,
   KpiTile,
   MoneyCell,
-  StatusPill,
 } from "@/components/recast";
 import { useFinanceOverview, type MonthlyFlow } from "@/hooks/useFinanceOverview";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
@@ -95,33 +97,35 @@ export function OverviewPage() {
   const showBanner = !bannerHidden && hasOverdue;
 
   return (
-    <div className="space-y-5">
-      {/* ── 1. Live-sync eyebrow strip (ABOVE title) ───────────────── */}
-      <div className="flex items-center justify-between gap-3 border-b pb-3 text-eyebrow text-steel">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-paid" />
-          <span className="text-paid">Live</span>
-          <span>·</span>
-          <span>SYNCED 30S</span>
-          <span>·</span>
-          <span>{year} YTD</span>
-        </span>
-      </div>
-
-      {/* ── 2. Header row ──────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    // Spec §2: vertical gap between every section is 24px.
+    <div className="space-y-6">
+      {/* ── 1. Topbar (header) per spec §4 — eyebrow + H1 + subtitle on
+              the left, Export + Search + Year on the right, all inside
+              one row, divider underneath at 20px bottom padding. */}
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
         <div className="min-w-0">
-          {/* Tracking is encoded in the text-display token (-0.022em).
-              No tracking-tight, no font-extrabold, no font-display —
-              the size token + base CSS rule handle all of those. */}
-          <h1 className="text-display">Overview</h1>
-          <p className="mt-1 text-small text-steel">
+          {/* Eyebrow: Inter 600 / 10px / 0.14em uppercase / steel
+              + circle-dot lucide icon (spec §4 — NOT a pulsing dot div) */}
+          <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
+            <CircleDot className="h-3 w-3 text-paid" strokeWidth={1.5} />
+            <span className="text-paid">Live</span>
+            <span aria-hidden>·</span>
+            <span>Synced 30s</span>
+            <span aria-hidden>·</span>
+            <span>{year} YTD</span>
+          </div>
+          {/* H1: display 800 / 38px / -0.022em / line-height 1
+              (overrides the 36px text-display token per spec §4) */}
+          <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
+            Overview
+          </h1>
+          {/* Subtitle: Inter 400 / 13.5px / steel / max 60ch / 1.55 lh */}
+          <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
             What&apos;s coming in, what&apos;s going out, what&apos;s overdue.
             Click any number to drill in.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <SearchInput />
           <ExportCSVButton
             filename={`recast-overdue-${year}.csv`}
             rows={data?.most_overdue ?? []}
@@ -135,6 +139,7 @@ export function OverviewPage() {
               { header: "Days late", value: (r) => String(r.days_overdue) },
             ]}
           />
+          <SearchInput />
           <YearSelector value={year} onChange={setYear} />
         </div>
       </div>
@@ -148,8 +153,8 @@ export function OverviewPage() {
         />
       ) : null}
 
-      {/* ── 4. 4-up KPI tiles ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ── 4. 4-up KPI tiles. Spec §6: gap 14px. ─────────────────── */}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {isLoading || !data ? (
           <>
             <KpiSkeleton />
@@ -249,9 +254,10 @@ export function OverviewPage() {
         </div>
       </Card>
 
-      {/* ── 6. Three lists ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* ── 6. Three lists. Spec §9: gap 14px. ───────────────────── */}
+      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-3">
         <ListPanel
+          mode="ranked"
           title="Most overdue"
           eyebrow={`${data?.most_overdue.length ?? 0} items · sorted by days late`}
           empty="Nothing overdue — clean."
@@ -266,6 +272,8 @@ export function OverviewPage() {
           }))}
         />
         <ListPanel
+          mode="avatar"
+          avatarTint="talent"
           title="Top talent · this month"
           eyebrow="Tele + OnlyFans gross combined"
           empty="No talent performance recorded yet this month."
@@ -279,6 +287,8 @@ export function OverviewPage() {
           }))}
         />
         <ListPanel
+          mode="avatar"
+          avatarTint="vendor"
           title="Top vendor spend · this month"
           eyebrow="Paid out · highest first"
           empty="No vendor payments logged yet this month."
@@ -301,15 +311,17 @@ export function OverviewPage() {
 // ─────────────────────────────────────────────────────────────────────
 
 function SearchInput() {
+  // Spec §4: 240px wide × 32px tall, bg ash, 1px rule, rounded-md,
+  // padding 0 10px. Search icon + placeholder + ⌘K kbd chip on right.
   return (
     <div className="relative hidden sm:block">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel" />
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel" strokeWidth={1.5} />
       <Input
         type="search"
         placeholder="Search…"
-        className="h-9 w-56 pl-8 pr-12 text-small"
+        className="h-8 w-[240px] rounded-md border bg-card pl-8 pr-12 text-[13px] placeholder:text-steel"
       />
-      <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border bg-muted px-1 py-0.5 font-mono text-meta text-steel">
+      <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border bg-card px-1 py-0.5 font-mono text-[10px] text-steel">
         ⌘K
       </kbd>
     </div>
@@ -594,6 +606,13 @@ interface ListRow {
   badge?: { text: string; status: "paid" | "partial" | "overdue" | "unpaid" };
 }
 
+/**
+ * ListPanel modes (per spec §9):
+ *   • "ranked"  → Most Overdue layout. 22px rank (mono) + name/sub +
+ *                 stacked amount/late-badge.
+ *   • "avatar"  → Top Talent / Top Vendor layout. 22px tinted avatar
+ *                 + name/3px-progress-bar + stacked amount/secondary.
+ */
 function ListPanel({
   title,
   eyebrow,
@@ -601,6 +620,8 @@ function ListPanel({
   loading,
   rows,
   headerLink,
+  mode,
+  avatarTint,
 }: {
   title: string;
   eyebrow: string;
@@ -608,81 +629,112 @@ function ListPanel({
   loading: boolean;
   rows: ListRow[];
   headerLink?: { to: string; label: string };
+  mode: "ranked" | "avatar";
+  /** Tint for both avatar and progress-bar in avatar mode. */
+  avatarTint?: "talent" | "vendor";
 }) {
-  // Max value for normalising the progress-bar widths.
   const maxValue = rows.length > 0 ? Math.max(...rows.map((r) => r.value)) : 0;
+  const progressBarBg =
+    avatarTint === "vendor" ? "bg-steel" : "bg-electric";
 
   return (
-    <Card className="flex h-full flex-col p-tile-md">
-      {/* Header: title + meta subtitle on left, link on right.
-          The subtitle is meta treatment (Inter 500 / 11px / 0.04em /
-          regular case), NOT eyebrow caps — matches "5 items · sorted
-          by days late" in the mockup. */}
-      <div className="flex items-start justify-between gap-2">
+    // Card recipe per spec §9 — header padding 14px 16px, rows
+    // padding 9px 16px. Header has a hairline rule below.
+    <Card className="flex h-full flex-col p-0">
+      <div className="flex items-start justify-between gap-2 border-b border-rule px-4 py-3.5">
         <div>
-          <h3 className="text-h3">{title}</h3>
-          <div className="mt-1 text-meta text-steel">{eyebrow}</div>
+          {/* Title — Inter 600 / 13px / -0.005em (NOT display font;
+              spec §9: "panel titles stay body font"). */}
+          <h3 className="text-[13px] font-semibold tracking-[-0.005em] text-white">
+            {title}
+          </h3>
+          {/* Subtitle: Inter 400 / 11px / steel / regular case. */}
+          <div className="mt-0.5 text-[11px] text-steel">{eyebrow}</div>
         </div>
         {headerLink ? (
           <Link
             to={headerLink.to}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-1 text-meta text-steel transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-foreground"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] text-steel transition-colors duration-base ease-out hover:text-white"
           >
             {headerLink.label}
-            <span className="text-electric">↗</span>
+            <ArrowUpRight className="h-3 w-3" strokeWidth={1.5} />
           </Link>
         ) : null}
       </div>
 
-      <div className="mt-4 flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col">
         {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+          <div className="space-y-2 p-4">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-full" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center py-6 text-small text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center py-8 text-[12px] text-muted-foreground">
             {empty}
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul>
             {rows.map((r, i) => {
               const widthPct = maxValue > 0 ? (r.value / maxValue) * 100 : 0;
               return (
-                <li key={i} className="space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    {r.rank ? (
-                      <span className="tabular w-6 shrink-0 text-meta text-steel">
-                        {r.rank}
-                      </span>
-                    ) : null}
-                    {r.avatarName ? <Avatar name={r.avatarName} size="sm" /> : null}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-body font-medium text-foreground">
-                        {r.primary}
-                      </div>
-                      {/* Secondary line: meta treatment, not eyebrow.
-                          Mockup renders "Vendor · Software" in regular
-                          case Inter 500, NOT all-caps tracked text. */}
-                      <div className="truncate text-meta text-steel">
+                <li
+                  key={i}
+                  className="grid grid-cols-[22px_1fr_auto] items-center gap-3 px-4 py-2.5 text-[13px] transition-colors duration-base ease-out hover:bg-white/[0.04]"
+                >
+                  {/* LEFT col — rank (mono) or avatar */}
+                  {mode === "ranked" ? (
+                    <span className="text-right font-mono text-[11px] text-steel">
+                      {r.rank}
+                    </span>
+                  ) : (
+                    r.avatarName && (
+                      <Avatar
+                        name={r.avatarName}
+                        size="xs"
+                        tint={avatarTint}
+                      />
+                    )
+                  )}
+
+                  {/* CENTER col — name + (avatar mode: progress bar; ranked mode: secondary) */}
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-white">
+                      {r.primary}
+                    </div>
+                    {mode === "ranked" ? (
+                      <div className="truncate text-[11px] text-steel">
                         {r.secondary}
                       </div>
-                    </div>
-                    {r.badge ? (
-                      <StatusPill status={r.badge.status} label={r.badge.text} />
-                    ) : null}
-                    <MoneyCell amount={r.value} size="body" splitDecimals={false} className="font-semibold" />
+                    ) : (
+                      // 3px progress bar per spec §9 — bg white/[0.04],
+                      // inner = blue (talent) or steel (vendor).
+                      <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded bg-white/[0.04]">
+                        <div
+                          className={cn("h-full rounded", progressBarBg)}
+                          style={{ width: `${widthPct}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  {/* Progress-bar underline (relative size within the panel) */}
-                  <div className="ml-9 h-0.5 overflow-hidden rounded-full bg-muted/50">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        r.badge?.status === "overdue" ? "bg-overdue/60" : "bg-electric/60",
-                      )}
-                      style={{ width: `${widthPct}%` }}
-                    />
+
+                  {/* RIGHT col — stacked: amount on top, badge or secondary below */}
+                  <div className="flex flex-col items-end gap-0.5 shrink-0 leading-tight">
+                    <span className="tabular text-[13px] font-semibold text-white">
+                      ${r.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    </span>
+                    {mode === "ranked" && r.badge ? (
+                      // Late badge per spec §9 — bg rgba(248,113,113,0.14),
+                      // colour overdue, padding 2px 6px, rounded-sm,
+                      // font 700 / 10.5px / tabular / 0.04em.
+                      <span className="tabular rounded-sm bg-[rgba(248,113,113,0.14)] px-1.5 py-0.5 text-[10.5px] font-bold tracking-[0.04em] text-overdue">
+                        {r.badge.text}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-steel">
+                        {r.secondary}
+                      </span>
+                    )}
                   </div>
                 </li>
               );
@@ -744,16 +796,25 @@ function YearSelector({
   const now = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="tabular h-9 rounded-md border bg-background px-3 text-small transition-colors duration-base ease-out focus:outline-none focus:ring-1 focus:ring-electric"
-    >
-      {years.map((y) => (
-        <option key={y} value={y}>
-          {y}
-        </option>
-      ))}
-    </select>
+    // Spec §4: 32px chip recipe — bg ash, 1px rule, rounded-md,
+    // padding 0 10px, calendar icon + year + chevron-down.
+    <div className="relative inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-2.5 text-[12px] text-white transition-colors duration-base ease-out focus-within:ring-1 focus-within:ring-electric">
+      <Calendar className="h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
+      <span className="tabular">{value}</span>
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
+      {/* Native select absolutely positioned over the chip for click-handling */}
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        aria-label="Year"
+      >
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {y}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

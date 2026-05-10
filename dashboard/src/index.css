@@ -74,6 +74,17 @@
     /* Reconciliation strip 4th-cell tint (Electric Blue 6%) */
     --rc-reconcile-tint: rgba(37, 99, 235, 0.06);
 
+    /* ── Spec aliases (match the canonical CSS-var names from the
+       full design prompt so a future reader can grep for either). ── */
+    --rc-pending: var(--rc-partial);
+    --rc-info: var(--rc-electric-lt);
+    --rc-row-hover: rgba(255, 255, 255, 0.04);
+    --rc-surface-3: rgba(255, 255, 255, 0.06);
+    --rc-shadow-tab-active: 0 1px 0 rgba(255, 255, 255, 0.04);
+
+    /* Active nav-item background per spec — Electric Blue 12%. */
+    --rc-nav-active: rgba(37, 99, 235, 0.12);
+
     /* Radii */
     --r-xs: 2px;
     --r-sm: 4px;
@@ -125,6 +136,9 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Spec-mandated for crisp on-dark rendering. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Tabular numerics for any element marked .tabular —

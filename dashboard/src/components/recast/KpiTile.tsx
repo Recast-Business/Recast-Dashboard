@@ -78,13 +78,11 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
         // Card recipe: bg-card (resolves to ash in dark) + hairline.
         "rounded-lg border bg-card",
         compact ? "p-tile-sm" : "p-tile-md",
-        // Per spec: "Status accent rule on top-edge for non-neutral
-        // KPIs". Render a 2px coloured stripe along the top edge —
-        // not a full border — so the tile still reads as part of
-        // the 4-up grid at a glance.
-        tone === "partial" && "border-t-2 border-t-partial",
-        tone === "overdue" && "border-t-2 border-t-overdue",
-        tone === "paid" && "border-t-2 border-t-paid",
+        // Per canonical spec: top-edge accent is a 1px rule, not 2px.
+        // (Spec §6: ".rc-kpi--good { border-top: 1px solid var(--paid) }")
+        tone === "partial" && "border-t border-t-partial",
+        tone === "overdue" && "border-t border-t-overdue",
+        tone === "paid" && "border-t border-t-paid",
         className,
       )}
       {...rest}
@@ -97,10 +95,9 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
         {deltaPct ? (
           <span
             className={cn(
-              // KPI delta pill: meta treatment (Inter 500 / 11px /
-              // 0.04em / regular case) — not the wide-tracked eyebrow.
-              // The pill is visual chrome, not a section label.
-              "tabular shrink-0 rounded-sm px-1.5 py-0.5 text-meta",
+              // KPI delta pill per canonical spec §6: 11px / 600 /
+              // tabular / 2px×6px padding. Not the wider-tracked eyebrow.
+              "tabular shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold leading-none",
               deltaToneClass[deltaPct.tone ?? "muted"],
             )}
           >
