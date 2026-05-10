@@ -3,20 +3,24 @@
 @tailwind utilities;
 
 /*
- * Phase L: Recast brand kit applied.
- * Brand palette:
- *   • Electric Blue  #2563EB  hsl(221 83% 53%)  — primary action color
- *   • Black          #000000  — base
- *   • White          #FFFFFF  — surface
- *   • Midnight       #1A1A2A  hsl(240 24% 13%)  — dark-mode tint
- *   • Steel          #6B7280  hsl(220 9%  46%)  — muted text
+ * Phase L (full): Recast canonical design tokens.
  *
- * Semantic colors (success/warning/destructive) intentionally left
- * untouched — they're status signals, not brand surface.
+ * Two layers:
+ *   1. shadcn semantic tokens (HSL triplets, used via hsl(var(--…)))
+ *      — kept intact so all existing shadcn primitives keep working.
+ *   2. Recast brand tokens (raw hex / px values, used directly)
+ *      — match the canonical design system and never mutate.
+ *
+ * Anything new should reach for the brand tokens first; only fall back
+ * to semantic tokens when something is genuinely shadcn-shaped (focus
+ * rings, popovers, dialog overlays).
+ *
+ * See dashboard/docs/DESIGN.md for the recipe cookbook + no-go list.
  */
 
 @layer base {
   :root {
+    /* ── shadcn semantic layer (HSL) ────────────────────────────────── */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -40,22 +44,62 @@
     --warning-foreground: 0 0% 100%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    /* Focus ring matches the brand */
     --ring: 221 83% 53%;
     --radius: 0.5rem;
+
+    /* ── Recast brand tokens ────────────────────────────────────────── */
+    /* Surface greys */
+    --rc-ash: #111111;
+    --rc-midnight: #1A1A2A;
+    --rc-steel: #6B7280;
+    --rc-rule: #1E1E1E;
+
+    /* Brand blue ramp */
+    --rc-electric: #2563EB;
+    --rc-electric-dk: #1A4FCC;
+    --rc-electric-lt: #3B82F6;
+
+    /* Status colours (fixed enum — never invent new ones) */
+    --rc-paid: #4ADE80;
+    --rc-partial: #F59E0B;
+    --rc-overdue: #F87171;
+    --rc-unpaid: #9CA3AF;
+
+    /* Status pill tints (12% alpha on the same hue) */
+    --rc-paid-tint: rgba(74, 222, 128, 0.12);
+    --rc-partial-tint: rgba(245, 158, 11, 0.12);
+    --rc-overdue-tint: rgba(248, 113, 113, 0.12);
+    --rc-unpaid-tint: rgba(156, 163, 175, 0.12);
+
+    /* Reconciliation strip 4th-cell tint (Electric Blue 6%) */
+    --rc-reconcile-tint: rgba(37, 99, 235, 0.06);
+
+    /* Radii */
+    --r-xs: 2px;
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+    --r-full: 9999px;
+
+    /* Spacing (canonical tile gaps) */
+    --sp-4: 16px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+
+    /* Motion */
+    --dur-base: 120ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .dark {
-    /* Slightly Midnight-tinted background instead of pure neutral
-       grey — gives the brand subtle warmth in dark mode without
-       sacrificing readability. */
+    /* shadcn semantic layer — Midnight-tinted for warmth without losing
+       readability. Brand tokens above stay constant across modes. */
     --background: 240 12% 5%;
     --foreground: 0 0% 98%;
     --card: 240 10% 7%;
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 7%;
     --popover-foreground: 0 0% 98%;
-    /* Slightly brighter Electric Blue for dark mode contrast */
     --primary: 217 92% 62%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 6% 14%;
@@ -81,5 +125,12 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Tabular numerics for any element marked .tabular —
+     used on currency cells, KPI tiles, invoice grids. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
   }
 }
