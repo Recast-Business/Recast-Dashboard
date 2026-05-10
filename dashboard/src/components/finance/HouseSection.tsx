@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pencil, Plus, Trash2, Users, Wallet } from "lucide-react";
+import { Download, Pencil, Plus, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,9 +27,9 @@ import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
 import { LogReceiptDialog } from "@/components/finance/LogReceiptDialog";
 import { HousePaymentEntryBox } from "@/components/finance/HousePaymentEntryBox";
-import { ExportCSVButton } from "@/components/ui/export-csv-button";
-import { ExportPDFButton } from "@/components/ui/export-pdf-button";
-import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
+import { HouseExportDialog } from "@/components/finance/HouseExportDialog";
+// Phase M-4: panel exports replaced by the page-level filterable
+// HouseExportDialog. ExportCSVButton / ExportPDFButton imports removed.
 import type {
   HouseResident,
   HouseRentPayment,
@@ -61,6 +61,7 @@ export function HouseSection({ year }: Props) {
   const { data: utilities, isLoading: utilitiesLoading } = useHouseUtilities();
   const { data: rentByGroup } = useHouseRentPayments(year);
   const { data: utilityByUtility } = useHouseUtilityPayments(year);
+  const [exportOpen, setExportOpen] = React.useState(false);
 
   const activeResidents = (residents ?? []).filter((r) => r.active);
   const activeResidentCount = activeResidents.length;
@@ -68,15 +69,40 @@ export function HouseSection({ year }: Props) {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-card p-4 text-sm">
-        <div className="flex items-center gap-2 font-medium">
-          <Users className="h-4 w-4" /> {activeResidentCount} active resident{activeResidentCount === 1 ? "" : "s"}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 font-medium">
+              <Users className="h-4 w-4" /> {activeResidentCount} active resident
+              {activeResidentCount === 1 ? "" : "s"}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Frazier's house ledger. Rent is grouped — H&K pay together, others
+              per resident. Utilities split equal-per-head across all active
+              residents (so each resident is one head even when sharing a rent line).
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => setExportOpen(true)}
+            title="Export rent + utility statement, filterable per resident"
+          >
+            <Download className="mr-1 h-3 w-3" /> Export
+          </Button>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Frazier's house ledger. Rent is grouped — H&K pay together, others
-          per resident. Utilities split equal-per-head across all active
-          residents (so each resident is one head even when sharing a rent line).
-        </p>
       </div>
+
+      <HouseExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        year={year}
+        residents={residents ?? []}
+        rentGroups={rentGroups ?? []}
+        rentByGroup={rentByGroup ?? {}}
+        utilities={utilities ?? []}
+        utilityByUtility={utilityByUtility ?? {}}
+      />
 
       {residentsLoading || utilitiesLoading || rentGroupsLoading ? (
         <Skeleton className="h-24 w-full" />
@@ -212,18 +238,9 @@ function BedroomsRentPanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportCSVButton
-            filename={`house-rent-${year}.csv`}
-            rows={rentGroups}
-            columns={buildRentCSVColumns(rentByGroup, residentsByGroup)}
-          />
-          <ExportPDFButton
-            filename={`house-rent-${year}.pdf`}
-            title={`Frazier's House — Rent ${year}`}
-            rows={rentGroups}
-            columns={buildRentCSVColumns(rentByGroup, residentsByGroup)}
-            orientation="landscape"
-          />
+          {/* Phase M-4: panel-level CSV/PDF buttons removed. The single
+              Export button at the top of the page opens a filterable
+              dialog covering all sections. */}
           <Button
             size="sm"
             onClick={() => {
@@ -493,19 +510,8 @@ function UtilitiesPanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportCSVButton
-            filename={`house-utilities-${year}.csv`}
-            rows={utilities}
-            columns={buildUtilityCSVColumns(utilityByUtility, activeResidentCount)}
-          />
-          <ExportPDFButton
-            filename={`house-utilities-${year}.pdf`}
-            title={`Frazier's House — Utilities ${year}`}
-            subtitle={`Split across ${activeResidentCount} active resident${activeResidentCount === 1 ? "" : "s"}`}
-            rows={utilities}
-            columns={buildUtilityCSVColumns(utilityByUtility, activeResidentCount)}
-            orientation="landscape"
-          />
+          {/* Phase M-4: panel exports removed in favour of the page-level
+              filterable Export button at the top of /finance → Frazier's House. */}
           <Button
             size="sm"
             onClick={() => {
@@ -791,57 +797,6 @@ function PerResidentSplitPanel({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// CSV export helpers
-// ─────────────────────────────────────────────────────────────────────
-
-function buildRentCSVColumns(
-  rentByGroup: Record<string, Record<number, HouseRentPayment>>,
-  residentsByGroup: Record<string, HouseResident[]>,
-): CSVColumn<RentGroup>[] {
-  const base: CSVColumn<RentGroup>[] = [
-    { header: "Group", value: (g) => g.label },
-    {
-      header: "Residents",
-      value: (g) => (residentsByGroup[g.id] ?? []).map((r) => r.name).join(", "),
-    },
-    {
-      header: "Bedroom",
-      value: (g) =>
-        Array.from(
-          new Set((residentsByGroup[g.id] ?? []).map((r) => r.bedroom)),
-        ).join(", "),
-    },
-    { header: "Monthly rent", value: (g) => Number(g.monthly_rent).toFixed(2) },
-    { header: "Active", value: (g) => (g.active ? "yes" : "no") },
-  ];
-  const monthly = monthlyAmountColumns<RentGroup>((g, m) => {
-    const cell = rentByGroup[g.id]?.[m];
-    return cell?.amount != null ? Number(cell.amount) : null;
-  });
-  return [...base, ...monthly];
-}
-
-function buildUtilityCSVColumns(
-  utilityByUtility: Record<string, Record<number, HouseUtilityPayment>>,
-  activeResidentCount: number,
-): CSVColumn<HouseUtility>[] {
-  const base: CSVColumn<HouseUtility>[] = [
-    { header: "Utility", value: (u) => u.utility_name },
-    { header: "Active", value: (u) => (u.active ? "yes" : "no") },
-  ];
-  const amounts = monthlyAmountColumns<HouseUtility>((u, m) => {
-    return Number(utilityByUtility[u.id]?.[m]?.amount ?? 0) || null;
-  });
-  // Per-head split column at the very end — operators / Gustavo can compare
-  // against what each resident actually owes.
-  const yearlyTotal: CSVColumn<HouseUtility> = {
-    header: `Per-resident year (÷ ${activeResidentCount})`,
-    value: (u) => {
-      let sum = 0;
-      for (let m = 1; m <= 12; m++) sum += Number(utilityByUtility[u.id]?.[m]?.amount ?? 0);
-      return activeResidentCount > 0 ? (sum / activeResidentCount).toFixed(2) : "";
-    },
-  };
-  return [...base, ...amounts, yearlyTotal];
-}
+// Phase M-4: per-panel CSV column builders removed. The page-level
+// HouseExportDialog uses lib/export/houseStatement.ts which builds
+// statement-style PDFs / CSVs directly from raw data.
