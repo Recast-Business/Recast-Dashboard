@@ -115,10 +115,28 @@ export interface HouseResident {
   id: string;
   name: string;
   bedroom: string;
+  /** Legacy per-resident rent. Kept for the resident card's edit dialog +
+   *  display, but rent_group.monthly_rent is the authoritative source for
+   *  the rent grid (Phase M-2). */
   monthly_rent: number;
   active: boolean;
   notes: string | null;
   created_at: string;
+  /** Phase M-2: the rent unit this resident pays rent through. Most
+   *  residents have a 1:1 group; H&K share one. Nullable only because
+   *  newly inserted rows might briefly lack one before backfill. */
+  rent_group_id: string | null;
+}
+
+/** Phase M-2: a rent unit. One row in the rent grid per group. */
+export interface RentGroup {
+  id: string;
+  label: string;
+  monthly_rent: number;
+  active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface HouseUtility {
@@ -144,10 +162,16 @@ export interface HouseUtilityPayment {
 
 export interface HouseRentPayment {
   id: string;
-  resident_id: string;
+  /** Phase M-2: now nullable / legacy. rent_group_id is the authoritative key. */
+  resident_id: string | null;
+  /** Phase M-2: every rent payment row belongs to exactly one rent_group. */
+  rent_group_id: string;
   period_year: number;
   period_month: number;
   amount: number;
+  /** Phase K-3a: amount paid against this row, kept in sync by the
+   *  reconcile_period_status trigger. */
+  amount_paid: number;
   status: PaymentStatusV2;
   paid_at: string | null;
   notes: string | null;

@@ -18,6 +18,7 @@ import {
   useHouseRentPayments,
   useHouseUtilities,
   useHouseUtilityPayments,
+  useRentGroups,
   useUpsertRentPayment,
 } from "@/hooks/useHouse";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -34,6 +35,7 @@ import type {
   HouseUtility,
   HouseUtilityPayment,
   PaymentStatusV2,
+  RentGroup,
 } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
@@ -54,11 +56,13 @@ interface Props {
 
 export function HouseSection({ year }: Props) {
   const { data: residents, isLoading: residentsLoading } = useHouseResidents();
+  const { data: rentGroups, isLoading: rentGroupsLoading } = useRentGroups();
   const { data: utilities, isLoading: utilitiesLoading } = useHouseUtilities();
-  const { data: rentByResident } = useHouseRentPayments(year);
+  const { data: rentByGroup } = useHouseRentPayments(year);
   const { data: utilityByUtility } = useHouseUtilityPayments(year);
 
-  const activeResidentCount = (residents ?? []).filter((r) => r.active).length;
+  const activeResidents = (residents ?? []).filter((r) => r.active);
+  const activeResidentCount = activeResidents.length;
 
   return (
     <div className="space-y-6">
@@ -67,19 +71,21 @@ export function HouseSection({ year }: Props) {
           <Users className="h-4 w-4" /> {activeResidentCount} active resident{activeResidentCount === 1 ? "" : "s"}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Frazier's house ledger. Bedroom rent is paid per resident. Utility bills are
-          split equal-per-head across active residents — those splits show in the bottom panel.
+          Frazier's house ledger. Rent is grouped — H&K pay together, others
+          per resident. Utilities split equal-per-head across all active
+          residents (so each resident is one head even when sharing a rent line).
         </p>
       </div>
 
-      {residentsLoading || utilitiesLoading ? (
+      {residentsLoading || utilitiesLoading || rentGroupsLoading ? (
         <Skeleton className="h-24 w-full" />
       ) : (
         <>
           <BedroomsRentPanel
             year={year}
+            rentGroups={rentGroups ?? []}
             residents={residents ?? []}
-            rentByResident={rentByResident ?? {}}
+            rentByGroup={rentByGroup ?? {}}
           />
           <UtilitiesPanel
             year={year}
@@ -89,7 +95,7 @@ export function HouseSection({ year }: Props) {
           />
           <PerResidentSplitPanel
             year={year}
-            residents={(residents ?? []).filter((r) => r.active)}
+            residents={activeResidents}
             utilityByUtility={utilityByUtility ?? {}}
             activeResidentCount={activeResidentCount}
           />
@@ -105,12 +111,14 @@ export function HouseSection({ year }: Props) {
 
 function BedroomsRentPanel({
   year,
+  rentGroups,
   residents,
-  rentByResident,
+  rentByGroup,
 }: {
   year: number;
+  rentGroups: RentGroup[];
   residents: HouseResident[];
-  rentByResident: Record<string, Record<number, HouseRentPayment>>;
+  rentByGroup: Record<string, Record<number, HouseRentPayment>>;
 }) {
   const upsert = useUpsertRentPayment();
   const del = useDeleteResident();
@@ -118,20 +126,43 @@ function BedroomsRentPanel({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingResident, setEditingResident] = React.useState<HouseResident | null>(null);
   const [editingCell, setEditingCell] = React.useState<{
-    resident: HouseResident;
+    group: RentGroup;
     month: number;
   } | null>(null);
-  const [payTarget, setPayTarget] = React.useState<HouseResident | null>(null);
+  const [payTarget, setPayTarget] = React.useState<RentGroup | null>(null);
 
-  async function quickToggleRent(r: HouseResident, month: number, current?: HouseRentPayment) {
+  // Group residents by rent_group_id so we can display "Harriet, Keenan" inline
+  // for the H&K row, single name for solo groups.
+  const residentsByGroup = React.useMemo(() => {
+    const map: Record<string, HouseResident[]> = {};
+    for (const r of residents) {
+      if (!r.rent_group_id) continue;
+      (map[r.rent_group_id] ??= []).push(r);
+    }
+    return map;
+  }, [residents]);
+
+  // For "Pay" + LogReceiptDialog: receipts still target a specific resident
+  // (payment_receipts.resident_id is required). For groups with multiple
+  // residents, we use the first one — the M-2 reconcile trigger walks the
+  // group regardless of which resident the receipt was logged against.
+  function firstResidentInGroup(group: RentGroup): HouseResident | null {
+    return residentsByGroup[group.id]?.[0] ?? null;
+  }
+
+  async function quickToggleRent(
+    group: RentGroup,
+    month: number,
+    current?: HouseRentPayment,
+  ) {
     const nextStatus: PaymentStatusV2 =
       !current || current.status === "unpaid" ? "paid" : "unpaid";
     try {
       await upsert.mutateAsync({
-        resident_id: r.id,
+        rent_group_id: group.id,
         period_year: year,
         period_month: month,
-        amount: current?.amount ?? r.monthly_rent,
+        amount: current?.amount ?? group.monthly_rent,
         status: nextStatus,
         paid_at: nextStatus === "paid" ? new Date().toISOString().slice(0, 10) : null,
         notes: current?.notes ?? null,
@@ -141,11 +172,11 @@ function BedroomsRentPanel({
     }
   }
 
-  async function onDelete(r: HouseResident) {
+  async function onDeleteResident(r: HouseResident) {
     const ok = await confirm({
       title: `Remove ${r.name}?`,
       description:
-        "Removes the resident and all their rent payment history for the year. Set them to inactive instead if they're just moving out.",
+        "Removes the resident and their utility split history. Their rent group stays — adjust separately if needed.",
       confirmLabel: "Delete",
       variant: "destructive",
     });
@@ -158,13 +189,13 @@ function BedroomsRentPanel({
     }
   }
 
-  // Yearly totals
+  // Yearly totals — sum across paid cells in each rent group
   const totals = React.useMemo(() => {
     let totalRent = 0;
     let paidCount = 0;
     let totalCells = 0;
-    for (const r of residents) {
-      const cells = rentByResident[r.id] ?? {};
+    for (const g of rentGroups) {
+      const cells = rentByGroup[g.id] ?? {};
       for (let m = 1; m <= 12; m++) {
         totalCells++;
         const c = cells[m];
@@ -175,7 +206,7 @@ function BedroomsRentPanel({
       }
     }
     return { totalRent, paidCount, totalCells };
-  }, [residents, rentByResident]);
+  }, [rentGroups, rentByGroup]);
 
   return (
     <div className="space-y-2">
@@ -189,14 +220,14 @@ function BedroomsRentPanel({
         <div className="flex items-center gap-2">
           <ExportCSVButton
             filename={`house-rent-${year}.csv`}
-            rows={residents}
-            columns={buildRentCSVColumns(rentByResident)}
+            rows={rentGroups}
+            columns={buildRentCSVColumns(rentByGroup, residentsByGroup)}
           />
           <ExportPDFButton
             filename={`house-rent-${year}.pdf`}
             title={`Frazier's House — Rent ${year}`}
-            rows={residents}
-            columns={buildRentCSVColumns(rentByResident)}
+            rows={rentGroups}
+            columns={buildRentCSVColumns(rentByGroup, residentsByGroup)}
             orientation="landscape"
           />
           <Button
@@ -215,7 +246,7 @@ function BedroomsRentPanel({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 text-[10px] uppercase tracking-wider">
-              <TableHead className="sticky left-0 z-10 min-w-[180px] bg-muted/40">Resident</TableHead>
+              <TableHead className="sticky left-0 z-10 min-w-[200px] bg-muted/40">Group</TableHead>
               <TableHead className="min-w-[120px]">Bedroom</TableHead>
               <TableHead className="min-w-[90px]">Rent</TableHead>
               {MONTHS.map((m) => (
@@ -228,48 +259,52 @@ function BedroomsRentPanel({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {residents.map((r) => {
-              const cells = rentByResident[r.id] ?? {};
-              // Phase M-0 bug fix: YTD reflects what's been PAID, so toggling
-              // a cell unpaid actually subtracts from the total (was adding
-              // every row regardless of status — increased on paid, never
-              // decreased on unpaid).
+            {rentGroups.map((g) => {
+              const cells = rentByGroup[g.id] ?? {};
+              const groupResidents = residentsByGroup[g.id] ?? [];
+              const isMultiResident = groupResidents.length > 1;
+              const bedroomLabel = Array.from(
+                new Set(groupResidents.map((r) => r.bedroom)),
+              ).join(", ");
+              // M-0 bug fix: YTD = paid only, so unselect subtracts.
               const ytd = Object.values(cells).reduce(
                 (sum, p) =>
                   p.status === "paid" ? sum + (Number(p.amount) || 0) : sum,
                 0,
               );
               return (
-                <TableRow key={r.id} className="text-xs">
-                  <TableCell className="sticky left-0 z-10 bg-background font-medium">
-                    {r.name}
-                    {!r.active && <span className="ml-2 text-[10px] text-muted-foreground">inactive</span>}
+                <TableRow key={g.id} className="text-xs">
+                  <TableCell className="sticky left-0 z-10 bg-background">
+                    <div className="font-medium">{g.label}</div>
+                    {isMultiResident && (
+                      <div className="mt-0.5 text-[10px] text-muted-foreground">
+                        {groupResidents.map((r) => r.name).join(", ")}
+                      </div>
+                    )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{r.bedroom}</TableCell>
+                  <TableCell className="text-muted-foreground">{bedroomLabel || "—"}</TableCell>
                   <TableCell className="font-mono tabular-nums">
-                    {formatUSD(r.monthly_rent, { decimals: 2 })}
+                    {formatUSD(g.monthly_rent, { decimals: 2 })}
                   </TableCell>
                   {MONTHS.map((_label, i) => {
                     const month = i + 1;
                     const cell = cells[month];
                     const status = cell?.status ?? "unpaid";
-                    // Always show the expected rent amount up-front. Cell colour
-                    // indicates whether it's been paid yet (or is overdue/partial).
-                    const displayAmount = cell?.amount != null ? Number(cell.amount) : r.monthly_rent;
+                    const displayAmount = cell?.amount != null ? Number(cell.amount) : g.monthly_rent;
                     return (
                       <TableCell key={month} className="p-1">
                         <button
                           type="button"
                           onClick={(e) => {
                             if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                              setEditingCell({ resident: r, month });
+                              setEditingCell({ group: g, month });
                             } else {
-                              quickToggleRent(r, month, cell);
+                              quickToggleRent(g, month, cell);
                             }
                           }}
                           onContextMenu={(e) => {
                             e.preventDefault();
-                            setEditingCell({ resident: r, month });
+                            setEditingCell({ group: g, month });
                           }}
                           title={`${formatUSD(displayAmount, { decimals: 2 })} · ${status} · click to toggle, right-click for full edit`}
                           className={cn(
@@ -293,32 +328,46 @@ function BedroomsRentPanel({
                       size="sm"
                       variant="outline"
                       className="h-7 px-2 text-xs"
-                      onClick={() => setPayTarget(r)}
-                      title="Log a rent payment for this resident (FIFO across oldest unpaid months)"
+                      onClick={() => setPayTarget(g)}
+                      title={
+                        isMultiResident
+                          ? `Log a rent payment for the ${g.label} group (FIFO across their oldest unpaid months)`
+                          : `Log a rent payment for ${g.label} (FIFO)`
+                      }
                     >
                       <Wallet className="mr-1 h-3 w-3" /> Pay
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="ml-1 h-7 w-7 p-0"
-                      onClick={() => {
-                        setEditingResident(r);
-                        setDialogOpen(true);
-                      }}
-                      title="Edit resident"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="ml-1 h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => onDelete(r)}
-                      title="Delete resident"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    {/* Edit/delete operate on the FIRST resident in the group.
+                        For 1:1 groups this is identical to old behaviour.
+                        For H&K, edit Harriet directly; the Resident dialog
+                        handles their fields. M-3 will rebuild this UI. */}
+                    {groupResidents[0] && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="ml-1 h-7 w-7 p-0"
+                          onClick={() => {
+                            setEditingResident(groupResidents[0]);
+                            setDialogOpen(true);
+                          }}
+                          title={`Edit ${groupResidents[0].name}'s details`}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        {!isMultiResident && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-1 h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => onDeleteResident(groupResidents[0])}
+                            title="Delete resident"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -348,26 +397,36 @@ function BedroomsRentPanel({
           month={editingCell.month}
           mode={{
             kind: "rent",
-            residentId: editingCell.resident.id,
-            residentName: editingCell.resident.name,
-            defaultRent: editingCell.resident.monthly_rent,
-            existing: rentByResident[editingCell.resident.id]?.[editingCell.month] ?? null,
+            rentGroupId: editingCell.group.id,
+            groupLabel: editingCell.group.label,
+            defaultRent: editingCell.group.monthly_rent,
+            existing: rentByGroup[editingCell.group.id]?.[editingCell.month] ?? null,
           }}
         />
       )}
 
-      {payTarget && (
-        <LogReceiptDialog
-          open
-          onOpenChange={(o) => !o && setPayTarget(null)}
-          mode={{
-            kind: "house_rent",
-            residentId: payTarget.id,
-            residentName: payTarget.name,
-            monthlyRent: payTarget.monthly_rent,
-          }}
-        />
-      )}
+      {payTarget && (() => {
+        // Receipt needs a resident_id; for H&K we pick the first one.
+        // Trigger groups them on save so it doesn't matter which.
+        const target = firstResidentInGroup(payTarget);
+        if (!target) {
+          // Edge case: a rent group with no residents (shouldn't happen
+          // post-migration, but guard anyway). Close silently.
+          return null;
+        }
+        return (
+          <LogReceiptDialog
+            open
+            onOpenChange={(o) => !o && setPayTarget(null)}
+            mode={{
+              kind: "house_rent",
+              residentId: target.id,
+              residentName: payTarget.label,
+              monthlyRent: payTarget.monthly_rent,
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -723,17 +782,27 @@ function PerResidentSplitPanel({
 // ─────────────────────────────────────────────────────────────────────
 
 function buildRentCSVColumns(
-  rentByResident: Record<string, Record<number, HouseRentPayment>>,
-): CSVColumn<HouseResident>[] {
-  const base: CSVColumn<HouseResident>[] = [
-    { header: "Resident", value: (r) => r.name },
-    { header: "Bedroom", value: (r) => r.bedroom },
-    { header: "Monthly rent", value: (r) => Number(r.monthly_rent).toFixed(2) },
-    { header: "Active", value: (r) => (r.active ? "yes" : "no") },
+  rentByGroup: Record<string, Record<number, HouseRentPayment>>,
+  residentsByGroup: Record<string, HouseResident[]>,
+): CSVColumn<RentGroup>[] {
+  const base: CSVColumn<RentGroup>[] = [
+    { header: "Group", value: (g) => g.label },
+    {
+      header: "Residents",
+      value: (g) => (residentsByGroup[g.id] ?? []).map((r) => r.name).join(", "),
+    },
+    {
+      header: "Bedroom",
+      value: (g) =>
+        Array.from(
+          new Set((residentsByGroup[g.id] ?? []).map((r) => r.bedroom)),
+        ).join(", "),
+    },
+    { header: "Monthly rent", value: (g) => Number(g.monthly_rent).toFixed(2) },
+    { header: "Active", value: (g) => (g.active ? "yes" : "no") },
   ];
-  const monthly = monthlyAmountColumns<HouseResident>((r, m) => {
-    const cell = rentByResident[r.id]?.[m];
-    // Default to monthly_rent when row exists but unpaid (matches the UI)
+  const monthly = monthlyAmountColumns<RentGroup>((g, m) => {
+    const cell = rentByGroup[g.id]?.[m];
     return cell?.amount != null ? Number(cell.amount) : null;
   });
   return [...base, ...monthly];

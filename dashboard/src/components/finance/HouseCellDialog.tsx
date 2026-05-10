@@ -37,9 +37,11 @@ const MONTH_NAMES = [
 
 type Mode =
   | {
+      // Phase M-2: rent cells are now keyed by rent_group_id, not resident_id.
+      // The label is the group's display name (e.g. "Frazier", "Harriet & Keenan").
       kind: "rent";
-      residentId: string;
-      residentName: string;
+      rentGroupId: string;
+      groupLabel: string;
       defaultRent: number;
       existing: HouseRentPayment | null;
     }
@@ -92,7 +94,7 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
     try {
       if (mode.kind === "rent") {
         await upsertRent.mutateAsync({
-          resident_id: mode.residentId,
+          rent_group_id: mode.rentGroupId,
           period_year: year,
           period_month: month,
           amount: amountNum,
@@ -137,7 +139,7 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
 
   const title =
     mode.kind === "rent"
-      ? `${mode.residentName} — ${MONTH_NAMES[month - 1]} ${year}`
+      ? `${mode.groupLabel} — ${MONTH_NAMES[month - 1]} ${year}`
       : `${mode.utilityName} — ${MONTH_NAMES[month - 1]} ${year}`;
 
   return (
