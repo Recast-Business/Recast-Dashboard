@@ -1,15 +1,17 @@
 import * as React from "react";
-import { Plus, Search } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { EyebrowLabel, InvoiceCell, MoneyCell } from "@/components/recast";
-import { useVendors } from "@/hooks/useVendors";
+import { useVendors, useDeleteVendor } from "@/hooks/useVendors";
 import { useVendorPaymentsByVendors } from "@/hooks/useVendorPayments";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
-import type { PaymentStatusV2, VendorPayment } from "@/types/finance";
+import { useConfirm } from "@/hooks/useConfirm";
+import type { PaymentStatusV2, Vendor, VendorPayment } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 
 /**
@@ -44,12 +46,43 @@ export function TalentWePayGrid({ year }: Props) {
 
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
+  // VendorDialog state — handles BOTH create (vendor=null) and edit
+  // (vendor=Vendor). Toggle via openAddVendor / openEditVendor below.
   const [vendorDialogOpen, setVendorDialogOpen] = React.useState(false);
+  const [editingVendor, setEditingVendor] = React.useState<Vendor | null>(null);
   const [editingCell, setEditingCell] = React.useState<{
     vendorId: string;
     month: number;
     existing: VendorPayment | null;
   } | null>(null);
+
+  const del = useDeleteVendor();
+  const confirm = useConfirm();
+
+  function openAddVendor() {
+    setEditingVendor(null);
+    setVendorDialogOpen(true);
+  }
+  function openEditVendor(v: Vendor) {
+    setEditingVendor(v);
+    setVendorDialogOpen(true);
+  }
+  async function onDeleteVendor(v: Vendor) {
+    const ok = await confirm({
+      title: `Delete ${v.name}?`,
+      description:
+        "Permanently removes this talent record and all logged monthly payments. Cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync(v.id);
+      toast.success(`${v.name} deleted`);
+    } catch (e) {
+      toast.error(`Delete failed: ${(e as Error).message}`);
+    }
+  }
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -158,7 +191,7 @@ export function TalentWePayGrid({ year }: Props) {
               { header: "Status", value: (r) => r.status },
             ]}
           />
-          <Button onClick={() => setVendorDialogOpen(true)} size="sm" className="h-8">
+          <Button onClick={openAddVendor} size="sm" className="h-8">
             <Plus className="mr-1 h-3.5 w-3.5" /> Add talent
           </Button>
         </div>
@@ -246,17 +279,43 @@ export function TalentWePayGrid({ year }: Props) {
                   return (
                     <tr
                       key={v.id}
-                      className="border-b border-rule transition-colors duration-base ease-out hover:bg-white/[0.04]"
+                      className="group border-b border-rule transition-colors duration-base ease-out hover:bg-white/[0.04]"
                     >
-                      {/* Sticky-left talent column per spec §11 */}
+                      {/* Sticky-left talent column per spec §11. Edit +
+                          Delete icons hide until row hover (spec §11
+                          "Actions hide until row hover" + canonical
+                          quiet-icon delete rule). */}
                       <td className="sticky left-0 z-10 bg-[#0d0d0d] px-4 py-2">
-                        <div className="text-[13px] font-medium text-white">
-                          {v.name}
-                        </div>
-                        <div className="text-[11px] text-steel">
-                          {v.payment_method
-                            ? PAYMENT_METHOD_SHORT[v.payment_method] ?? v.payment_method
-                            : "Unspecified"}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-[13px] font-medium text-white">
+                              {v.name}
+                            </div>
+                            <div className="text-[11px] text-steel">
+                              {v.payment_method
+                                ? PAYMENT_METHOD_SHORT[v.payment_method] ?? v.payment_method
+                                : "Unspecified"}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100 focus-within:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => openEditVendor(v)}
+                              title="Edit talent details"
+                              className="rounded-sm p-1 text-steel transition-colors duration-base ease-out hover:bg-white/[0.06] hover:text-white"
+                            >
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteVendor(v)}
+                              title="Delete talent"
+                              disabled={del.isPending}
+                              className="rounded-sm p-1 text-steel transition-colors duration-base ease-out hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            </button>
+                          </div>
                         </div>
                       </td>
 
@@ -343,12 +402,17 @@ export function TalentWePayGrid({ year }: Props) {
         />
       ) : null}
 
-      {/* Vendor add dialog */}
+      {/* Vendor dialog — handles both add (vendor=null) and edit
+          (vendor=editingVendor). Closing resets editingVendor so the
+          next "+ Add talent" click opens in create mode. */}
       <VendorDialog
         open={vendorDialogOpen}
-        onOpenChange={setVendorDialogOpen}
+        onOpenChange={(o) => {
+          setVendorDialogOpen(o);
+          if (!o) setEditingVendor(null);
+        }}
         defaultKind="talent_we_pay"
-        vendor={null}
+        vendor={editingVendor}
       />
     </div>
   );
