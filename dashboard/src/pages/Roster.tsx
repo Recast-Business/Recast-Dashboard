@@ -34,6 +34,22 @@ export function RosterPage() {
   const del = useBulkDeleteCreators();
   const confirm = useConfirm();
 
+  // Phase M-7: when a creator is added via AddCreatorDialog we capture
+  // the new id, and as soon as the creators query refetches with that
+  // row present we auto-open their profile dialog. This lets Gustavo
+  // create + fully configure a creator (commission tiers, contact info,
+  // tax ID, payment method) in one flow without hunting for the Profile
+  // button afterward.
+  const [pendingProfileId, setPendingProfileId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!pendingProfileId || !data) return;
+    const created = data.find((c) => c.id === pendingProfileId);
+    if (created) {
+      setProfileTarget(created as CreatorRow);
+      setPendingProfileId(null);
+    }
+  }, [pendingProfileId, data]);
+
   async function onUnsign(c: CreatorRow) {
     const ok = await confirm({
       title: `Move ${c.name} back to Leads?`,
@@ -82,7 +98,11 @@ export function RosterPage() {
         error={(error as Error) ?? null}
         emptyTitle="No signed creators yet"
         emptyHint="Promote a creator from Leads (Sign to Roster button) to add them here."
-        toolbarExtras={canEdit ? <AddCreatorDialog signed={true} /> : null}
+        toolbarExtras={
+          canEdit ? (
+            <AddCreatorDialog signed={true} onCreated={setPendingProfileId} />
+          ) : null
+        }
         hideColumns={["country", "tier", "status"]}
         showStar
         canEdit={canEdit}
