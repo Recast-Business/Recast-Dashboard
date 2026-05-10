@@ -13,17 +13,11 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+// Cash-flow chart is now a hand-authored inline SVG per spec §8 —
+// Recharts is intentionally NOT used here. The geometry, gridlines,
+// dashed prior-year polylines, and current-month guide are all coded
+// to the canonical pixel coordinates so the chart matches the
+// Claude Design mockup exactly.
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -73,7 +67,6 @@ export function OverviewPage() {
 
   const now = new Date();
   const currentMonthIdx = now.getMonth(); // 0-based
-  const currentMonthLabel = MONTH_LABELS[currentMonthIdx];
   const prevMonthIdx = currentMonthIdx - 1;
   const prevMonth = data?.monthly && prevMonthIdx >= 0 ? data.monthly[prevMonthIdx] : null;
   const prevMonthLabel = prevMonthIdx >= 0 ? MONTH_LABELS[prevMonthIdx] : "—";
@@ -246,9 +239,7 @@ export function OverviewPage() {
             <FlowChart
               monthly={data.monthly}
               monthlyPrev={compareYoY ? data.monthly_prev_year : null}
-              prevYear={year - 1}
               currentMonth={currentMonthIdx + 1}
-              currentMonthLabel={currentMonthLabel}
               isCurrentYear={year === currentYear}
             />
           )}
@@ -333,6 +324,13 @@ function SearchInput() {
 // Compare switch (replaces the old checkbox)
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Pill-shape switch per spec §8 — height 28px, padding 4px 10px 4px 8px.
+ *   Off:  bg --ash, border --rule, color --steel
+ *   On:   border 1px rgba(37,99,235,0.45), bg rgba(37,99,235,0.08),
+ *         color white, inner pip slides left → right and recolours
+ *         from --steel to --blue.
+ */
 function CompareSwitch({
   checked,
   onChange,
@@ -349,24 +347,26 @@ function CompareSwitch({
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
-        "inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-small transition-colors duration-base ease-out",
-        checked && "border-electric bg-electric/10 text-foreground",
+        "inline-flex h-7 items-center gap-2 rounded-full border pl-2 pr-2.5 transition-colors duration-base ease-out",
+        checked
+          ? "border-[rgba(37,99,235,0.45)] bg-[rgba(37,99,235,0.08)] text-white"
+          : "border-rule bg-ash text-steel",
       )}
     >
       <span
         className={cn(
           "relative h-3.5 w-6 rounded-full transition-colors duration-base ease-out",
-          checked ? "bg-electric" : "bg-muted",
+          checked ? "bg-electric/30" : "bg-rule",
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white transition-all duration-base ease-out",
-            checked ? "left-[14px]" : "left-0.5",
+            "absolute top-0.5 h-2.5 w-2.5 rounded-full transition-all duration-base ease-out",
+            checked ? "left-[12px] bg-electric" : "left-0.5 bg-steel",
           )}
         />
       </span>
-      {label}
+      <span className="text-[12px]">{label}</span>
     </button>
   );
 }
@@ -438,18 +438,30 @@ function OverdueBanner({
           </Button>
         </div>
       </div>
-      {/* 2-column grid of overdue items */}
-      <div className="grid grid-cols-1 gap-x-tile-md gap-y-2 px-tile-md py-3 sm:grid-cols-2">
+      {/* Expanded item grid per spec §5 — 2 columns on sm+, gap 8/24,
+          hairline rose top border separating from the header strip.
+          Each row is a 4-column grid: 92px / 1fr / auto / auto. */}
+      <div className="grid grid-cols-1 gap-x-6 gap-y-2 border-t border-overdue/15 px-tile-md py-3 sm:grid-cols-2">
         {items.slice(0, 6).map((item, i) => (
-          <div key={i} className="flex items-center gap-3 text-small">
-            <EyebrowLabel className="w-20 shrink-0 text-steel">
+          <div
+            key={i}
+            className="grid items-center gap-3"
+            style={{ gridTemplateColumns: "92px 1fr auto auto" }}
+          >
+            {/* Cat eyebrow — Inter 600 / 10px / 0.12em caps / steel */}
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-steel">
               {SECTION_LABEL[item.source] ?? item.source}
-            </EyebrowLabel>
-            <span className="flex-1 truncate font-medium text-foreground">
+            </span>
+            {/* Name — Inter 500 / white */}
+            <span className="truncate text-[13px] font-medium text-white">
               {item.name} · {MONTH_LABELS[item.period_month - 1]}
             </span>
-            <MoneyCell amount={item.amount} size="small" splitDecimals={false} className="font-semibold" />
-            <span className="w-16 shrink-0 text-right text-meta text-overdue">
+            {/* Amount — Unbounded tabular / white (Phase L money override) */}
+            <span className="tabular font-display text-[13px] font-bold text-white">
+              {formatUSD(item.amount, { decimals: 0 })}
+            </span>
+            {/* Late chip — Inter 700 / 11px / overdue */}
+            <span className="text-[11px] font-bold text-overdue">
               {item.days_overdue}d late
             </span>
           </div>
@@ -463,135 +475,206 @@ function OverdueBanner({
 // Cash flow chart — spec colours + current-month highlight
 // ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Cash-flow chart per canonical spec §8 — hand-authored inline SVG.
+ *
+ * Geometry (verbatim from spec):
+ *   W=760, H=240, PAD={l:48, r:16, t:16, b:36}
+ *   colW = innerW / 12
+ *   barW = colW * 0.32
+ *   y(v) = PAD.t + (1 − v/max) * innerH
+ *
+ * Render order:
+ *   1. 5 horizontal gridlines + right-aligned $ axis labels
+ *   2. Prior-year dashed polylines (only if compare on)
+ *   3. Current-year paired bars + per-month vertical guide if current
+ *   4. Month labels at y = H − 14
+ *
+ * Outer SVG uses `preserveAspectRatio="none"` so the chart fills the
+ * container width. Height is fixed at 240px via the `<svg height>`
+ * attribute, which means y-coords stay at native pixel size.
+ */
 function FlowChart({
   monthly,
   monthlyPrev,
-  prevYear,
   currentMonth,
-  currentMonthLabel,
   isCurrentYear,
 }: {
   monthly: MonthlyFlow[];
   monthlyPrev: MonthlyFlow[] | null;
-  prevYear: number;
-  currentMonth: number;
-  currentMonthLabel: string;
+  currentMonth: number; // 1-12
   isCurrentYear: boolean;
 }) {
-  const data = monthly.map((m, i) => {
-    const prev = monthlyPrev?.[i];
-    return {
-      month: MONTH_LABELS[m.month - 1],
-      Inflow: m.inflow,
-      Outflow: m.outflow,
-      ...(prev
-        ? {
-            [`Inflow ${prevYear}`]: prev.inflow,
-            [`Outflow ${prevYear}`]: prev.outflow,
-          }
-        : {}),
-    };
-  });
+  const W = 760;
+  const H = 240;
+  const PAD = { l: 48, r: 16, t: 16, b: 36 };
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+  const colW = innerW / 12;
+  const barW = colW * 0.32;
 
-  // Custom X-axis tick — bolds the current month, dims future months.
-  // Recharts types `x` as string | number; we coerce.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderTick = (props: any) => {
-    const x = Number(props.x) || 0;
-    const y = Number(props.y) || 0;
-    const value: string = props.payload?.value ?? "";
-    const monthIdx = MONTH_LABELS.indexOf(value);
-    const isCurrent = isCurrentYear && monthIdx === currentMonth - 1;
-    const isFuture = isCurrentYear && monthIdx > currentMonth - 1;
-    return (
-      <text
-        x={x}
-        y={y + 14}
-        textAnchor="middle"
-        className={cn(
-          "text-[11px]",
-          isCurrent && "font-semibold",
-          isFuture && "opacity-40",
-        )}
-        fill={isCurrent ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
-      >
-        {value}
-      </text>
-    );
-  };
+  // Find data max across both series; round up to a "nice" boundary so
+  // the Y-axis labels read cleanly (e.g. $118k → $120k).
+  const allValues = [
+    ...monthly.flatMap((m) => [m.inflow, m.outflow]),
+    ...(monthlyPrev ?? []).flatMap((m) => [m.inflow, m.outflow]),
+  ].filter((v) => v > 0);
+  const dataMax = allValues.length > 0 ? Math.max(...allValues) : 130000;
+  const max = niceCeil(dataMax);
+
+  const y = (v: number) => PAD.t + (1 - v / max) * innerH;
+  const cx = (i: number) => PAD.l + i * colW + colW / 2;
+  const currentMonthIdx0 = currentMonth - 1;
 
   return (
-    <div className="h-[260px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
-          <defs>
-            <linearGradient id="rc-inflow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3B82F6" />
-              <stop offset="100%" stopColor="#1A4FCC" />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-          <XAxis
-            dataKey="month"
-            tick={renderTick}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            stroke="hsl(var(--muted-foreground))"
-            tick={{ fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v: number) => formatUSDCompact(v)}
-          />
-          <Tooltip
-            cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
-            contentStyle={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: 6,
-              fontSize: 12,
-            }}
-            formatter={(v: unknown) =>
-              formatUSD(typeof v === "number" ? v : Number(v) || 0, { decimals: 2 })
-            }
-          />
-          {/* Vertical separator at current month — the "now" cursor */}
-          {isCurrentYear ? (
-            <ReferenceLine
-              x={currentMonthLabel}
-              stroke="hsl(var(--border))"
-              strokeDasharray="2 4"
+    <svg
+      width="100%"
+      height={H}
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ overflow: "visible" }}
+      role="img"
+      aria-label="Monthly cash flow"
+    >
+      <defs>
+        {/* 2-stop blue gradient per spec — 0% #3B82F6 → 100% #2563EB */}
+        <linearGradient id="bar-blue" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3B82F6" />
+          <stop offset="100%" stopColor="#2563EB" />
+        </linearGradient>
+      </defs>
+
+      {/* 1. Horizontal gridlines + Y-axis labels */}
+      {[0, 0.25, 0.5, 0.75, 1].map((g) => {
+        const yPos = PAD.t + g * innerH;
+        const value = max * (1 - g);
+        return (
+          <g key={g}>
+            <line
+              x1={PAD.l}
+              x2={W - PAD.r}
+              y1={yPos}
+              y2={yPos}
+              stroke="rgba(255,255,255,0.05)"
             />
-          ) : null}
-          <Bar dataKey="Inflow" fill="url(#rc-inflow)" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="Outflow" fill="#3a3f4b" radius={[3, 3, 0, 0]} />
-          {monthlyPrev && (
-            <>
-              <Line
-                type="monotone"
-                dataKey={`Inflow ${prevYear}`}
-                stroke="#2563EB"
-                strokeOpacity={0.55}
-                strokeDasharray="3 4"
-                strokeWidth={2}
-                dot={false}
+            <text
+              x={PAD.l - 8}
+              y={yPos + 3}
+              textAnchor="end"
+              fontSize="10"
+              fill="#6B7280"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {formatUSDCompact(value)}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* 2. Prior-year dashed polylines (only if compare on) */}
+      {monthlyPrev && monthlyPrev.length === 12 ? (
+        <>
+          <polyline
+            points={monthlyPrev.map((m, i) => `${cx(i)},${y(m.inflow)}`).join(" ")}
+            stroke="#3B82F6"
+            strokeWidth="1.4"
+            strokeDasharray="3 4"
+            strokeLinecap="round"
+            strokeOpacity="0.55"
+            fill="none"
+          />
+          <polyline
+            points={monthlyPrev.map((m, i) => `${cx(i)},${y(m.outflow)}`).join(" ")}
+            stroke="#6B7280"
+            strokeWidth="1.4"
+            strokeDasharray="3 4"
+            strokeLinecap="round"
+            strokeOpacity="0.55"
+            fill="none"
+          />
+        </>
+      ) : null}
+
+      {/* 3. Current-year paired bars + per-month vertical guide */}
+      {monthly.map((m, i) => {
+        const isCurrent = isCurrentYear && i === currentMonthIdx0;
+        const opacity = isCurrent ? 1 : 0.92;
+        const inflowY = y(m.inflow);
+        const outflowY = y(m.outflow);
+        const inflowH = Math.max(0, H - PAD.b - inflowY);
+        const outflowH = Math.max(0, H - PAD.b - outflowY);
+        return (
+          <g key={i}>
+            {/* Inflow bar — left of center, gradient fill */}
+            <rect
+              x={cx(i) - barW - 1}
+              y={inflowY}
+              width={barW}
+              height={inflowH}
+              fill="url(#bar-blue)"
+              rx="1.5"
+              opacity={opacity}
+            />
+            {/* Outflow bar — right of center, solid #3a3f4b */}
+            <rect
+              x={cx(i) + 1}
+              y={outflowY}
+              width={barW}
+              height={outflowH}
+              fill="#3a3f4b"
+              rx="1.5"
+              opacity={opacity}
+            />
+            {/* Vertical guide — only on the current month */}
+            {isCurrent ? (
+              <line
+                x1={cx(i)}
+                x2={cx(i)}
+                y1={PAD.t}
+                y2={H - PAD.b}
+                stroke="rgba(37,99,235,0.30)"
+                strokeDasharray="2 3"
               />
-              <Line
-                type="monotone"
-                dataKey={`Outflow ${prevYear}`}
-                stroke="#3a3f4b"
-                strokeOpacity={0.55}
-                strokeDasharray="3 4"
-                strokeWidth={2}
-                dot={false}
-              />
-            </>
-          )}
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+            ) : null}
+          </g>
+        );
+      })}
+
+      {/* 4. Month labels at y = H − 14 */}
+      {monthly.map((_, i) => {
+        const isCurrent = isCurrentYear && i === currentMonthIdx0;
+        return (
+          <text
+            key={i}
+            x={cx(i)}
+            y={H - 14}
+            textAnchor="middle"
+            fontSize="10.5"
+            fontWeight={isCurrent ? "600" : "500"}
+            fill={isCurrent ? "#FFFFFF" : "#6B7280"}
+            letterSpacing="0.05em"
+          >
+            {MONTH_LABELS[i]}
+          </text>
+        );
+      })}
+    </svg>
   );
+}
+
+/**
+ * Round v UP to a "nice" axis boundary one decimal place above the
+ * data magnitude. e.g.:
+ *   118420 → 120000
+ *   11833  → 12000
+ *   522400 → 600000
+ * Used for the Y-axis ceiling so $118k doesn't render against a
+ * weirdly-tall $200k axis.
+ */
+function niceCeil(v: number): number {
+  if (v <= 0) return 1000;
+  const step = Math.pow(10, Math.floor(Math.log10(v) - 0.5));
+  return Math.ceil(v / step) * step;
 }
 
 // ─────────────────────────────────────────────────────────────────────
