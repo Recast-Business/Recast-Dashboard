@@ -19,6 +19,7 @@
 --     residents      00000003-0003-0003-0003-...
 --     utilities      00000004-0004-0004-0004-...
 --     of_deals       00000005-0005-0005-0005-...
+--     rent_groups    00000006-0006-0006-0006-...
 --
 -- Run `sample-overview-cleanup.sql` to remove every seeded row in one
 -- shot. Real production data is untouched.
@@ -40,6 +41,7 @@ DELETE FROM house_utility_payments    WHERE notes = '[SEED]';
 DELETE FROM of_deals                  WHERE notes = '[SEED]';
 DELETE FROM house_utilities           WHERE notes = '[SEED]';
 DELETE FROM house_residents           WHERE notes = '[SEED]';
+DELETE FROM rent_groups               WHERE notes = '[SEED]';
 DELETE FROM vendors                   WHERE notes = '[SEED]';
 DELETE FROM creators                  WHERE notes = '[SEED]';
 
@@ -88,11 +90,18 @@ INSERT INTO vendors (id, name, kind, division, payment_method, active, notes) VA
 ON CONFLICT (id) DO NOTHING;
 
 -- ──────────────────────────────────────────────────────────────────
--- 3. HOUSE — 1 resident (Dan Mosley) for the rent overdue row
---           1 utility ("Power") for the utility overdue row
+-- 3. HOUSE — 1 rent_group (M-2 schema) + 1 resident (Dan Mosley)
+--           + 1 utility ("Power")
+-- M-2 (migration 0032) split rent into a rent_groups table — the
+-- rent_payments row carries rent_group_id (NOT NULL), not resident_id.
 -- ──────────────────────────────────────────────────────────────────
-INSERT INTO house_residents (id, name, bedroom, monthly_rent, active, notes) VALUES
-  ('00000003-0003-0003-0003-000000000001', 'Dan Mosley',  'Bedroom 3', 800,  true, '[SEED]')
+INSERT INTO rent_groups (id, label, monthly_rent, active, notes) VALUES
+  ('00000006-0006-0006-0006-000000000001', 'Dan Mosley', 800, true, '[SEED]')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO house_residents (id, name, bedroom, monthly_rent, rent_group_id, active, notes) VALUES
+  ('00000003-0003-0003-0003-000000000001', 'Dan Mosley',  'Bedroom 3', 800,
+   '00000006-0006-0006-0006-000000000001', true, '[SEED]')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO house_utilities (id, utility_name, active, notes) VALUES
@@ -249,10 +258,13 @@ VALUES
   ('00000002-0002-0002-0002-00000000000a', 2026, 4, 'overdue', 8800, 0, '[SEED]');
 
 -- House rent — Dan Mosley overdue Jul
+-- Per M-2 schema: rent_group_id is required; resident_id stays for audit.
 INSERT INTO house_rent_payments
-  (resident_id, period_year, period_month, amount, status, amount_paid, notes)
+  (rent_group_id, resident_id, period_year, period_month, amount, status, amount_paid, notes)
 VALUES
-  ('00000003-0003-0003-0003-000000000001', 2026, 6, 800, 'overdue', 0, '[SEED]');
+  ('00000006-0006-0006-0006-000000000001',
+   '00000003-0003-0003-0003-000000000001',
+   2026, 6, 800, 'overdue', 0, '[SEED]');
 
 -- House utility — Power overdue (most recent)
 INSERT INTO house_utility_payments

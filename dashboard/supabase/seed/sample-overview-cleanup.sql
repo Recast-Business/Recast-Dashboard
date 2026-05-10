@@ -29,6 +29,7 @@ DELETE FROM of_deals WHERE notes = '[SEED]';
 -- 4. Entities (no FK in)
 DELETE FROM house_utilities WHERE notes = '[SEED]';
 DELETE FROM house_residents WHERE notes = '[SEED]';
+DELETE FROM rent_groups     WHERE notes = '[SEED]';   -- M-2 schema
 DELETE FROM vendors         WHERE notes = '[SEED]';
 DELETE FROM creators        WHERE notes = '[SEED]';
 
@@ -46,6 +47,7 @@ COMMIT;
 --   UNION ALL SELECT 'house_rent',     COUNT(*) FROM house_rent_payments    WHERE notes = '[SEED]'
 --   UNION ALL SELECT 'house_util_pay', COUNT(*) FROM house_utility_payments WHERE notes = '[SEED]'
 --   UNION ALL SELECT 'house_residents',COUNT(*) FROM house_residents        WHERE notes = '[SEED]'
+--   UNION ALL SELECT 'rent_groups',    COUNT(*) FROM rent_groups            WHERE notes = '[SEED]'
 --   UNION ALL SELECT 'house_util',     COUNT(*) FROM house_utilities        WHERE notes = '[SEED]'
 --   UNION ALL SELECT 'receipts',       COUNT(*) FROM payment_receipts       WHERE notes = '[SEED]';
 --
