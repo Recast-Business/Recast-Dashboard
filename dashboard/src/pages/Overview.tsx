@@ -184,9 +184,10 @@ export function OverviewPage() {
               label="Net this month"
               icon={TrendingUp}
               amount={data.net_this_month}
+              tone="paid"
               deltaPct={netDelta?.pct}
               vs={netDelta?.vs ?? "Inflow − Outflow"}
-              sparkline={{ values: netSeries, tone: "electric" }}
+              sparkline={{ values: netSeries, tone: "paid" }}
             />
             <KpiTile
               label="Outstanding overdue"

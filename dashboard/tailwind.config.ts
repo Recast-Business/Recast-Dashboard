@@ -148,10 +148,10 @@ const config: Config = {
         // Display sizes (always Unbounded — see index.css base rule)
         h3:      ["18px", { lineHeight: "1.3",  letterSpacing: "-0.01em",  fontWeight: "700" }],
         h2:      ["24px", { lineHeight: "1.25", letterSpacing: "-0.02em",  fontWeight: "700" }],
-        // KPI-specific display size. Per spec: text-[30px] in the
-        // KPI tile recipe — slightly smaller than the page-title
-        // display (36px) so the hierarchy reads cleanly.
-        kpi:     ["30px", { lineHeight: "1.1",  letterSpacing: "-0.022em", fontWeight: "800" }],
+        // KPI value size. Bumped from 30px (canonical spec) to 36px
+        // per user direction so the financial figure dominates inside
+        // each tile. Page title remains 38px so hierarchy still reads.
+        kpi:     ["36px", { lineHeight: "1.05", letterSpacing: "-0.022em", fontWeight: "800" }],
         display: ["36px", { lineHeight: "1.1",  letterSpacing: "-0.022em", fontWeight: "800" }],
       },
     },

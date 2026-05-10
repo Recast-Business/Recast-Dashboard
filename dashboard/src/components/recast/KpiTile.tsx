@@ -1,6 +1,5 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { EyebrowLabel } from "./EyebrowLabel";
 import { MoneyCell } from "./MoneyCell";
 import { Sparkline } from "./Sparkline";
 
@@ -33,7 +32,7 @@ interface KpiTileProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "child
   label: string;
   amount: number;
   /** Lucide icon shown to the left of the eyebrow label. */
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string; strokeWidth?: number | string }>;
   /** Inline pill next to the eyebrow, e.g. { tone: "paid", text: "+12.4%" }. */
   deltaPct?: {
     tone?: "paid" | "overdue" | "muted" | "partial";
@@ -88,9 +87,17 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
       {...rest}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 text-steel" /> : null}
-          <EyebrowLabel className="truncate">{label}</EyebrowLabel>
+        <div className="flex min-w-0 items-center gap-1">
+          {/* Per user direction: the KPI label was truncating to
+              "INFLOW THIS MO…" because the canonical eyebrow (11px /
+              0.13em wide-tracked) eats too much horizontal room beside
+              the delta pill. Compact treatment here: 10px / 0.08em /
+              smaller icon — keeps the caps semantic but fits "OUTFLOW
+              THIS MONTH" in 4-up grid columns without ellipsis. */}
+          {Icon ? <Icon className="h-3 w-3 shrink-0 text-steel" strokeWidth={1.5} /> : null}
+          <span className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-steel">
+            {label}
+          </span>
         </div>
         {deltaPct ? (
           <span
