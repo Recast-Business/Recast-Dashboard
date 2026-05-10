@@ -1,9 +1,9 @@
 import { NavLink } from "react-router-dom";
 import {
+  Calculator,
   DollarSign,
   FileText,
   LayoutDashboard,
-  LayoutGrid,
   LogOut,
   Search,
   Star,
@@ -27,7 +27,10 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
   { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
-  { to: "/campaigns", label: "Campaigns", icon: LayoutGrid, allow: ["admin", "partner", "finance", "operator"] },
+  // M-5: Campaigns renamed → Calculator. Same allowlist; the page hosts
+  // OnlyFans / Telegram / Deals / Ad Overlay sub-tabs and consolidates
+  // all per-platform performance math.
+  { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "partner", "finance", "operator"] },
   { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner", "operator"] },
   { to: "/roster", label: "Roster", icon: Users, allow: ["admin", "partner", "finance", "operator"] },
   { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"] },

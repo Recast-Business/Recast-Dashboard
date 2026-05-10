@@ -477,10 +477,17 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
 }
 
 function Stat({ label, value, emphasised }: { label: string; value: string; emphasised?: boolean }) {
+  // M-5: enlarged for at-a-glance reads (Frazier's request).
   return (
     <div className="flex flex-col">
-      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
-      <span className={emphasised ? "text-lg font-semibold tabular-nums" : "text-base tabular-nums"}>
+      <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span
+        className={
+          emphasised
+            ? "text-2xl font-semibold tabular-nums"
+            : "text-xl font-medium tabular-nums"
+        }
+      >
         {value}
       </span>
     </div>

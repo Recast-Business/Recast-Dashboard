@@ -5,6 +5,7 @@ import { LoginPage } from "@/pages/Login";
 import { UnauthorizedPage } from "@/pages/Unauthorized";
 import { FinancePage } from "@/pages/Finance";
 import { OverviewPage } from "@/pages/Overview";
+import { CalculatorPage } from "@/pages/Calculator";
 import { CampaignsPage } from "@/pages/Campaigns";
 import { RosterPage } from "@/pages/Roster";
 import { LeadsPage } from "@/pages/Leads";
@@ -31,6 +32,17 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "finance"]}>
             <OverviewPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        // M-5: Calculator owns the math (renamed from Campaigns in nav).
+        // Original /campaigns route stays alive below for any inbound links
+        // that haven't migrated yet.
+        path: "calculator",
+        element: (
+          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+            <CalculatorPage />
           </ProtectedRoute>
         ),
       },

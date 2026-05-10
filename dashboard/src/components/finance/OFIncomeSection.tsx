@@ -344,10 +344,19 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
 }
 
 function Stat({ label, value, emphasised }: { label: string; value: string; emphasised?: boolean }) {
+  // M-5: bumped sizes — Frazier asked for the key numbers to be easier to
+  // read at a glance. Was text-base / text-lg; now text-xl / text-2xl
+  // emphasised, with the label at xs.
   return (
     <div className="flex flex-col">
-      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
-      <span className={emphasised ? "text-lg font-semibold tabular-nums" : "text-base tabular-nums"}>
+      <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span
+        className={
+          emphasised
+            ? "text-2xl font-semibold tabular-nums"
+            : "text-xl font-medium tabular-nums"
+        }
+      >
         {value}
       </span>
     </div>
