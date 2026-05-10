@@ -85,7 +85,7 @@ export function RosterPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-h2 tracking-tight">Roster</h1>
+        <h1 className="text-h2">Roster</h1>
         <p className="text-sm text-muted-foreground">
           Creators signed to Recast. These appear in Campaigns and Briefs by
           default.

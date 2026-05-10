@@ -18,7 +18,7 @@ export function CreatorProfilePage() {
         </Link>
       </div>
       <div>
-        <h1 className="text-h2 tracking-tight">Creator profile</h1>
+        <h1 className="text-h2">Creator profile</h1>
       </div>
       {id && <CreatorDetailBody creatorId={id} role={role} showFullLink={false} />}
     </div>

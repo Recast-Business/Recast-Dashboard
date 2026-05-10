@@ -67,7 +67,7 @@ export function BriefBoard() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-h2 tracking-tight">Brief Builder</h1>
+          <h1 className="text-h2">Brief Builder</h1>
           <p className="text-sm text-muted-foreground">
             Move a card to Exclusive to auto-create a campaign record.
           </p>

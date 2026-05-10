@@ -34,7 +34,7 @@ export function CalculatorPage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-h2 tracking-tight">Calculator</h1>
+          <h1 className="text-h2">Calculator</h1>
           <p className="text-sm text-muted-foreground">
             Performance and revenue math. Enter raw numbers per platform —
             gross / net / commission splits compute automatically and feed
@@ -90,7 +90,7 @@ function DealsPlaceholder() {
       <div className="flex items-start gap-3">
         <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
         <div>
-          <h3 className="text-h3 tracking-tight">One-off deal calculator</h3>
+          <h3 className="text-h3">One-off deal calculator</h3>
           <p className="mt-1 text-muted-foreground">
             Coming next iteration. This tab will host the math for one-off brand
             deals + project work that don't fit the recurring monthly grids:

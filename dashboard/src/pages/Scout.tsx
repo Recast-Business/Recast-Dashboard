@@ -441,7 +441,7 @@ export function ScoutPage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-h2 tracking-tight">Scout</h1>
+          <h1 className="text-h2">Scout</h1>
           <p className="text-sm text-muted-foreground">
             Live Twitch and Kick scouting — scrapes current streams that match
             your filters.

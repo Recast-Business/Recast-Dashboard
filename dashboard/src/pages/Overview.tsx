@@ -111,9 +111,10 @@ export function OverviewPage() {
       {/* ── 2. Header row ──────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-display font-extrabold tracking-tight">
-            Overview
-          </h1>
+          {/* Tracking is encoded in the text-display token (-0.022em).
+              No tracking-tight, no font-extrabold, no font-display —
+              the size token + base CSS rule handle all of those. */}
+          <h1 className="text-display">Overview</h1>
           <p className="mt-1 text-small text-steel">
             What&apos;s coming in, what&apos;s going out, what&apos;s overdue.
             Click any number to drill in.

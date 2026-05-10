@@ -101,7 +101,7 @@ export function EFuseIncomeSummary({ year }: Props) {
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-h3 tracking-tight">Overlay income</h2>
+          <h2 className="text-h3">Overlay income</h2>
           <p className="text-sm text-muted-foreground">
             Per-campaign performance for {year}. Campaigns themselves are managed on{" "}
             <Link to="/campaigns" className="underline hover:text-foreground">

@@ -152,7 +152,7 @@ export function LeadsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-h2 tracking-tight">Leads</h1>
+        <h1 className="text-h2">Leads</h1>
         <p className="text-sm text-muted-foreground">
           Scouted and contacted creators who aren't signed to Recast yet. Promote
           to the Roster when a deal is agreed.

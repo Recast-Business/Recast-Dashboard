@@ -22,7 +22,7 @@ export function FinancePage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-h2 tracking-tight">Finance</h1>
+          <h1 className="text-h2">Finance</h1>
           <p className="text-sm text-muted-foreground">
             Vendors, talents, and household ledgers across Recast. Year-by-year
             payment grid with full audit trail on banking access.

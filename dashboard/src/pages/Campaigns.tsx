@@ -40,7 +40,7 @@ export function CampaignsPage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-h2 tracking-tight">Campaigns</h1>
+          <h1 className="text-h2">Campaigns</h1>
           <p className="text-sm text-muted-foreground">
             eFuse / brand campaigns. Per-creator deals (CPM, flat, hybrid) with
             monthly performance tracking.
