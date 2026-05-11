@@ -7,6 +7,7 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Search,
   Star,
   Store,
@@ -65,6 +66,11 @@ const SECTIONS: NavSection[] = [
       { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
       { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
       { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "partner", "finance", "operator"] },
+      // Round 3 follow-up: Campaigns route already existed but was
+      // sidebar-orphaned (only reachable from the Deals-tab pointer
+      // on /calculator). Surfaced here for all four roles per the
+      // ask — brand-deal accounting is something everyone touches.
+      { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
     ],
   },
   {
