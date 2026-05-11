@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
 import {
+  Building2,
   Calculator,
   ChevronDown,
   DollarSign,
   FileText,
-  Home,
   LayoutDashboard,
   LogOut,
   Search,
@@ -23,15 +23,20 @@ import { Avatar } from "@/components/recast";
 import { useNavCounts } from "@/hooks/useNavCounts";
 
 /**
- * Phase L (C1.2a): sidebar matched to the Claude Design mockup.
+ * Phase L → Round 3A: sidebar IA restructured per Gustavo's feedback.
  *
- * Three sections:
- *   1. WORKSPACE — Overview / Finance / Calculator / Roster
- *   2. PIPELINE  — Brief Builder / Leads / Potential / Scout
- *   3. LEDGERS   — Vendors / Frazier's House
+ * Four sections (Roster removed from Workspace; promoted into Ledgers
+ * as "Talents" — the new CRM-style talent profile registry that
+ * replaces auto-population of Finance grids from signed creators):
  *
- * Vendors and Frazier's House currently route to /finance (the existing
- * tabbed Finance page). When C4/C5 ship they'll get their own routes.
+ *   1. WORKSPACE   — Overview / Finance / Calculator
+ *   2. PIPELINE    — Brief Builder / Leads / Potential / Scout
+ *   3. LEDGERS     — Vendors / Talents          (the two main rosters
+ *                    that feed everything else: finance, calculator,
+ *                    invoices, payment tracking, overview)
+ *   4. PROPERTIES  — 7419                       (formerly "Frazier's
+ *                    House"; renamed so it reads as its own section,
+ *                    not a sub-entry of someone's name)
  *
  * Footer:
  *   • User chip — avatar + email + role pill, chevron-down (TODO: menu)
@@ -59,7 +64,6 @@ const SECTIONS: NavSection[] = [
       { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
       { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
       { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "partner", "finance", "operator"] },
-      { to: "/roster", label: "Roster", icon: Users, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
     ],
   },
   {
@@ -74,9 +78,23 @@ const SECTIONS: NavSection[] = [
   {
     header: "Ledgers",
     items: [
-      // C4 + C5: Both Ledgers entries are now full top-level routes.
+      // Round 3A: Talents is the new CRM-style talent registry (was
+      // "Roster" in Workspace; promoted into Ledgers so it sits next
+      // to its sibling, Vendors). Same /talents route the rest of the
+      // platform will pivot to in R3C. /roster still works as an
+      // alias for any inbound links that haven't migrated yet.
       { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
-      { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
+      { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
+    ],
+  },
+  {
+    header: "Properties",
+    items: [
+      // Round 3A: Frazier's House out of Ledgers (it's not a
+      // counterparty), renamed to "7419" per Gustavo so it reads as a
+      // standalone property entity. Group will grow if Recast picks
+      // up another address.
+      { to: "/house", label: "7419", icon: Building2, allow: ["admin", "partner", "finance"] },
     ],
   },
 ];

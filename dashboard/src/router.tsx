@@ -73,6 +73,19 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      // Round 3A: /talents is the canonical route for the Talent Ledger
+      // (Gustavo's rename). /roster stays alive as an alias so any
+      // inbound links / browser bookmarks keep working. R3C replaces
+      // RosterPage here with the full CRM (tiered commissions,
+      // agreement links, multi-platform handles per profile).
+      {
+        path: "talents",
+        element: (
+          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+            <RosterPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "leads",
         element: (

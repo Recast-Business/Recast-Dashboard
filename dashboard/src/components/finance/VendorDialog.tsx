@@ -139,6 +139,11 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       notes: form.notes?.trim() || null,
       username_handle: form.username_handle?.trim() || null,
       nda_url: form.nda_url?.trim() || null,
+      // Round 3A (Gustavo): kind="vendor" rows have no Division. The
+      // form already hides the field for vendors, but legacy rows can
+      // still carry stale division values. Force-null on save so the
+      // data converges with the UI.
+      division: defaultKind === "vendor" ? null : form.division,
     };
     try {
       if (vendor) {
