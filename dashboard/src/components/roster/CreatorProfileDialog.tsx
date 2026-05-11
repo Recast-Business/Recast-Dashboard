@@ -56,6 +56,20 @@ interface CreatorMinimal {
   > | null;
   /** Round 3 (0034): map of platform slug → agreement URL. */
   agreement_links?: Record<string, string> | null;
+  /** Round 3 Q1+Q7 (migration 0035): canonical tier column. Each
+   *  platform array ascends by threshold; the last entry has
+   *  threshold:null meaning "and above". Read here as the future
+   *  source of truth — commit 2 (calc rewrite) flips writes off the
+   *  legacy column onto this one. */
+  commission_tiers?: Record<
+    string,
+    Array<{ threshold: number | null; pct: number }>
+  > | null;
+  /** Round 3 Q1 (migration 0035): TRUE = legacy cliff math for this
+   *  creator. FALSE / undefined = progressive (default). The dialog
+   *  surfaces this as a "Legacy cliff math" toggle for grandfathered
+   *  contracts. */
+  commission_uses_cliff?: boolean | null;
 }
 
 interface Props {

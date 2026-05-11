@@ -86,6 +86,8 @@ interface LedgerRow {
   > | null;
   agreement_links: Record<string, string> | null;
   commission_tiers: Record<string, unknown> | null;
+  /** Round 3 Q1+Q7 (migration 0035): legacy cliff math toggle. */
+  commission_uses_cliff?: boolean | null;
 }
 
 /** Slugs that surface as agreement slots in CreatorProfileDialog. */

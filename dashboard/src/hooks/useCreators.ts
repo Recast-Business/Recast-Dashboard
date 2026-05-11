@@ -13,10 +13,12 @@ export function useCreators(filter: CreatorFilter = "all") {
       let q = supabase
         .from("creators")
         .select(
-          // Round 3 (0034): agreement_links + commission_tiers added at
-          // the tail. Both jsonb, default '{}', so existing rows return
-          // empty objects and the UI gracefully shows empty state.
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers",
+          // Round 3 (0034): agreement_links + commission_tiers.
+          // Round 3 (0035 — Q1+Q7 cliff toggle + tier migration):
+          // commission_uses_cliff bool. False (default) = progressive
+          // math, true = legacy cliff math for grandfathered deals.
+          // The calc engine reads this per-creator and switches mode.
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
@@ -234,6 +236,18 @@ export interface CreatorProfilePatch {
    *  "no agreement on file yet" — the talent profile UI shows them as
    *  empty input rows with no Open button. */
   agreement_links?: Record<string, string>;
+  /** Round 3 Q1+Q7 (migration 0035): canonical tier shape. Each
+   *  platform's array ascends by threshold; the last entry has
+   *  threshold:null meaning "and above". Progressive math by default;
+   *  cliff when commission_uses_cliff is true. */
+  commission_tiers?: Record<
+    string,
+    Array<{ threshold: number | null; pct: number }>
+  >;
+  /** Round 3 Q1 (migration 0035): TRUE = legacy cliff math for this
+   *  creator (whole month at the highest reached tier's pct). FALSE
+   *  = progressive (each tier bills its own slice). */
+  commission_uses_cliff?: boolean;
   /** Allow the dialog to also tweak the everyday fields. */
   name?: string;
   country?: string | null;
