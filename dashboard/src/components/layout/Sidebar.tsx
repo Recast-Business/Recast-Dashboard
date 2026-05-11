@@ -11,6 +11,7 @@ import {
   Search,
   Star,
   Store,
+  UserCheck,
   UserSearch,
   Users,
 } from "lucide-react";
@@ -24,20 +25,28 @@ import { Avatar } from "@/components/recast";
 import { useNavCounts } from "@/hooks/useNavCounts";
 
 /**
- * Phase L → Round 3A: sidebar IA restructured per Gustavo's feedback.
+ * Phase L → Round 3 (multiple iterations) sidebar IA.
  *
- * Four sections (Roster removed from Workspace; promoted into Ledgers
- * as "Talents" — the new CRM-style talent profile registry that
- * replaces auto-population of Finance grids from signed creators):
+ * Roster + Talents split two ways across two sections — same signed-
+ * creator data, two lenses, two audiences:
  *
- *   1. WORKSPACE   — Overview / Finance / Calculator
- *   2. PIPELINE    — Brief Builder / Leads / Potential / Scout
- *   3. LEDGERS     — Vendors / Talents          (the two main rosters
- *                    that feed everything else: finance, calculator,
- *                    invoices, payment tracking, overview)
- *   4. PROPERTIES  — 7419                       (formerly "Frazier's
- *                    House"; renamed so it reads as its own section,
- *                    not a sub-entry of someone's name)
+ *   • /roster  (PIPELINE)  — operational lens: handles, CCV,
+ *                            sign/unsign, country, tier. All roles
+ *                            (admin / partner / finance / operator).
+ *                            Scout's tool, also surfaced to partners
+ *                            like Harry for general directory use.
+ *   • /talents (LEDGERS)   — CRM/financial lens: legal name, address,
+ *                            commission tiers, agreement URLs,
+ *                            completeness audit. Admin + finance
+ *                            ONLY (Gustavo's invoice-prep workflow);
+ *                            partner + operator are blocked at both
+ *                            the route and the sidebar entry.
+ *
+ * Sections:
+ *   1. WORKSPACE  — Overview / Finance / Calculator / Campaigns
+ *   2. PIPELINE   — Brief Builder / Leads / Potential / Scout / Roster
+ *   3. LEDGERS    — Vendors / Talents
+ *   4. (headerless) Frazier's House
  *
  * Footer:
  *   • User chip — avatar + email + role pill, chevron-down (TODO: menu)
@@ -80,18 +89,25 @@ const SECTIONS: NavSection[] = [
       { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"], badge: "leads" },
       { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"], badge: "potential" },
       { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
+      // Round 3 follow-up (Gustavo + Harry split): Roster is the
+      // OPERATIONAL lens on signed creators — handles, CCV,
+      // sign/unsign, tier. All roles see it. The Talents entry
+      // under LEDGERS below is the CRM/financial lens (legal name,
+      // address, commission tiers, agreements) and is restricted
+      // to admin + finance.
+      { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
     ],
   },
   {
     header: "Ledgers",
     items: [
-      // Round 3A: Talents is the new CRM-style talent registry (was
-      // "Roster" in Workspace; promoted into Ledgers so it sits next
-      // to its sibling, Vendors). Same /talents route the rest of the
-      // platform will pivot to in R3C. /roster still works as an
-      // alias for any inbound links that haven't migrated yet.
       { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
-      { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
+      // Round 3 follow-up: Talents is the CRM/financial lens. Hides
+      // from partner + operator roles because it surfaces legal
+      // name, business name, address, tax-ID status, commission
+      // tiers and agreement URLs — Gustavo's invoice-prep workflow.
+      // Non-finance roles use /roster instead (under Pipeline).
+      { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "finance"] },
     ],
   },
   {

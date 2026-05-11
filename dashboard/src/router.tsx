@@ -74,15 +74,18 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      // Round 3 C.2: /talents now renders TalentLedgerPage — the CRM
-      // lens on signed creators (contact, legal, address, commission
-      // structure, signed agreements, completeness audit). /roster
-      // keeps the operational lens (twitch/kick handles, CCV,
-      // sign/unsign) so Scout's workflow is unaffected.
+      // Round 3 C.2 + follow-up: /talents renders TalentLedgerPage —
+      // the CRM/financial lens on signed creators (contact, legal,
+      // address, commission tiers, signed agreements, completeness
+      // audit). Restricted to admin + finance because the page
+      // surfaces sensitive payment-prep data (legal name, business
+      // name, address, tax-ID indicator, agreement URLs). All other
+      // roles use /roster (Pipeline) for the operational lens
+      // (twitch/kick handles, CCV, sign/unsign).
       {
         path: "talents",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+          <ProtectedRoute allow={["admin", "finance"]}>
             <TalentLedgerPage />
           </ProtectedRoute>
         ),
