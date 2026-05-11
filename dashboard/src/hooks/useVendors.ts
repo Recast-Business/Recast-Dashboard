@@ -59,6 +59,8 @@ export interface VendorInput {
   username_handle?: string | null;
   nda_signed?: boolean;
   nda_url?: string | null;
+  // Round 3 (0034): vendor service description
+  service_provided?: string | null;
 }
 
 export function useAddVendor() {

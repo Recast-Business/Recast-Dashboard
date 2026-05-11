@@ -13,7 +13,10 @@ export function useCreators(filter: CreatorFilter = "all") {
       let q = supabase
         .from("creators")
         .select(
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform",
+          // Round 3 (0034): agreement_links + commission_tiers added at
+          // the tail. Both jsonb, default '{}', so existing rows return
+          // empty objects and the UI gracefully shows empty state.
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);

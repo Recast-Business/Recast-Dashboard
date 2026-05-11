@@ -35,6 +35,70 @@ export type CampaignStatusV2 =
 export type CommissionBasis = "gross" | "net";
 
 // ─────────────────────────────────────────────────────────────────────
+// Round 3 (Gustavo): Talent profile — agreement links + tiered commission
+// ─────────────────────────────────────────────────────────────────────
+
+/** Open-ended platform slug used as a key in agreement_links + commission_tiers. */
+export type TalentPlatform = "onlyfans" | "telegram" | "overlay" | "deal" | "other";
+
+/**
+ * A single commission tier (per platform). Tiers ascend by threshold;
+ * the last tier in the array should have threshold:null (= "and above").
+ * Progressive — each tier applies to its slice only (income-tax-bracket style).
+ *
+ * Example single-rate: [{ threshold: null, pct: 25 }]
+ * Example tiered:      [{ threshold: 100000, pct: 25 }, { threshold: null, pct: 20 }]
+ */
+export interface CommissionTier {
+  /** Dollar threshold this tier ends at (inclusive). null = applies forever. */
+  threshold: number | null;
+  /** Commission percentage applied to the slice in this tier. */
+  pct: number;
+}
+
+/** Map of platform → tier list. Empty object means "use legacy single-rate commission_pct_by_platform". */
+export type CommissionTiers = Partial<Record<TalentPlatform, CommissionTier[]>>;
+
+/** Map of platform → agreement URL (Google Drive / Dropbox / etc). */
+export type AgreementLinks = Partial<Record<TalentPlatform, string>>;
+
+/**
+ * Compute Recast's commission for a given platform + gross revenue using
+ * the talent's tier table. Progressive: each tier applies only to the slice
+ * of revenue inside its threshold.
+ *
+ *   commissionForTiers([{threshold:100000, pct:25}, {threshold:null, pct:20}], 150000)
+ *     → 100000 * 0.25 + 50000 * 0.20 = 25000 + 10000 = 35000
+ *
+ *   commissionForTiers([{threshold:null, pct:25}], 50000)
+ *     → 50000 * 0.25 = 12500
+ *
+ * If tiers is undefined/empty, returns 0 (caller should fall back to the
+ * legacy commission_pct_by_platform flat shape).
+ */
+export function commissionForTiers(tiers: CommissionTier[] | undefined, gross: number): number {
+  if (!tiers || tiers.length === 0 || gross <= 0) return 0;
+  const sorted = [...tiers].sort((a, b) => {
+    if (a.threshold === null) return 1;
+    if (b.threshold === null) return -1;
+    return a.threshold - b.threshold;
+  });
+  let remaining = gross;
+  let prevThreshold = 0;
+  let total = 0;
+  for (const tier of sorted) {
+    if (remaining <= 0) break;
+    const sliceEnd = tier.threshold === null ? Infinity : tier.threshold;
+    const sliceWidth = sliceEnd - prevThreshold;
+    const slice = Math.min(remaining, sliceWidth);
+    total += slice * (tier.pct / 100);
+    remaining -= slice;
+    prevThreshold = sliceEnd;
+  }
+  return total;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Vendors / Talents / Banking
 // ─────────────────────────────────────────────────────────────────────
 
@@ -56,6 +120,10 @@ export interface Vendor {
    *  for this on every vendor; the URL is optional supporting evidence. */
   nda_signed: boolean;
   nda_url: string | null;
+  /** Round 3 (0034): short description of what this vendor does for Recast,
+   *  e.g. "Streaming infra", "Legal — talent agreements". Human-facing only;
+   *  not used in any calculation. */
+  service_provided: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
