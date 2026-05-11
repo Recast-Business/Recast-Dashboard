@@ -29,7 +29,7 @@ import {
 import { useCreators } from "@/hooks/useCreators";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { TalentInvoice } from "@/types/finance";
-import { cn, formatUSD } from "@/lib/utils";
+import { cn, formatUSD, isMonthOpen } from "@/lib/utils";
 
 /**
  * Phase M-6: Add / edit a talent invoice.
@@ -127,9 +127,22 @@ export function TalentInvoiceDialog({
 
   const submitting = add.isPending || update.isPending;
 
+  // R3D.2 (Gustavo): when creating a NEW invoice, the chosen period
+  // must be the current month or later. Past months are locked with
+  // no admin override. Editing an existing invoice is unaffected —
+  // the period selects are already disabled for edits, and we don't
+  // want to retroactively block fixing typos on real historical rows.
+  const periodLocked = !invoice && !isMonthOpen(year, month);
+
   async function onSave() {
     if (!creatorId) {
       toast.error("Pick a creator from the roster.");
+      return;
+    }
+    if (periodLocked) {
+      toast.error(
+        `${MONTH_NAMES[month - 1]} ${year} is closed. Past months can't be back-dated — pick the current month or later.`,
+      );
       return;
     }
     const num = Number(amount);
@@ -240,6 +253,15 @@ export function TalentInvoiceDialog({
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
+          {periodLocked ? (
+            <div className="rounded-md border border-overdue/40 bg-overdue/10 px-3 py-2 text-[12px] text-overdue">
+              <strong className="font-semibold">Closed month.</strong>{" "}
+              {MONTH_NAMES[month - 1]} {year} is in the past and can't accept
+              new invoices. Past months are locked to keep the ledger
+              immutable — pick the current month or later.
+            </div>
+          ) : null}
+
           {/* Creator + period — locked when editing so we don't accidentally
               shift an invoice between creators or months. */}
           <div className="grid grid-cols-3 gap-3">
@@ -433,7 +455,7 @@ export function TalentInvoiceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={submitting}>
+          <Button onClick={onSave} disabled={submitting || periodLocked}>
             {submitting ? "Saving…" : invoice ? "Save changes" : "Add invoice"}
           </Button>
         </DialogFooter>

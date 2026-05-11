@@ -513,6 +513,12 @@ function FlowChart({
   const colW = innerW / 12;
   const barW = colW * 0.32;
 
+  // Round 3D.3: hover tooltip — when the user hovers any month column,
+  // surface the exact $ values for inflow / outflow (+ prior year if
+  // compare is on). Fixes the C1.8 regression where the Recharts
+  // built-in tooltip went away during the raw-SVG rewrite.
+  const [hovered, setHovered] = React.useState<number | null>(null);
+
   // Find data max across both series; round up to a "nice" boundary so
   // the Y-axis labels read cleanly (e.g. $118k → $120k).
   const allValues = [
@@ -526,7 +532,18 @@ function FlowChart({
   const cx = (i: number) => PAD.l + i * colW + colW / 2;
   const currentMonthIdx0 = currentMonth - 1;
 
+  // Helper for the tooltip's horizontal position. preserveAspectRatio
+  // ="none" means the viewBox stretches with the container; converting
+  // an SVG x-coord to a container percentage is just x / W.
+  const colCenterPct = (i: number) => (cx(i) / W) * 100;
+
+  const hoveredInflow = hovered !== null ? monthly[hovered]?.inflow ?? 0 : 0;
+  const hoveredOutflow = hovered !== null ? monthly[hovered]?.outflow ?? 0 : 0;
+  const hoveredPrevInflow = hovered !== null && monthlyPrev ? monthlyPrev[hovered]?.inflow ?? 0 : 0;
+  const hoveredPrevOutflow = hovered !== null && monthlyPrev ? monthlyPrev[hovered]?.outflow ?? 0 : 0;
+
   return (
+   <div className="relative">
     <svg
       width="100%"
       height={H}
@@ -658,7 +675,74 @@ function FlowChart({
           </text>
         );
       })}
+
+      {/* 5. Invisible per-column hit-test rects for the tooltip.
+          Painted last so they sit ON TOP of the bars and absorb hover
+          events anywhere in the column — not just over the bars. */}
+      {monthly.map((_, i) => (
+        <rect
+          key={`hit-${i}`}
+          x={PAD.l + i * colW}
+          y={PAD.t}
+          width={colW}
+          height={innerH}
+          fill="transparent"
+          style={{ cursor: "pointer" }}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+        />
+      ))}
     </svg>
+
+    {/* Floating tooltip — only when a column is hovered. Positioned in
+        container percentage so it tracks the column whatever the SVG
+        is scaled to. Hairline border, no shadow (per spec §11
+        "transient surfaces" exception is for popovers/dropdowns but we
+        keep the discipline). */}
+    {hovered !== null ? (
+      <div
+        className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 rounded-md border bg-card px-2.5 py-1.5 text-[11px] leading-tight"
+        style={{ left: `${colCenterPct(hovered)}%` }}
+      >
+        <div className="text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
+          {MONTH_LABELS[hovered]}
+          {isCurrentYear && hovered === currentMonthIdx0 ? (
+            <span className="ml-1 text-electric">·</span>
+          ) : null}
+        </div>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-1.5 text-electric">
+            <span className="h-2 w-2 rounded-sm bg-electric" />
+            Inflow
+          </span>
+          <span className="tabular font-display font-bold text-white">
+            {formatUSDCompact(hoveredInflow)}
+          </span>
+        </div>
+        <div className="mt-0.5 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-1.5 text-steel">
+            <span className="h-2 w-2 rounded-sm bg-[#3a3f4b]" />
+            Outflow
+          </span>
+          <span className="tabular font-display font-bold text-white">
+            {formatUSDCompact(hoveredOutflow)}
+          </span>
+        </div>
+        {monthlyPrev ? (
+          <div className="mt-1.5 border-t border-rule pt-1.5 text-[10px] text-steel">
+            <div className="flex items-center justify-between gap-3">
+              <span>2025 in</span>
+              <span className="tabular">{formatUSDCompact(hoveredPrevInflow)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span>2025 out</span>
+              <span className="tabular">{formatUSDCompact(hoveredPrevOutflow)}</span>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    ) : null}
+   </div>
   );
 }
 

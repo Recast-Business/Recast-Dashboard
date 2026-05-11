@@ -47,3 +47,23 @@ export function formatDate(d: string | Date | null | undefined): string {
     year: "numeric",
   });
 }
+
+/**
+ * Round 3D.2 (Gustavo): strict past-month blocking. A month is "open"
+ * if and only if it's the current calendar month (or a future month
+ * inside the current/future year). Past months — including last
+ * month — are LOCKED with no admin override. The intent is to stop
+ * accidental back-dated entries from drifting the historical record.
+ *
+ * `year` + `month` are calendar values (month is 1-based, 1..12).
+ *
+ * Returns true if the month is open for new entries.
+ */
+export function isMonthOpen(year: number, month: number): boolean {
+  const now = new Date();
+  const ny = now.getFullYear();
+  const nm = now.getMonth() + 1; // 1..12
+  if (year > ny) return true;
+  if (year < ny) return false;
+  return month >= nm;
+}

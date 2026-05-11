@@ -9,7 +9,7 @@ import { useCreators } from "@/hooks/useCreators";
 import { useTalentInvoicesByYear } from "@/hooks/useTalentInvoices";
 import { TalentInvoiceDialog } from "@/components/finance/TalentInvoiceDialog";
 import type { PaymentStatusV2, TalentInvoice } from "@/types/finance";
-import { cn, formatUSD } from "@/lib/utils";
+import { cn, formatUSD, isMonthOpen } from "@/lib/utils";
 
 /**
  * Phase L (C2): Talent Paying Us — invoice grid.
@@ -41,8 +41,22 @@ interface Props {
 }
 
 export function TalentInvoiceGrid({ year }: Props) {
-  const { data: creators, isLoading: creatorsLoading } = useCreators("signed");
+  // Round 3D.1 (Gustavo): the grid no longer auto-populates from
+  // `useCreators("signed")`. Instead it derives the set of creator
+  // rows from invoices that actually exist for the year — so the
+  // page starts COMPLETELY EMPTY until you add a real invoice via
+  // "+ Add invoice". `useCreators` is still loaded so the dialog's
+  // creator picker can offer the full Talent Ledger.
+  const { data: allCreators, isLoading: creatorsLoading } = useCreators("signed");
   const { data: invoiceMap, isLoading: invoicesLoading } = useTalentInvoicesByYear(year);
+
+  // The visible-row source: only creators with ≥1 invoice in this
+  // year. Empty until invoices land.
+  const creators = React.useMemo(() => {
+    if (!allCreators || !invoiceMap) return [];
+    const trackedIds = new Set(Object.keys(invoiceMap));
+    return allCreators.filter((c) => trackedIds.has(c.id));
+  }, [allCreators, invoiceMap]);
 
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
@@ -197,9 +211,10 @@ export function TalentInvoiceGrid({ year }: Props) {
         <Skeleton className="h-[420px] w-full rounded-lg" />
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
-          {creators?.length
-            ? "No creators match that search."
-            : "No signed creators yet — promote them from Leads on the Roster page."}
+          {creators.length === 0
+            ? "No invoices logged yet for " + year +
+              ". Click “Add invoice” to record one — the creator will appear here automatically."
+            : "No matches for the current filter."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
@@ -278,6 +293,12 @@ export function TalentInvoiceGrid({ year }: Props) {
                         const inv = cells[month];
                         const isFuture =
                           currentMonthIdx !== null && i > currentMonthIdx;
+                        // R3D.2: closed months (any month strictly
+                        // before the current calendar month) are
+                        // locked for NEW entries. Existing invoices
+                        // remain clickable for view/edit — only the
+                        // "+" placeholder is disabled.
+                        const monthOpen = isMonthOpen(year, month);
                         return (
                           <td key={month} className="p-1 align-middle">
                             {inv ? (
@@ -291,12 +312,18 @@ export function TalentInvoiceGrid({ year }: Props) {
                             ) : (
                               <button
                                 type="button"
+                                disabled={!monthOpen}
                                 onClick={() => openCell(c.id, month)}
                                 className={cn(
                                   "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
                                   isFuture && "opacity-50",
+                                  !monthOpen && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
                                 )}
-                                title={`Add ${MONTHS[month - 1]} ${year} invoice for ${c.name}`}
+                                title={
+                                  !monthOpen
+                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked to keep the ledger immutable.`
+                                    : `Add ${MONTHS[month - 1]} ${year} invoice for ${c.name}`
+                                }
                               >
                                 +
                               </button>

@@ -22,6 +22,7 @@ import {
 import { useUpsertVendorPayment } from "@/hooks/useVendorPayments";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { VendorPayment, PaymentStatusV2 } from "@/types/finance";
+import { isMonthOpen } from "@/lib/utils";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -58,7 +59,18 @@ export function PaymentCellDialog({
     setNotes(existing?.notes ?? "");
   }, [open, existing]);
 
+  // R3D.2: lock creates for closed months. Editing an existing payment
+  // row stays allowed so typo-fixes on historical entries still work,
+  // matching TalentInvoiceDialog semantics.
+  const periodLocked = !existing && !isMonthOpen(year, month);
+
   async function onSave() {
+    if (periodLocked) {
+      toast.error(
+        `${MONTH_NAMES[month - 1]} ${year} is closed. Past months can't be back-dated — pick the current month or later.`,
+      );
+      return;
+    }
     try {
       await upsert.mutateAsync({
         vendor_id: vendorId,
@@ -88,6 +100,15 @@ export function PaymentCellDialog({
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
+          {periodLocked ? (
+            <div className="rounded-md border border-overdue/40 bg-overdue/10 px-3 py-2 text-[12px] text-overdue">
+              <strong className="font-semibold">Closed month.</strong>{" "}
+              {MONTH_NAMES[month - 1]} {year} is in the past and can't accept
+              new payments. Past months are locked to keep the ledger
+              immutable.
+            </div>
+          ) : null}
+
           <div className="grid gap-1.5">
             <Label>Status</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
@@ -163,7 +184,7 @@ export function PaymentCellDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={upsert.isPending}>
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={upsert.isPending}>
+          <Button onClick={onSave} disabled={upsert.isPending || periodLocked}>
             {upsert.isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

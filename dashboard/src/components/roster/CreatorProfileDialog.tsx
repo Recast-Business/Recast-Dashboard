@@ -248,7 +248,7 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
 
           <Section
             title="Commission per platform"
-            help="Single % for any gross, or add tiers for cliff-style thresholds (e.g. 30% under $10K → 25% over $10K — once you cross the threshold the higher tier applies to the WHOLE month)."
+            help="Single % for any gross, or add tiers for progressive thresholds (income-tax-bracket style: 25% on the first $100K + 20% on anything above = $35K at $150K gross — each tier applies to its slice only, not the whole month)."
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {PLATFORMS.map((p) => (
@@ -541,8 +541,9 @@ function CommissionEditor({
             <Plus className="mr-1 h-3 w-3" /> Add tier
           </Button>
           <p className="text-[10px] text-muted-foreground">
-            Cliff: once monthly gross ≥ a threshold, that tier's % applies to the
-            entire month (not just the amount above the threshold).
+            Progressive: each tier&apos;s % applies only to its slice of gross
+            (the part between this threshold and the next). Income-tax-bracket
+            style — Calculator math (R3E) will use this rule.
           </p>
         </>
       )}

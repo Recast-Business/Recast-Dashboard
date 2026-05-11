@@ -12,7 +12,7 @@ import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { PaymentStatusV2, Vendor, VendorPayment } from "@/types/finance";
-import { cn, formatUSD } from "@/lib/utils";
+import { cn, formatUSD, isMonthOpen } from "@/lib/utils";
 
 /**
  * Phase L (C3): Talent We Pay — sister grid to C2 (Talent Paying Us).
@@ -84,9 +84,27 @@ export function TalentWePayGrid({ year }: Props) {
     }
   }
 
+  // Round 3D.1 (Gustavo): the grid starts EMPTY. The visible-row set
+  // is derived from payments that actually exist for the year — only
+  // vendors with ≥1 payment surface. "+Add talent" still picks from
+  // the full talent_we_pay list via VendorDialog, and adding a
+  // payment via the dialog will make the vendor appear on the grid.
+  //
+  // First load all talent_we_pay vendors (the dialog's universe) and
+  // their full-year payment map. Then narrow `tracked` to those that
+  // actually have payment rows for the year.
+  const allVendorIds = React.useMemo(() => (vendors ?? []).map((v) => v.id), [vendors]);
+  const { data: paymentsByVendor, isLoading: paymentsLoading } = useVendorPaymentsByVendors(allVendorIds, year);
+
+  const tracked = React.useMemo(() => {
+    if (!vendors || !paymentsByVendor) return [];
+    const trackedIds = new Set(Object.keys(paymentsByVendor));
+    return vendors.filter((v) => trackedIds.has(v.id));
+  }, [vendors, paymentsByVendor]);
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
-    let rows = vendors ?? [];
+    let rows = tracked;
     if (q) {
       rows = rows.filter((v) =>
         [v.name, v.contact_name, v.contact_email, v.notes].some(
@@ -95,10 +113,7 @@ export function TalentWePayGrid({ year }: Props) {
       );
     }
     return rows;
-  }, [vendors, search]);
-
-  const ids = React.useMemo(() => filtered.map((v) => v.id), [filtered]);
-  const { data: paymentsByVendor, isLoading: paymentsLoading } = useVendorPaymentsByVendors(ids, year);
+  }, [tracked, search]);
 
   // Apply status filter after loading payments (vendor row stays visible
   // if any of their cells matches).
@@ -219,9 +234,9 @@ export function TalentWePayGrid({ year }: Props) {
         <Skeleton className="h-[420px] w-full rounded-lg" />
       ) : filteredByStatus.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
-          {vendors?.length
-            ? "No matches for the current filter."
-            : "No outgoing talent yet — click Add talent to log your first contractor."}
+          {tracked.length === 0
+            ? `No payments logged yet for ${year}. Click "Add talent" to record one — the contractor will appear here automatically.`
+            : "No matches for the current filter."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
@@ -335,6 +350,11 @@ export function TalentWePayGrid({ year }: Props) {
                         const p = cells[month];
                         const isFuture =
                           currentMonthIdx !== null && i > currentMonthIdx;
+                        // R3D.2: same past-month lock as the sister
+                        // TalentInvoiceGrid. Existing payments stay
+                        // editable; only the new-entry "+" button is
+                        // disabled in closed months.
+                        const monthOpen = isMonthOpen(year, month);
                         return (
                           <td key={month} className="p-1 align-middle">
                             {p && p.amount != null ? (
@@ -350,6 +370,7 @@ export function TalentWePayGrid({ year }: Props) {
                             ) : (
                               <button
                                 type="button"
+                                disabled={!monthOpen}
                                 onClick={() =>
                                   setEditingCell({
                                     vendorId: v.id,
@@ -360,8 +381,13 @@ export function TalentWePayGrid({ year }: Props) {
                                 className={cn(
                                   "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
                                   isFuture && "opacity-50",
+                                  !monthOpen && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
                                 )}
-                                title={`Log ${MONTHS[month - 1]} ${year} payment for ${v.name}`}
+                                title={
+                                  !monthOpen
+                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked to keep the ledger immutable.`
+                                    : `Log ${MONTHS[month - 1]} ${year} payment for ${v.name}`
+                                }
                               >
                                 +
                               </button>
