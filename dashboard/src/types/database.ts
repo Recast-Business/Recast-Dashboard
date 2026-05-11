@@ -22,7 +22,8 @@ export type ActivityKind =
   | "payment_status_changed"
   | "overdue_flagged"
   | "brief_promoted"
-  | "payment_logged";
+  | "payment_logged"
+  | "commission_mode_changed";
 
 export interface Database {
   public: {

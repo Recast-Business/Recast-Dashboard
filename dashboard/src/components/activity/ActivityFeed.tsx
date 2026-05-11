@@ -3,6 +3,7 @@ import {
   Briefcase,
   CircleDollarSign,
   FilePlus2,
+  Percent,
   Receipt,
   UserPlus,
   Wallet,
@@ -20,6 +21,7 @@ const ICONS: Record<ActivityKind, React.ComponentType<{ className?: string }>> =
   payment_logged: Receipt,
   overdue_flagged: AlertTriangle,
   brief_promoted: FilePlus2,
+  commission_mode_changed: Percent,
 };
 
 function describe(item: ActivityItem): string {
@@ -41,6 +43,12 @@ function describe(item: ActivityItem): string {
       return `Overdue: ${p["name"] ?? "campaign"}`;
     case "brief_promoted":
       return `Brief promoted to campaign: ${p["title"] ?? ""}`;
+    case "commission_mode_changed": {
+      const name = p["creator_name"] ?? "creator";
+      const from = p["from"] ?? "—";
+      const to = p["to"] ?? "—";
+      return `Commission mode for ${name}: ${from} → ${to}`;
+    }
   }
 }
 
