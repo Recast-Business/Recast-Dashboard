@@ -49,15 +49,14 @@ export function formatDate(d: string | Date | null | undefined): string {
 }
 
 /**
- * Round 3D.2 (Gustavo): strict past-month blocking. A month is "open"
- * if and only if it's the current calendar month (or a future month
- * inside the current/future year). Past months — including last
- * month — are LOCKED with no admin override. The intent is to stop
- * accidental back-dated entries from drifting the historical record.
+ * Round 3D.2 (Gustavo): strict past-month blocking for NEW entries.
+ * A month is "open" iff it's the current calendar month or later.
+ * Round 4 A.2 layers an admin override on top — see `useLockState`
+ * for the hook that combines this rule with the unlocked_periods
+ * table to produce the live answer.
  *
- * `year` + `month` are calendar values (month is 1-based, 1..12).
- *
- * Returns true if the month is open for new entries.
+ * Returns true if the month accepts new entries by the base rule
+ * (admin overrides not applied here).
  */
 export function isMonthOpen(year: number, month: number): boolean {
   const now = new Date();
@@ -66,4 +65,20 @@ export function isMonthOpen(year: number, month: number): boolean {
   if (year > ny) return true;
   if (year < ny) return false;
   return month >= nm;
+}
+
+/**
+ * Round 4 A.2 (Gustavo): months within the trailing 6 months are
+ * "recent" — edits to existing rows are allowed. Older months are
+ * read-only by default and need an explicit unlock to edit. Combined
+ * with the unlocked_periods table in `useLockState`.
+ *
+ * Counts back inclusive: if today is May 2026, recent months are
+ * Dec 2025 through May 2026 (6 months counting the current month).
+ */
+export function isMonthRecent(year: number, month: number): boolean {
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const target = new Date(year, month - 1, 1);
+  return target >= cutoff;
 }

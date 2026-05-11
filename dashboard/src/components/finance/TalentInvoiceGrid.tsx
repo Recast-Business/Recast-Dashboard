@@ -9,7 +9,9 @@ import { useCreators } from "@/hooks/useCreators";
 import { useTalentInvoicesByYear } from "@/hooks/useTalentInvoices";
 import { TalentInvoiceDialog } from "@/components/finance/TalentInvoiceDialog";
 import type { PaymentStatusV2, TalentInvoice } from "@/types/finance";
-import { cn, formatUSD, isMonthOpen } from "@/lib/utils";
+import { cn, formatUSD } from "@/lib/utils";
+import { useLockState } from "@/hooks/useLockState";
+import { MonthLockBadge } from "@/components/finance/MonthLockBadge";
 
 /**
  * Phase L (C2): Talent Paying Us — invoice grid.
@@ -58,6 +60,7 @@ export function TalentInvoiceGrid({ year }: Props) {
     return allCreators.filter((c) => trackedIds.has(c.id));
   }, [allCreators, invoiceMap]);
 
+  const lock = useLockState();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
   const [editing, setEditing] = React.useState<TalentInvoice | null>(null);
@@ -248,6 +251,10 @@ export function TalentInvoiceGrid({ year }: Props) {
                         {isCurrent ? (
                           <span className="ml-1 text-electric">·</span>
                         ) : null}
+                        {/* R4.A.2: lock badge for auto-locked (>6mo
+                            old) months. Renders nothing for recent
+                            months. */}
+                        <MonthLockBadge year={year} month={i + 1} />
                       </th>
                     );
                   })}
@@ -293,12 +300,15 @@ export function TalentInvoiceGrid({ year }: Props) {
                         const inv = cells[month];
                         const isFuture =
                           currentMonthIdx !== null && i > currentMonthIdx;
-                        // R3D.2: closed months (any month strictly
-                        // before the current calendar month) are
-                        // locked for NEW entries. Existing invoices
-                        // remain clickable for view/edit — only the
-                        // "+" placeholder is disabled.
-                        const monthOpen = isMonthOpen(year, month);
+                        // R3D.2 + R4.A.2:
+                        //   canCreate — gate the "+" placeholder.
+                        //     False for past months (R3D.2); unlock
+                        //     overrides via lock.canCreate.
+                        //   canEdit   — gate existing-row clicks.
+                        //     False for months older than 6 (R4.A.2);
+                        //     unlock overrides via lock.canEdit.
+                        const canCreate = lock.canCreate(year, month);
+                        const canEdit = lock.canEdit(year, month);
                         return (
                           <td key={month} className="p-1 align-middle">
                             {inv ? (
@@ -307,21 +317,28 @@ export function TalentInvoiceGrid({ year }: Props) {
                                 ref_={inv.invoice_number ?? "—"}
                                 status={inv.status as PaymentStatusV2}
                                 future={isFuture}
-                                onClick={() => openCell(c.id, month)}
+                                onClick={canEdit ? () => openCell(c.id, month) : undefined}
+                                disabled={!canEdit}
+                                className={cn(!canEdit && "cursor-not-allowed opacity-60")}
+                                title={
+                                  canEdit
+                                    ? undefined
+                                    : `${MONTHS[month - 1]} ${year} is locked. Admin or finance can unlock from the column header.`
+                                }
                               />
                             ) : (
                               <button
                                 type="button"
-                                disabled={!monthOpen}
+                                disabled={!canCreate}
                                 onClick={() => openCell(c.id, month)}
                                 className={cn(
                                   "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
                                   isFuture && "opacity-50",
-                                  !monthOpen && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
+                                  !canCreate && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
                                 )}
                                 title={
-                                  !monthOpen
-                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked to keep the ledger immutable.`
+                                  !canCreate
+                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked. Admin/finance can unlock from the column header to log a back-dated invoice.`
                                     : `Add ${MONTHS[month - 1]} ${year} invoice for ${c.name}`
                                 }
                               >

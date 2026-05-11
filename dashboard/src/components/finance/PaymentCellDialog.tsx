@@ -23,6 +23,7 @@ import { useUpsertVendorPayment } from "@/hooks/useVendorPayments";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { VendorPayment, PaymentStatusV2 } from "@/types/finance";
 import { isMonthOpen } from "@/lib/utils";
+import { useLockState } from "@/hooks/useLockState";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -76,15 +77,26 @@ export function PaymentCellDialog({
     setNotes(existing?.notes ?? "");
   }, [open, existing, defaultAmount]);
 
-  // R3D.2: lock creates for closed months. Editing an existing payment
-  // row stays allowed so typo-fixes on historical entries still work,
-  // matching TalentInvoiceDialog semantics.
-  const periodLocked = !existing && !isMonthOpen(year, month);
+  // R3D.2: creating a new payment requires the period to be open.
+  // R4.A.2: editing an existing row in a >6mo-old period requires
+  // an unlock too. Both rules honour unlocked_periods overrides
+  // via useLockState.
+  const lock = useLockState();
+  const periodLocked = existing
+    ? !lock.canEdit(year, month)
+    : !lock.canCreate(year, month);
+  const reason: "past-month" | "auto-locked" | null = !periodLocked
+    ? null
+    : isMonthOpen(year, month)
+      ? "auto-locked"
+      : "past-month";
 
   async function onSave() {
     if (periodLocked) {
       toast.error(
-        `${MONTH_NAMES[month - 1]} ${year} is closed. Past months can't be back-dated — pick the current month or later.`,
+        reason === "auto-locked"
+          ? `${MONTH_NAMES[month - 1]} ${year} is auto-locked (>6 months old). Admin or finance needs to unlock it before saving.`
+          : `${MONTH_NAMES[month - 1]} ${year} is closed. Past months can't be back-dated — pick the current month or later, or ask admin/finance to unlock the period.`,
       );
       return;
     }
@@ -119,10 +131,22 @@ export function PaymentCellDialog({
         <div className="grid gap-3 py-2">
           {periodLocked ? (
             <div className="rounded-md border border-overdue/40 bg-overdue/10 px-3 py-2 text-[12px] text-overdue">
-              <strong className="font-semibold">Closed month.</strong>{" "}
-              {MONTH_NAMES[month - 1]} {year} is in the past and can't accept
-              new payments. Past months are locked to keep the ledger
-              immutable.
+              <strong className="font-semibold">
+                {reason === "auto-locked" ? "Auto-locked period." : "Closed month."}
+              </strong>{" "}
+              {reason === "auto-locked" ? (
+                <>
+                  {MONTH_NAMES[month - 1]} {year} is older than 6 months and
+                  is locked for editing. Admin or finance can unlock it
+                  from the month-header lock icon on the grid.
+                </>
+              ) : (
+                <>
+                  {MONTH_NAMES[month - 1]} {year} is in the past and can't
+                  accept new payments. Admin or finance can unlock the
+                  period if you need to log this.
+                </>
+              )}
             </div>
           ) : null}
 

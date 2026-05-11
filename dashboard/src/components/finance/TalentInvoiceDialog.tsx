@@ -30,6 +30,7 @@ import { useCreators } from "@/hooks/useCreators";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { TalentInvoice } from "@/types/finance";
 import { cn, formatUSD, isMonthOpen } from "@/lib/utils";
+import { useLockState } from "@/hooks/useLockState";
 
 /**
  * Phase M-6: Add / edit a talent invoice.
@@ -126,13 +127,22 @@ export function TalentInvoiceDialog({
   }, [open, invoice, defaultCreatorId, defaultYear, defaultMonth]);
 
   const submitting = add.isPending || update.isPending;
+  const lock = useLockState();
 
-  // R3D.2 (Gustavo): when creating a NEW invoice, the chosen period
-  // must be the current month or later. Past months are locked with
-  // no admin override. Editing an existing invoice is unaffected —
-  // the period selects are already disabled for edits, and we don't
-  // want to retroactively block fixing typos on real historical rows.
-  const periodLocked = !invoice && !isMonthOpen(year, month);
+  // R3D.2: creating a NEW invoice requires the chosen period to be
+  // open (current/future) OR explicitly unlocked.
+  // R4.A.2: editing an EXISTING invoice in a >6-month-old period
+  // requires an unlock too.
+  const periodLocked = invoice
+    ? !lock.canEdit(year, month)
+    : !lock.canCreate(year, month);
+  // Used for the legacy "past months locked" copy when no unlock is
+  // present — distinguishes R3D.2 (past-month) from R4.A.2 (6mo+).
+  const reason: "past-month" | "auto-locked" | null = !periodLocked
+    ? null
+    : isMonthOpen(year, month)
+      ? "auto-locked"
+      : "past-month";
 
   async function onSave() {
     if (!creatorId) {
@@ -141,7 +151,9 @@ export function TalentInvoiceDialog({
     }
     if (periodLocked) {
       toast.error(
-        `${MONTH_NAMES[month - 1]} ${year} is closed. Past months can't be back-dated — pick the current month or later.`,
+        reason === "auto-locked"
+          ? `${MONTH_NAMES[month - 1]} ${year} is auto-locked (>6 months old). Admin or finance needs to unlock it before saving.`
+          : `${MONTH_NAMES[month - 1]} ${year} is closed. Past months can't be back-dated — pick the current month or later, or ask admin/finance to unlock the period.`,
       );
       return;
     }
@@ -255,10 +267,22 @@ export function TalentInvoiceDialog({
         <div className="grid gap-3 py-2">
           {periodLocked ? (
             <div className="rounded-md border border-overdue/40 bg-overdue/10 px-3 py-2 text-[12px] text-overdue">
-              <strong className="font-semibold">Closed month.</strong>{" "}
-              {MONTH_NAMES[month - 1]} {year} is in the past and can't accept
-              new invoices. Past months are locked to keep the ledger
-              immutable — pick the current month or later.
+              <strong className="font-semibold">
+                {reason === "auto-locked" ? "Auto-locked period." : "Closed month."}
+              </strong>{" "}
+              {reason === "auto-locked" ? (
+                <>
+                  {MONTH_NAMES[month - 1]} {year} is older than 6 months and
+                  is locked for editing. Admin or finance can unlock it
+                  from the month-header lock icon on the grid.
+                </>
+              ) : (
+                <>
+                  {MONTH_NAMES[month - 1]} {year} is in the past and can't
+                  accept new invoices. Pick the current month or later, or
+                  ask admin/finance to unlock the period.
+                </>
+              )}
             </div>
           ) : null}
 

@@ -12,7 +12,9 @@ import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { PaymentStatusV2, Vendor, VendorPayment } from "@/types/finance";
-import { cn, formatUSD, isMonthOpen } from "@/lib/utils";
+import { cn, formatUSD } from "@/lib/utils";
+import { useLockState } from "@/hooks/useLockState";
+import { MonthLockBadge } from "@/components/finance/MonthLockBadge";
 
 /**
  * Phase L (C3): Talent We Pay — sister grid to C2 (Talent Paying Us).
@@ -44,6 +46,7 @@ interface Props {
 export function TalentWePayGrid({ year }: Props) {
   const { data: vendors, isLoading: vendorsLoading } = useVendors({ kind: "talent_we_pay" });
 
+  const lock = useLockState();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
   // VendorDialog state — handles BOTH create (vendor=null) and edit
@@ -271,6 +274,9 @@ export function TalentWePayGrid({ year }: Props) {
                       >
                         {label}
                         {isCurrent ? <span className="ml-1 text-electric">·</span> : null}
+                        {/* R4.A.2: lock badge for auto-locked (>6mo
+                            old) months. */}
+                        <MonthLockBadge year={year} month={i + 1} />
                       </th>
                     );
                   })}
@@ -353,20 +359,22 @@ export function TalentWePayGrid({ year }: Props) {
                         const p = cells[month];
                         const isFuture =
                           currentMonthIdx !== null && i > currentMonthIdx;
-                        // R3D.2: same past-month lock as the sister
-                        // TalentInvoiceGrid. Existing payments stay
-                        // editable; only the new-entry "+" button is
-                        // disabled in closed months.
-                        const monthOpen = isMonthOpen(year, month);
-                        // Round 4: recurring placeholder for opt-in
-                        // monthly vendors. Only surfaces when the
-                        // month is open AND no payment row exists yet.
+                        // R3D.2 + R4.A.2:
+                        //   canCreate — past-month new-entry block.
+                        //   canEdit   — 6-month auto-lock on existing
+                        //               rows. Both honour
+                        //               unlocked_periods overrides.
+                        const canCreate = lock.canCreate(year, month);
+                        const canEdit = lock.canEdit(year, month);
+                        // Round 4: recurring placeholder only when
+                        // canCreate (no point pre-filling a closed
+                        // month).
                         const showRecurring =
                           v.recurring_monthly &&
                           v.recurring_amount != null &&
                           v.recurring_amount > 0 &&
                           !p &&
-                          monthOpen &&
+                          canCreate &&
                           !isFuture;
                         return (
                           <td key={month} className="p-1 align-middle">
@@ -376,8 +384,17 @@ export function TalentWePayGrid({ year }: Props) {
                                 ref_={p.invoice_url ? "↗ link" : "—"}
                                 status={p.status}
                                 future={isFuture}
-                                onClick={() =>
-                                  setEditingCell({ vendorId: v.id, month, existing: p })
+                                onClick={
+                                  canEdit
+                                    ? () => setEditingCell({ vendorId: v.id, month, existing: p })
+                                    : undefined
+                                }
+                                disabled={!canEdit}
+                                className={cn(!canEdit && "cursor-not-allowed opacity-60")}
+                                title={
+                                  canEdit
+                                    ? undefined
+                                    : `${MONTHS[month - 1]} ${year} is locked. Admin or finance can unlock from the column header.`
                                 }
                               />
                             ) : showRecurring ? (
@@ -404,7 +421,7 @@ export function TalentWePayGrid({ year }: Props) {
                             ) : (
                               <button
                                 type="button"
-                                disabled={!monthOpen}
+                                disabled={!canCreate}
                                 onClick={() =>
                                   setEditingCell({
                                     vendorId: v.id,
@@ -415,11 +432,11 @@ export function TalentWePayGrid({ year }: Props) {
                                 className={cn(
                                   "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
                                   isFuture && "opacity-50",
-                                  !monthOpen && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
+                                  !canCreate && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
                                 )}
                                 title={
-                                  !monthOpen
-                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked to keep the ledger immutable.`
+                                  !canCreate
+                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked. Admin/finance can unlock from the column header to log a back-dated payment.`
                                     : `Log ${MONTHS[month - 1]} ${year} payment for ${v.name}`
                                 }
                               >

@@ -3,8 +3,10 @@ import {
   Briefcase,
   CircleDollarSign,
   FilePlus2,
+  Lock,
   Percent,
   Receipt,
+  Unlock,
   UserPlus,
   Wallet,
 } from "lucide-react";
@@ -22,7 +24,23 @@ const ICONS: Record<ActivityKind, React.ComponentType<{ className?: string }>> =
   overdue_flagged: AlertTriangle,
   brief_promoted: FilePlus2,
   commission_mode_changed: Percent,
+  period_unlocked: Unlock,
+  period_relocked: Lock,
 };
+
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function fmtPeriod(p: Record<string, unknown>): string {
+  const y = p["year"];
+  const m = p["month"];
+  if (typeof y === "number" && typeof m === "number" && m >= 1 && m <= 12) {
+    return `${MONTH_ABBR[m - 1]} ${y}`;
+  }
+  return "unknown period";
+}
 
 function describe(item: ActivityItem): string {
   const p = item.payload ?? {};
@@ -49,6 +67,12 @@ function describe(item: ActivityItem): string {
       const to = p["to"] ?? "—";
       return `Commission mode for ${name}: ${from} → ${to}`;
     }
+    case "period_unlocked": {
+      const note = typeof p["note"] === "string" && p["note"] ? ` — ${p["note"]}` : "";
+      return `Unlocked ${fmtPeriod(p)} for editing${note}`;
+    }
+    case "period_relocked":
+      return `Re-locked ${fmtPeriod(p)}`;
   }
 }
 
