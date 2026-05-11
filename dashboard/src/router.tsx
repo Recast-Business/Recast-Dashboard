@@ -8,6 +8,7 @@ import { OverviewPage } from "@/pages/Overview";
 import { CalculatorPage } from "@/pages/Calculator";
 import { CampaignsPage } from "@/pages/Campaigns";
 import { RosterPage } from "@/pages/Roster";
+import { TalentLedgerPage } from "@/pages/TalentLedger";
 import { LeadsPage } from "@/pages/Leads";
 import { PotentialPage } from "@/pages/Potential";
 import { CreatorProfilePage } from "@/pages/CreatorProfile";
@@ -73,16 +74,16 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      // Round 3A: /talents is the canonical route for the Talent Ledger
-      // (Gustavo's rename). /roster stays alive as an alias so any
-      // inbound links / browser bookmarks keep working. R3C replaces
-      // RosterPage here with the full CRM (tiered commissions,
-      // agreement links, multi-platform handles per profile).
+      // Round 3 C.2: /talents now renders TalentLedgerPage — the CRM
+      // lens on signed creators (contact, legal, address, commission
+      // structure, signed agreements, completeness audit). /roster
+      // keeps the operational lens (twitch/kick handles, CCV,
+      // sign/unsign) so Scout's workflow is unaffected.
       {
         path: "talents",
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
-            <RosterPage />
+            <TalentLedgerPage />
           </ProtectedRoute>
         ),
       },
