@@ -43,8 +43,8 @@ import { useNavCounts } from "@/hooks/useNavCounts";
  *                            the route and the sidebar entry.
  *
  * Sections:
- *   1. WORKSPACE  — Overview / Finance / Calculator / Campaigns
- *   2. PIPELINE   — Brief Builder / Leads / Potential / Scout / Roster
+ *   1. WORKSPACE  — Overview / Finance / Calculator
+ *   2. PIPELINE   — Brief Builder / Leads / Potential / Scout / Roster / Campaigns
  *   3. LEDGERS    — Vendors / Talents
  *   4. (headerless) Frazier's House
  *
@@ -75,11 +75,6 @@ const SECTIONS: NavSection[] = [
       { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
       { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
       { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "partner", "finance", "operator"] },
-      // Round 3 follow-up: Campaigns route already existed but was
-      // sidebar-orphaned (only reachable from the Deals-tab pointer
-      // on /calculator). Surfaced here for all four roles per the
-      // ask — brand-deal accounting is something everyone touches.
-      { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
     ],
   },
   {
@@ -96,6 +91,11 @@ const SECTIONS: NavSection[] = [
       // address, commission tiers, agreements) and is restricted
       // to admin + finance.
       { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
+      // Round 3 follow-up: Campaigns sits at the END of Pipeline as
+      // the natural endpoint of the funnel (brief → leads →
+      // potential → scout → roster → live brand deal). All four
+      // roles see it; brand-deal accounting is everyone's business.
+      { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
     ],
   },
   {
@@ -158,8 +158,14 @@ export function Sidebar() {
         {SECTIONS.map((section, i) => {
           const visible = section.items.filter((item) => canAccess(role, item.allow));
           if (visible.length === 0) return null;
+          // Headed sections use the canonical 20px gap (mt-5) so the
+          // uppercase eyebrow has breathing room above. Headerless
+          // sections (Frazier's House) tuck closer to the previous
+          // section — 8px (mt-2) reads as "adjacent but separate"
+          // rather than orphaned-in-space.
+          const topGap = i === 0 ? "" : section.header ? "mt-5" : "mt-2";
           return (
-            <div key={i} className={cn(i > 0 && "mt-5")}>
+            <div key={i} className={cn(topGap)}>
               {/* Header is optional — headerless sections render as
                   ungrouped item blocks (used for Frazier's House so
                   it sits standalone below Ledgers without a redundant
