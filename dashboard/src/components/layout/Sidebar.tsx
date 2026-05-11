@@ -27,26 +27,27 @@ import { useNavCounts } from "@/hooks/useNavCounts";
 /**
  * Phase L → Round 3 (multiple iterations) sidebar IA.
  *
- * Roster + Talents split two ways across two sections — same signed-
- * creator data, two lenses, two audiences:
+ * Two sections — Workspace bundles the "money + entities" surface
+ * area; Pipeline bundles the "acquisition + deployment" funnel.
+ * Roster + Talents are two lenses on the same signed-creator data:
  *
- *   • /roster  (PIPELINE)  — operational lens: handles, CCV,
- *                            sign/unsign, country, tier. All roles
- *                            (admin / partner / finance / operator).
- *                            Scout's tool, also surfaced to partners
- *                            like Harry for general directory use.
- *   • /talents (LEDGERS)   — CRM/financial lens: legal name, address,
- *                            commission tiers, agreement URLs,
- *                            completeness audit. Admin + finance
- *                            ONLY (Gustavo's invoice-prep workflow);
- *                            partner + operator are blocked at both
- *                            the route and the sidebar entry.
+ *   • /roster  (PIPELINE)   — operational lens: handles, CCV,
+ *                             sign/unsign, country, tier. All roles
+ *                             (admin / partner / finance / operator).
+ *                             Scout's tool, also surfaced to partners
+ *                             like Harry for general directory use.
+ *   • /talents (WORKSPACE)  — CRM/financial lens: legal name, address,
+ *                             commission tiers, agreement URLs,
+ *                             completeness audit. Admin + finance
+ *                             ONLY (Gustavo's invoice-prep workflow);
+ *                             partner + operator are blocked at both
+ *                             the route and the sidebar entry.
  *
  * Sections:
- *   1. WORKSPACE  — Overview / Finance / Calculator
- *   2. PIPELINE   — Brief Builder / Leads / Potential / Scout / Roster / Campaigns
- *   3. LEDGERS    — Vendors / Talents
- *   4. (headerless) Frazier's House
+ *   1. WORKSPACE  — Overview / Finance / Calculator / Vendors /
+ *                   Talents / Frazier's House
+ *   2. PIPELINE   — Brief Builder / Leads / Potential / Scout /
+ *                   Roster / Campaigns
  *
  * Footer:
  *   • User chip — avatar + email + role pill, chevron-down (TODO: menu)
@@ -75,6 +76,16 @@ const SECTIONS: NavSection[] = [
       { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
       { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
       { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "partner", "finance", "operator"] },
+      // Round 3 follow-up: Vendors / Talents / Frazier's House
+      // collapsed into Workspace per Gustavo. The standalone
+      // LEDGERS section is gone — these three sit beneath the
+      // workflow tools so the sidebar stays a single shallow list
+      // instead of three thin sections. Role gating is unchanged
+      // (Talents still admin + finance only; Vendors + House
+      // exclude operator).
+      { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
+      { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "finance"] },
+      { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
     ],
   },
   {
@@ -86,37 +97,16 @@ const SECTIONS: NavSection[] = [
       { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
       // Round 3 follow-up (Gustavo + Harry split): Roster is the
       // OPERATIONAL lens on signed creators — handles, CCV,
-      // sign/unsign, tier. All roles see it. The Talents entry
-      // under LEDGERS below is the CRM/financial lens (legal name,
-      // address, commission tiers, agreements) and is restricted
-      // to admin + finance.
+      // sign/unsign, tier. All roles see it. Talents (Workspace)
+      // is the CRM/financial lens — legal name, address,
+      // commission tiers, agreements — restricted to admin +
+      // finance.
       { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
       // Round 3 follow-up: Campaigns sits at the END of Pipeline as
       // the natural endpoint of the funnel (brief → leads →
       // potential → scout → roster → live brand deal). All four
       // roles see it; brand-deal accounting is everyone's business.
       { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
-    ],
-  },
-  {
-    header: "Ledgers",
-    items: [
-      { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
-      // Round 3 follow-up: Talents is the CRM/financial lens. Hides
-      // from partner + operator roles because it surfaces legal
-      // name, business name, address, tax-ID status, commission
-      // tiers and agreement URLs — Gustavo's invoice-prep workflow.
-      // Non-finance roles use /roster instead (under Pipeline).
-      { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "finance"] },
-    ],
-  },
-  {
-    // Round 3A revision: user said "this is fraziers house so no need"
-    // for the PROPERTIES group concept. Standalone entry below Ledgers,
-    // no group header (NavSection.header omitted), label reverted to
-    // "Frazier's House" since that's how it's identified verbally.
-    items: [
-      { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
     ],
   },
 ];
