@@ -54,6 +54,9 @@ export function TalentWePayGrid({ year }: Props) {
     vendorId: string;
     month: number;
     existing: VendorPayment | null;
+    /** Round 4: pre-fill amount when opened from a recurring-vendor
+     *  placeholder. */
+    defaultAmount?: number | null;
   } | null>(null);
 
   const del = useDeleteVendor();
@@ -355,6 +358,16 @@ export function TalentWePayGrid({ year }: Props) {
                         // editable; only the new-entry "+" button is
                         // disabled in closed months.
                         const monthOpen = isMonthOpen(year, month);
+                        // Round 4: recurring placeholder for opt-in
+                        // monthly vendors. Only surfaces when the
+                        // month is open AND no payment row exists yet.
+                        const showRecurring =
+                          v.recurring_monthly &&
+                          v.recurring_amount != null &&
+                          v.recurring_amount > 0 &&
+                          !p &&
+                          monthOpen &&
+                          !isFuture;
                         return (
                           <td key={month} className="p-1 align-middle">
                             {p && p.amount != null ? (
@@ -367,6 +380,27 @@ export function TalentWePayGrid({ year }: Props) {
                                   setEditingCell({ vendorId: v.id, month, existing: p })
                                 }
                               />
+                            ) : showRecurring ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingCell({
+                                    vendorId: v.id,
+                                    month,
+                                    existing: null,
+                                    defaultAmount: v.recurring_amount,
+                                  })
+                                }
+                                className="block h-full w-full rounded-sm border border-dashed border-electric/50 bg-electric/[0.04] px-2 py-1.5 text-center transition-colors duration-base ease-out hover:bg-electric/[0.10]"
+                                title={`Expected $${v.recurring_amount?.toFixed(2)} for ${MONTHS[month - 1]} ${year} — click to log`}
+                              >
+                                <div className="tabular text-[12px] font-semibold leading-none text-electric">
+                                  ${(v.recurring_amount ?? 0).toFixed(0)}
+                                </div>
+                                <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-electric/70">
+                                  Expected
+                                </div>
+                              </button>
                             ) : (
                               <button
                                 type="button"
@@ -436,6 +470,7 @@ export function TalentWePayGrid({ year }: Props) {
           year={year}
           month={editingCell.month}
           existing={editingCell.existing}
+          defaultAmount={editingCell.defaultAmount}
         />
       ) : null}
 

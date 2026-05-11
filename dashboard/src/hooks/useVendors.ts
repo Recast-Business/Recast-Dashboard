@@ -61,6 +61,9 @@ export interface VendorInput {
   nda_url?: string | null;
   // Round 3 (0034): vendor service description
   service_provided?: string | null;
+  // Round 4 (0037): opt-in recurring monthly bill
+  recurring_monthly?: boolean;
+  recurring_amount?: number | null;
 }
 
 export function useAddVendor() {

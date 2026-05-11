@@ -124,6 +124,12 @@ export interface Vendor {
    *  e.g. "Streaming infra", "Legal — talent agreements". Human-facing only;
    *  not used in any calculation. */
   service_provided: string | null;
+  /** Round 4 (0037): when TRUE the vendor grid renders an "Expected $X"
+   *  placeholder for each unbilled month using recurring_amount. */
+  recurring_monthly: boolean;
+  /** Round 4 (0037): default monthly payment amount; populates the
+   *  placeholder cell + pre-fills the payment dialog on click. */
+  recurring_amount: number | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

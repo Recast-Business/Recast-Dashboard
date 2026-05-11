@@ -36,15 +36,26 @@ interface Props {
   year: number;
   month: number;
   existing: VendorPayment | null;
+  /**
+   * Round 4: when the dialog is opened from a recurring-vendor
+   * placeholder, pre-fill the amount field with the vendor's
+   * `recurring_amount` default. No effect when editing an existing
+   * payment (existing's amount wins).
+   */
+  defaultAmount?: number | null;
 }
 
 export function PaymentCellDialog({
-  open, onOpenChange, vendorId, year, month, existing,
+  open, onOpenChange, vendorId, year, month, existing, defaultAmount,
 }: Props) {
   const upsert = useUpsertVendorPayment();
   const [status, setStatus] = React.useState<PaymentStatusV2>(existing?.status ?? "unpaid");
   const [amount, setAmount] = React.useState<string>(
-    existing?.amount != null ? String(existing.amount) : "",
+    existing?.amount != null
+      ? String(existing.amount)
+      : defaultAmount != null
+        ? String(defaultAmount)
+        : "",
   );
   const [paidAt, setPaidAt] = React.useState<string>(existing?.paid_at ?? "");
   const [invoiceUrl, setInvoiceUrl] = React.useState<string>(existing?.invoice_url ?? "");
@@ -53,11 +64,17 @@ export function PaymentCellDialog({
   React.useEffect(() => {
     if (!open) return;
     setStatus(existing?.status ?? "unpaid");
-    setAmount(existing?.amount != null ? String(existing.amount) : "");
+    setAmount(
+      existing?.amount != null
+        ? String(existing.amount)
+        : defaultAmount != null
+          ? String(defaultAmount)
+          : "",
+    );
     setPaidAt(existing?.paid_at ?? "");
     setInvoiceUrl(existing?.invoice_url ?? "");
     setNotes(existing?.notes ?? "");
-  }, [open, existing]);
+  }, [open, existing, defaultAmount]);
 
   // R3D.2: lock creates for closed months. Editing an existing payment
   // row stays allowed so typo-fixes on historical entries still work,

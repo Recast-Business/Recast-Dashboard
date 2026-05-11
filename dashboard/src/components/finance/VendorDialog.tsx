@@ -82,6 +82,8 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
     nda_signed: false,
     nda_url: "",
     service_provided: "",
+    recurring_monthly: false,
+    recurring_amount: null,
   });
 
   React.useEffect(() => {
@@ -102,6 +104,8 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         nda_signed: vendor.nda_signed,
         nda_url: vendor.nda_url ?? "",
         service_provided: vendor.service_provided ?? "",
+        recurring_monthly: vendor.recurring_monthly ?? false,
+        recurring_amount: vendor.recurring_amount ?? null,
       });
     } else {
       setForm({
@@ -119,6 +123,8 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         nda_signed: false,
         nda_url: "",
         service_provided: "",
+        recurring_monthly: false,
+        recurring_amount: null,
       });
     }
   }, [open, vendor, defaultDivision, defaultKind]);
@@ -313,6 +319,60 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 placeholder="https://drive.google.com/…"
                 disabled={!form.nda_signed}
               />
+            </div>
+          </div>
+
+          {/* Round 4 (Gustavo): opt-in recurring monthly bill. When on,
+              the vendor grid renders an "Expected $X" placeholder for
+              each unbilled month so logging it becomes a one-click
+              confirm. Default OFF — most vendors vary month to month. */}
+          <div className="rounded-md border bg-muted/15 p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.recurring_monthly ?? false}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  set("recurring_monthly", on);
+                  // Clear amount when turning off so the column doesn't
+                  // hold a stale default. User can re-enter on re-enable.
+                  if (!on) set("recurring_amount", null);
+                }}
+              />
+              Recurring monthly payment
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label
+                  htmlFor="v-recurring-amount"
+                  className="text-[11px] text-muted-foreground"
+                >
+                  Default amount (USD)
+                </Label>
+                <Input
+                  id="v-recurring-amount"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.recurring_amount ?? ""}
+                  onChange={(e) =>
+                    set(
+                      "recurring_amount",
+                      e.target.value.trim() === ""
+                        ? null
+                        : Number(e.target.value),
+                    )
+                  }
+                  placeholder="e.g. 35.00"
+                  disabled={!form.recurring_monthly}
+                />
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                When on, the vendor grid shows an "Expected" placeholder
+                for each unbilled month with this amount pre-filled.
+                Click any placeholder to log the real payment.
+              </p>
             </div>
           </div>
 

@@ -50,6 +50,10 @@ export function VendorsPage() {
     vendorId: string;
     month: number;
     existing: VendorPayment | null;
+    /** Round 4: when the cell was opened from a recurring-vendor
+     *  placeholder, this is the vendor's recurring_amount so the
+     *  dialog can pre-fill it. Null when not applicable. */
+    defaultAmount?: number | null;
   } | null>(null);
 
   const del = useDeleteVendor();
@@ -324,6 +328,15 @@ export function VendorsPage() {
                         const p = cells[month];
                         const isFuture =
                           currentMonthIdx !== null && i > currentMonthIdx;
+                        // Round 4: recurring vendors get an "Expected
+                        // $X" placeholder for unbilled current/past
+                        // months. Future months stay as plain "+".
+                        const showRecurring =
+                          v.recurring_monthly &&
+                          v.recurring_amount != null &&
+                          v.recurring_amount > 0 &&
+                          !p &&
+                          !isFuture;
                         return (
                           <td key={month} className="p-1 align-middle">
                             {p && p.amount != null ? (
@@ -334,6 +347,27 @@ export function VendorsPage() {
                                 future={isFuture}
                                 onClick={() => setEditingCell({ vendorId: v.id, month, existing: p })}
                               />
+                            ) : showRecurring ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingCell({
+                                    vendorId: v.id,
+                                    month,
+                                    existing: null,
+                                    defaultAmount: v.recurring_amount,
+                                  })
+                                }
+                                className="block h-full w-full rounded-sm border border-dashed border-electric/50 bg-electric/[0.04] px-2 py-1.5 text-center transition-colors duration-base ease-out hover:bg-electric/[0.10]"
+                                title={`Expected $${v.recurring_amount?.toFixed(2)} for ${MONTHS[month - 1]} ${year} — click to log`}
+                              >
+                                <div className="tabular text-[12px] font-semibold leading-none text-electric">
+                                  ${(v.recurring_amount ?? 0).toFixed(0)}
+                                </div>
+                                <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-electric/70">
+                                  Expected
+                                </div>
+                              </button>
                             ) : (
                               <button
                                 type="button"
@@ -383,6 +417,7 @@ export function VendorsPage() {
           year={year}
           month={editingCell.month}
           existing={editingCell.existing}
+          defaultAmount={editingCell.defaultAmount}
         />
       ) : null}
 
