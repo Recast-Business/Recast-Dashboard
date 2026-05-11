@@ -117,19 +117,48 @@ export function TalentLedgerPage() {
   // Completeness audit per row. The "missing" reasons are surfaced as
   // pills in the row so Gustavo can see exactly what's outstanding
   // without opening the profile.
+  //
+  // R3 Q3 (Gustavo, yes/yes):
+  //   • tax_id is required for "complete".
+  //   • Commission must be set per platform the creator actually
+  //     works on. We infer "works on" from agreement_links — every
+  //     platform with a signed agreement URL must have a matching
+  //     commission entry. Platforms without an agreement aren't
+  //     held to that rule. (Agreement = "this creator earns on this
+  //     platform" is the cleanest signal we have without adding a
+  //     separate active-platforms field.)
   const audit = React.useMemo(() => {
     return rows.map((r) => {
       const missing: string[] = [];
       if (!r.email) missing.push("email");
       if (!r.address) missing.push("address");
-      if (!hasCommission(r)) missing.push("commission");
+      if (!r.tax_id) missing.push("tax_id");
+      const agreementPlatforms = activeAgreementPlatforms(r);
+      if (agreementPlatforms.length === 0) {
+        // No agreements yet → still need at least one commission
+        // somewhere to count as set-up. This is the old "any
+        // commission anywhere" rule scoped to the pre-agreement
+        // state.
+        if (!hasCommission(r)) missing.push("commission");
+      } else {
+        // Every agreement-platform must have a commission. Surface
+        // the gap with the platform slug so Gustavo knows what's
+        // missing (e.g. "commission · onlyfans").
+        for (const p of agreementPlatforms) {
+          if (!hasCommissionForPlatform(r, p)) {
+            missing.push(`commission · ${p}`);
+          }
+        }
+      }
       if (!hasAnyAgreement(r)) missing.push("agreements");
       return { row: r, missing };
     });
   }, [rows]);
 
-  // KPI tile counts. "Complete" = zero missing fields. "Missing X"
-  // counts every row where that specific field is empty.
+  // KPI tile counts. "Complete" = zero missing fields. "Missing
+  // commission" counts rows where commission is missing entirely OR
+  // missing on any agreement-platform (the R3 Q3 rule). "Missing
+  // agreements" counts rows with no agreement URLs at all.
   const kpis = React.useMemo(() => {
     let complete = 0;
     let missingAgreements = 0;
@@ -137,7 +166,14 @@ export function TalentLedgerPage() {
     for (const a of audit) {
       if (a.missing.length === 0) complete++;
       if (a.missing.includes("agreements")) missingAgreements++;
-      if (a.missing.includes("commission")) missingCommission++;
+      // Catch both the bare "commission" pill (no agreements yet)
+      // and the scoped "commission · <platform>" pills.
+      if (
+        a.missing.includes("commission") ||
+        a.missing.some((m) => m.startsWith("commission · "))
+      ) {
+        missingCommission++;
+      }
     }
     return {
       total: audit.length,
@@ -508,6 +544,52 @@ function hasCommission(r: LedgerRow): boolean {
   return false;
 }
 
+/** R3 Q3: agreement slot → commission platform key. Most slots map
+ *  1:1; the "overlay" agreement maps to the legacy "efuse" commission
+ *  key, and generic slots ("deal", "other") don't tie to a specific
+ *  commission platform so they're skipped in the per-platform audit. */
+const AGREEMENT_TO_COMMISSION_PLATFORM: Record<string, string | null> = {
+  onlyfans: "onlyfans",
+  telegram: "telegram",
+  overlay: "efuse",
+  deal: null,
+  other: null,
+};
+
+/** Which platforms does this creator earn on (per their signed
+ *  agreements)? Returns commission-platform keys, not agreement
+ *  slugs. */
+function activeAgreementPlatforms(r: LedgerRow): string[] {
+  const a = r.agreement_links;
+  if (!a || typeof a !== "object") return [];
+  const out: string[] = [];
+  for (const slot of AGREEMENT_SLOTS) {
+    const url = a[slot];
+    if (typeof url !== "string" || url.trim() === "") continue;
+    const platform = AGREEMENT_TO_COMMISSION_PLATFORM[slot];
+    if (platform) out.push(platform);
+  }
+  return out;
+}
+
+/** Does the creator have a commission entry for this specific
+ *  platform? Reads new commission_tiers first, falls back to legacy
+ *  commission_pct_by_platform (flat number or tier array). */
+function hasCommissionForPlatform(r: LedgerRow, platform: string): boolean {
+  const tiers = r.commission_tiers;
+  if (tiers && typeof tiers === "object") {
+    const v = (tiers as Record<string, unknown>)[platform];
+    if (Array.isArray(v) && v.length > 0) return true;
+  }
+  const legacy = r.commission_pct_by_platform;
+  if (!legacy || typeof legacy !== "object") return false;
+  const v = (legacy as Record<string, unknown>)[platform];
+  if (v == null) return false;
+  if (Array.isArray(v) && v.length > 0) return true;
+  if (typeof v === "number" && Number.isFinite(v)) return true;
+  return false;
+}
+
 /** One-liner describing commission setup. "20% (3 platforms)" /
  *  "tiered (2 platforms)" / "—". */
 function commissionSummary(r: LedgerRow): string {
@@ -585,15 +667,22 @@ function Th({
 const MISSING_LABELS: Record<string, string> = {
   email: "Email",
   address: "Address",
+  tax_id: "Tax ID",
   commission: "Commission",
   agreements: "Agreements",
 };
 
+/** Per-platform commission gap pills come through as "commission · onlyfans"
+ *  — render the platform half in mono-style so it reads at a glance. */
 function MissingPill({ field }: { field: string }) {
+  const isScoped = field.startsWith("commission · ");
+  const label = isScoped
+    ? field.replace("commission · ", "Commission · ")
+    : (MISSING_LABELS[field] ?? field);
   return (
     <span className="inline-flex items-center gap-1 rounded-sm bg-partial-tint px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-partial">
       <AlertTriangle className="h-2.5 w-2.5" strokeWidth={2} />
-      {MISSING_LABELS[field] ?? field}
+      {label}
     </span>
   );
 }

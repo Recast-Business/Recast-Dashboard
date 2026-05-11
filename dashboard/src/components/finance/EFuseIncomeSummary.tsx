@@ -32,6 +32,12 @@ const STATUS_STYLES: Record<CampaignStatusV2, string> = {
 
 interface Props {
   year: number;
+  /**
+   * R3E follow-up (Gustavo Q5 = option a): when the page-level
+   * TalentPicker is set, scope the visible campaigns to those where
+   * this creator is attached. Null = no filter.
+   */
+  talentFilterId?: string | null;
 }
 
 /**
@@ -43,11 +49,33 @@ interface Props {
  * Σ (amount × effective commission %), outstanding = Σ amount where
  * status != paid.
  */
-export function EFuseIncomeSummary({ year }: Props) {
-  const { data: campaigns, isLoading, error } = useCampaigns();
+export function EFuseIncomeSummary({ year, talentFilterId }: Props) {
+  const { data: allCampaigns, isLoading, error } = useCampaigns();
 
-  const campaignIds = React.useMemo(() => (campaigns ?? []).map((c) => c.id), [campaigns]);
-  const { data: creatorsByCampaign } = useCampaignCreatorsByCampaigns(campaignIds);
+  // Fetch attachments against the FULL campaign list first so the
+  // talent filter has the membership data it needs to decide which
+  // rows survive. Doing it the other way around (filter campaigns
+  // → fetch attachments) would be chicken-and-egg.
+  const allCampaignIds = React.useMemo(
+    () => (allCampaigns ?? []).map((c) => c.id),
+    [allCampaigns],
+  );
+  const { data: creatorsByCampaign } = useCampaignCreatorsByCampaigns(allCampaignIds);
+
+  // R3E.Q5: scope the visible campaign list to those including the
+  // picked creator. Membership check is O(creators-per-campaign);
+  // fine at our scale.
+  const campaigns = React.useMemo(() => {
+    if (!talentFilterId || !allCampaigns || !creatorsByCampaign) return allCampaigns;
+    return allCampaigns.filter((c) =>
+      (creatorsByCampaign[c.id] ?? []).some((cc) => cc.creator_id === talentFilterId),
+    );
+  }, [allCampaigns, creatorsByCampaign, talentFilterId]);
+
+  // Note: legacy `campaignIds` (filtered) was derived here for the
+  // old useCampaignCreatorsByCampaigns call. We now fetch attachments
+  // against the full list above; the filtered `campaigns` array
+  // drives the downstream loops directly.
 
   const allCcIds = React.useMemo(() => {
     if (!creatorsByCampaign) return [];

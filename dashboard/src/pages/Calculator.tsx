@@ -104,11 +104,11 @@ export function CalculatorPage() {
         </TabsContent>
 
         <TabsContent value="overlay">
-          {/* EFuseIncomeSummary doesn't yet take talentFilterId — its
-              campaign-centric data shape needs a different filter
-              path. Leaving unfiltered for now keeps the analytics
-              roll-up intact even when a talent is picked elsewhere. */}
-          <EFuseIncomeSummary year={year} />
+          {/* R3E follow-up (Gustavo Q5 = option a): Overlay now
+              scopes to campaigns where the picked creator is
+              attached. With no talent picked, full division
+              roll-up like before. */}
+          <EFuseIncomeSummary year={year} talentFilterId={talentId} />
         </TabsContent>
       </Tabs>
     </div>
