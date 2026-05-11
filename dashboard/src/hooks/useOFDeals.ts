@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { calcOFPeriod, type CommissionTier } from "@/lib/finance/calc";
+import { calcOFPeriod, type CommissionMode, type CommissionTier } from "@/lib/finance/calc";
 import type {
   CommissionBasis,
   OFDeal,
@@ -13,6 +13,10 @@ export interface OFDealRow extends OFDeal {
     id: string;
     name: string;
     commission_pct_by_platform?: Record<string, unknown> | null;
+    /** R3 Q1+Q7 (migration 0035): canonical tier column. */
+    commission_tiers?: Record<string, unknown> | null;
+    /** R3 Q1: legacy cliff math toggle. */
+    commission_uses_cliff?: boolean | null;
   } | null;
 }
 
@@ -22,7 +26,7 @@ export function useOFDeals(opts: { includeInactive?: boolean } = {}) {
     queryFn: async () => {
       let q = supabase
         .from("of_deals")
-        .select("*, creator:creators(id, name, commission_pct_by_platform)")
+        .select("*, creator:creators(id, name, commission_pct_by_platform, commission_tiers, commission_uses_cliff)")
         .order("created_at", { ascending: false });
       if (!opts.includeInactive) q = q.eq("active", true);
       const { data, error } = await q;
@@ -144,6 +148,8 @@ export interface OFPeriodInput {
   basis: CommissionBasis;
   /** Phase K-2: optional tiered commission table from the creator's profile. */
   tiers?: CommissionTier[] | null;
+  /** R3 Q1+Q7 (migration 0035): commission math mode. */
+  commissionMode?: CommissionMode;
 }
 
 export function useUpsertOFPeriod() {
@@ -156,6 +162,7 @@ export function useUpsertOFPeriod() {
         recast_pct: input.recast_pct,
         basis: input.basis,
         tiers: input.tiers,
+        commissionMode: input.commissionMode,
       });
       const row = {
         of_deal_id: input.of_deal_id,

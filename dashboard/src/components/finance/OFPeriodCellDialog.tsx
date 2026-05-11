@@ -63,11 +63,16 @@ export function OFPeriodCellDialog({
 
   const grossNum = Number(gross) || 0;
   const netNum = net.trim() ? Number(net) : grossNum;
-  // Phase K-2: tiered profile commission overrides the deal's flat pct.
+  // R3 Q1+Q7 (migration 0035): tiers resolved from the new canonical
+  // column (commission_tiers) with legacy fallback; mode honours the
+  // per-creator commission_uses_cliff flag.
   const tiers = React.useMemo(
-    () => tiersFromProfile(deal.creator?.commission_pct_by_platform, "onlyfans"),
-    [deal.creator?.commission_pct_by_platform],
+    () => tiersFromProfile(deal.creator, "onlyfans"),
+    [deal.creator],
   );
+  const commissionMode = deal.creator?.commission_uses_cliff
+    ? "cliff"
+    : "progressive";
   const preview = React.useMemo(
     () =>
       calcOFPeriod({
@@ -76,8 +81,9 @@ export function OFPeriodCellDialog({
         recast_pct: deal.recast_pct,
         basis: deal.basis as CommissionBasis,
         tiers,
+        commissionMode,
       }),
-    [grossNum, netNum, deal, tiers],
+    [grossNum, netNum, deal, tiers, commissionMode],
   );
 
   async function onSave() {
@@ -98,6 +104,7 @@ export function OFPeriodCellDialog({
         recast_pct: deal.recast_pct,
         basis: deal.basis as CommissionBasis,
         tiers,
+        commissionMode,
       });
       toast.success(`${MONTH_NAMES[month - 1]} ${year} updated`);
       onOpenChange(false);

@@ -117,6 +117,13 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     () => loadTiersFromCreator(creator),
   );
 
+  // R3 Q1 (migration 0035): per-creator legacy cliff math toggle.
+  // Default false = progressive (R3 decision B); flip on for
+  // grandfathered creators whose contracts were negotiated under cliff.
+  const [usesCliff, setUsesCliff] = React.useState<boolean>(
+    () => !!creator.commission_uses_cliff,
+  );
+
   // Round 3: agreement links — { platform_slug: url } map.
   const [agreementLinks, setAgreementLinks] = React.useState<Record<string, string>>(
     () => (creator.agreement_links && typeof creator.agreement_links === "object"
@@ -148,6 +155,7 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setPaymentPref(creator.payment_method_pref ?? "");
     setTaxId(creator.tax_id ?? "");
     setTiersByPlatform(loadTiersFromCreator(creator));
+    setUsesCliff(!!creator.commission_uses_cliff);
     setAgreementLinks(
       creator.agreement_links && typeof creator.agreement_links === "object"
         ? creator.agreement_links
@@ -165,9 +173,9 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
 
   async function onSave() {
     if (!name.trim()) return toast.error("Name is required.");
-    let pct: Record<string, number | null | Array<{ threshold: number; pct: number }>>;
+    let canonicalTiers: Record<string, Array<{ threshold: number | null; pct: number }>>;
     try {
-      pct = serializeTiers(tiersByPlatform);
+      canonicalTiers = serializeTiers(tiersByPlatform);
     } catch (e) {
       toast.error((e as Error).message);
       return;
@@ -202,7 +210,11 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       address: address.trim() || null,
       payment_method_pref: paymentPref.trim() || null,
       tax_id: taxId.trim() || null,
-      commission_pct_by_platform: pct,
+      // R3 Q1+Q7 (migration 0035): write to the canonical column.
+      // Legacy commission_pct_by_platform stays untouched on the row
+      // (read-only fallback until migration 0036 drops it).
+      commission_tiers: canonicalTiers,
+      commission_uses_cliff: usesCliff,
       agreement_links: cleanLinks,
       socials,
     };
@@ -262,8 +274,41 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
 
           <Section
             title="Commission per platform"
-            help="Single % for any gross, or add tiers for progressive thresholds (income-tax-bracket style: 25% on the first $100K + 20% on anything above = $35K at $150K gross — each tier applies to its slice only, not the whole month)."
+            help={
+              usesCliff
+                ? 'Legacy cliff math is ON for this creator. The single tier the gross reaches applies its pct to the WHOLE month (the old K-2 behaviour). Toggle off to use the new progressive math.'
+                : "Single % for any gross, or add tiers for progressive thresholds (income-tax-bracket style: 25% on the first $100K + 20% on anything above = $35K at $150K gross — each tier applies to its slice only, not the whole month)."
+            }
           >
+            {/* R3 Q1: Legacy cliff math toggle. Per-creator, all-
+                platforms (Gustavo's choice — one toggle per contract
+                era). Defaults to false; flipping it to true means
+                this creator's math reverts to the K-2 whole-month-
+                at-one-rate cliff behaviour for grandfathered deals. */}
+            <div className="mb-3 flex items-start justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[12.5px] font-medium text-foreground">
+                  Legacy cliff math
+                </div>
+                <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
+                  Off (default) = progressive — each tier bills its
+                  slice. On = legacy cliff — the tier the gross reaches
+                  applies its pct to the entire month. Flip on for
+                  grandfathered contracts negotiated under the old rule.
+                </div>
+              </div>
+              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[12px] font-medium">
+                <input
+                  type="checkbox"
+                  checked={usesCliff}
+                  onChange={(e) => setUsesCliff(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--electric)]"
+                  aria-label="Use legacy cliff math for this creator"
+                />
+                {usesCliff ? "On" : "Off"}
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {PLATFORMS.map((p) => (
                 <CommissionEditor
@@ -567,25 +612,48 @@ function CommissionEditor({
 
 // ─── Tier serialization helpers (Phase K-2) ──────────────────────────
 
-/** Convert the creator's stored commission_pct_by_platform into the editor's
- *  Record<platform, TierEditor[]> shape. Backwards-compat:
- *    null   → []
- *    number → [{threshold: "0", pct: <num>}]
- *    array  → array.map(stringify)
+/**
+ * R3 Q1+Q7 (migration 0035): the editor's mental model stays as
+ * "threshold = tier STARTS at" — that's more intuitive for users
+ * negotiating contracts. We translate at the I/O boundary:
+ *
+ *   load:  canonical column (ends-at) → editor (starts-at)
+ *   save:  editor (starts-at)         → canonical column (ends-at)
+ *
+ * Storage in the new commission_tiers column follows the R3 canonical
+ * shape: ascending by threshold, threshold:null on the terminal tier.
+ *
+ * Legacy commission_pct_by_platform is still accepted on load as a
+ * safety net during the cutover window (some rows might predate the
+ * 0035 backfill).
  */
 function loadTiersFromCreator(
-  c: { commission_pct_by_platform?: Record<string, unknown> | null },
+  c: {
+    commission_tiers?: Record<string, unknown> | null;
+    commission_pct_by_platform?: Record<string, unknown> | null;
+  },
 ): Record<string, TierEditor[]> {
   const out: Record<string, TierEditor[]> = {};
-  const map = c.commission_pct_by_platform ?? {};
+  const canonical = c.commission_tiers ?? {};
+  const legacy = c.commission_pct_by_platform ?? {};
+
   for (const platform of ["onlyfans", "telegram", "efuse"]) {
-    const v = map?.[platform];
-    if (v == null) {
+    // Prefer canonical (new shape) when present.
+    const cv = canonical?.[platform];
+    if (Array.isArray(cv) && cv.length > 0) {
+      out[platform] = canonicalToEditor(cv);
+      continue;
+    }
+    // Legacy fallback. Same shapes as pre-0035: null / flat number /
+    // starts-at array. Editor expects starts-at, so the legacy array
+    // path is identity.
+    const lv = legacy?.[platform];
+    if (lv == null) {
       out[platform] = [];
-    } else if (typeof v === "number") {
-      out[platform] = [{ threshold: "0", pct: String(v) }];
-    } else if (Array.isArray(v)) {
-      out[platform] = v
+    } else if (typeof lv === "number") {
+      out[platform] = [{ threshold: "0", pct: String(lv) }];
+    } else if (Array.isArray(lv)) {
+      out[platform] = lv
         .filter((t: unknown): t is { threshold: number; pct: number } => {
           const x = t as Record<string, unknown>;
           return typeof x?.threshold === "number" && typeof x?.pct === "number";
@@ -598,17 +666,58 @@ function loadTiersFromCreator(
   return out;
 }
 
-/** Convert the editor state back into the JSONB shape we store. Throws on
- *  invalid input (e.g. blank pct in a tier) so the caller can toast. */
+/** New-shape array (threshold = ends-at, null on last) → editor's
+ *  starts-at shape. Implicit slice 0 starts at $0; slice i starts at
+ *  the previous tier's threshold. */
+function canonicalToEditor(canonical: unknown[]): TierEditor[] {
+  const cleaned: Array<{ threshold: number | null; pct: number }> = [];
+  for (const t of canonical) {
+    if (
+      typeof t === "object" &&
+      t !== null &&
+      typeof (t as { pct?: unknown }).pct === "number"
+    ) {
+      const rawT = (t as { threshold?: unknown }).threshold;
+      const threshold =
+        rawT === null
+          ? null
+          : typeof rawT === "number"
+            ? rawT
+            : null;
+      cleaned.push({ threshold, pct: (t as { pct: number }).pct });
+    }
+  }
+  if (cleaned.length === 0) return [];
+  // Sort: numeric thresholds ascending, null last.
+  cleaned.sort((a, b) => {
+    if (a.threshold === null) return 1;
+    if (b.threshold === null) return -1;
+    return a.threshold - b.threshold;
+  });
+  // Editor row i = { threshold: previous-canonical-threshold (0 for i=0), pct: this tier's pct }
+  const out: TierEditor[] = [];
+  let prevThreshold = 0;
+  for (const tier of cleaned) {
+    out.push({ threshold: String(prevThreshold), pct: String(tier.pct) });
+    prevThreshold = tier.threshold === null ? prevThreshold : tier.threshold;
+  }
+  return out;
+}
+
+/**
+ * Editor → new-shape array for commission_tiers JSONB. Empty platform
+ * arrays are omitted from the output entirely so the stored blob
+ * stays compact.
+ *
+ * Throws on validation errors so the caller can toast.
+ */
 function serializeTiers(
   byPlatform: Record<string, TierEditor[]>,
-): Record<string, number | null | Array<{ threshold: number; pct: number }>> {
-  const out: Record<string, number | null | Array<{ threshold: number; pct: number }>> = {};
+): Record<string, Array<{ threshold: number | null; pct: number }>> {
+  const out: Record<string, Array<{ threshold: number | null; pct: number }>> = {};
   for (const [platform, rows] of Object.entries(byPlatform)) {
-    if (rows.length === 0) {
-      out[platform] = null;
-      continue;
-    }
+    if (rows.length === 0) continue;
+
     const parsed = rows.map((r, i) => {
       const threshold = Number(r.threshold);
       const pct = Number(r.pct);
@@ -620,20 +729,28 @@ function serializeTiers(
       }
       return { threshold, pct };
     });
-    // Single tier with threshold=0 → store as flat number for compactness
-    if (parsed.length === 1 && parsed[0].threshold === 0) {
-      out[platform] = parsed[0].pct;
-    } else {
-      // Sort ascending by threshold so the JSONB on-disk is canonical.
-      parsed.sort((a, b) => a.threshold - b.threshold);
-      // Reject duplicate thresholds.
-      for (let i = 1; i < parsed.length; i++) {
-        if (parsed[i].threshold === parsed[i - 1].threshold) {
-          throw new Error(`${platform}: two tiers with the same threshold ($${parsed[i].threshold})`);
-        }
+
+    // Sort ascending by start threshold so the on-disk shape is canonical.
+    parsed.sort((a, b) => a.threshold - b.threshold);
+
+    // Reject duplicate thresholds.
+    for (let i = 1; i < parsed.length; i++) {
+      if (parsed[i].threshold === parsed[i - 1].threshold) {
+        throw new Error(
+          `${platform}: two tiers with the same threshold ($${parsed[i].threshold})`,
+        );
       }
-      out[platform] = parsed;
     }
+
+    // Translate starts-at → ends-at: row i's stored threshold = NEXT
+    // row's start (or null for the last). pct stays with its row.
+    const canonical: Array<{ threshold: number | null; pct: number }> = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const nextThreshold =
+        i + 1 < parsed.length ? parsed[i + 1].threshold : null;
+      canonical.push({ threshold: nextThreshold, pct: parsed[i].pct });
+    }
+    out[platform] = canonical;
   }
   return out;
 }

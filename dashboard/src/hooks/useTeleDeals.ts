@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { calcTelePeriod, type CommissionTier } from "@/lib/finance/calc";
+import { calcTelePeriod, type CommissionMode, type CommissionTier } from "@/lib/finance/calc";
 import type {
   CommissionBasis,
   PaymentStatusV2,
@@ -13,6 +13,10 @@ export interface TeleDealRow extends TeleDeal {
     id: string;
     name: string;
     commission_pct_by_platform?: Record<string, unknown> | null;
+    /** R3 Q1+Q7 (migration 0035): canonical tier column. */
+    commission_tiers?: Record<string, unknown> | null;
+    /** R3 Q1: legacy cliff math toggle. */
+    commission_uses_cliff?: boolean | null;
   } | null;
 }
 
@@ -101,7 +105,7 @@ export function useTeleDeals(opts: { includeInactive?: boolean } = {}) {
     queryFn: async () => {
       let q = supabase
         .from("tele_deals")
-        .select("*, creator:creators(id, name, commission_pct_by_platform)")
+        .select("*, creator:creators(id, name, commission_pct_by_platform, commission_tiers, commission_uses_cliff)")
         .order("created_at", { ascending: false });
       if (!opts.includeInactive) q = q.eq("active", true);
       const { data, error } = await q;
@@ -227,8 +231,10 @@ export interface TelePeriodInput {
   commission_basis: CommissionBasis;
   min_guarantee: number | null;
   /** Phase K-2: optional tiered commission table from the creator's profile.
-   *  When present, overrides recast_commission_pct using cliff semantics. */
+   *  When present, overrides recast_commission_pct via the chosen mode. */
   tiers?: CommissionTier[] | null;
+  /** R3 Q1+Q7 (migration 0035): commission math mode. */
+  commissionMode?: CommissionMode;
 }
 
 /**
@@ -247,6 +253,7 @@ export function useUpsertTelePeriod() {
         commission_basis: input.commission_basis,
         min_guarantee: input.min_guarantee,
         tiers: input.tiers,
+        commissionMode: input.commissionMode,
       });
 
       const row = {

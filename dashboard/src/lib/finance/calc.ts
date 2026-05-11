@@ -10,108 +10,243 @@
  * OnlyFans is simpler — Recast takes a % of gross or net depending on the deal,
  * the rest is the creator's "girls share". No MG.
  *
- * Round 3 (Gustavo decision B): tier semantics flipped from CLIFF →
- * PROGRESSIVE (income-tax-bracket style).
- *   • Each tier's pct applies to its SLICE only. Threshold values mean
- *     "this tier starts at" (the legacy K-2 data shape stored exactly
- *     this — no migration needed; only the math reading it changes).
- *   • Example: tiers [{threshold:0, pct:30}, {threshold:10000, pct:20}]
- *     on a $15,000 gross →
- *       first $10,000 @ 30% = $3,000
- *       remaining $5,000 @ 20% = $1,000
- *       total commission = $4,000  (effective rate ≈ 26.7%)
- *     Under the old cliff rule, the same data → $15,000 × 20% = $3,000.
- *   • Backward compat: when tiers is null/undefined/empty the calc uses
- *     the deal's flat pct as before.
+ * Round 3 Q1 + Q7 (migration 0035): the canonical commission column is
+ * now `creators.commission_tiers` (new shape, threshold = "tier ENDS at",
+ * null on the last tier = "and above"). The legacy
+ * `commission_pct_by_platform` column stays readable as a safety net
+ * during the cutover window — `tiersFromProfile` reads new first,
+ * translates legacy on the fly otherwise.
  *
- * Two helpers live below: `commissionDollarsFromTiers` returns the raw $
- * for previewing the breakdown, and `effectivePctFromTiers` returns the
- * derived effective % so callers that previously assumed a single rate
- * (commission_basis="net" multiplies that rate against the net base)
- * keep working with minimal change.
+ * Per-creator `commission_uses_cliff` flag (default false) chooses the
+ * math mode:
+ *   • Progressive (default): each tier bills its own slice (income-
+ *     bracket style). Example: tiers [{threshold:10K, pct:30},
+ *     {threshold:null, pct:20}] on gross $15K = first $10K × 30% +
+ *     remaining $5K × 20% = $4,000.
+ *   • Cliff (legacy): the tier whose range contains gross applies its
+ *     pct to the WHOLE gross. Same data, same $15K = $15K × 20% =
+ *     $3,000.
+ * The flag is per-creator, all-platforms — Gustavo's call (one toggle
+ * per contract era, not per-platform).
  */
 
 export interface CommissionTier {
-  /** Monthly gross >= this threshold → tier STARTS here (progressive). */
-  threshold: number;
-  /** Recast's cut on this slice, 0–100. */
+  /**
+   * Round 3 shape: dollar threshold this tier ends at (inclusive).
+   * null = applies forever (terminal tier). Tier 0's implicit start
+   * is $0; tier i's start is tier (i-1)'s threshold.
+   *
+   * Example tiers list:
+   *   [{threshold: 10000, pct: 30}, {threshold: 50000, pct: 25}, {threshold: null, pct: 20}]
+   * Reads as: $0–10K @ 30%, $10K–50K @ 25%, $50K+ @ 20%.
+   */
+  threshold: number | null;
+  /** Recast's cut on this tier, 0–100. */
   pct: number;
 }
 
+export type CommissionMode = "progressive" | "cliff";
+
+// ─────────────────────────────────────────────────────────────────────
+// Core tier math — both modes
+// ─────────────────────────────────────────────────────────────────────
+
 /**
- * Round 3: compute Recast's commission dollars under PROGRESSIVE
- * semantics. The slice between tier[i].threshold and tier[i+1].threshold
- * (or +Infinity for the last) gets tier[i].pct.
+ * Compute Recast's commission dollars from a tier table and gross.
+ * Mode defaults to progressive (Gustavo R3 decision B); pass "cliff"
+ * for grandfathered creators (commission_uses_cliff = true).
  *
- * Returns 0 when tiers is null/empty/zero gross — caller falls back to
- * the deal's flat pct in that case via effectivePctFromTiers().
+ * Returns 0 when tiers is null/empty/zero gross.
  */
 export function commissionDollarsFromTiers(
   gross: number,
   tiers: CommissionTier[] | null | undefined,
+  mode: CommissionMode = "progressive",
 ): number {
   if (!tiers || tiers.length === 0 || gross <= 0) return 0;
-  const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
+  return mode === "cliff"
+    ? commissionDollarsCliff(gross, tiers)
+    : commissionDollarsProgressive(gross, tiers);
+}
+
+/** Progressive (income-bracket) — each tier bills its own slice. */
+function commissionDollarsProgressive(
+  gross: number,
+  tiers: CommissionTier[],
+): number {
+  const sorted = sortTiersAscending(tiers);
+  let remaining = gross;
+  let prevThreshold = 0;
   let total = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    const tierStart = sorted[i].threshold;
-    if (gross <= tierStart) break;
-    const tierEnd =
-      i + 1 < sorted.length ? sorted[i + 1].threshold : Infinity;
-    const sliceWidth = Math.min(gross, tierEnd) - tierStart;
-    total += sliceWidth * (sorted[i].pct / 100);
+  for (const tier of sorted) {
+    if (remaining <= 0) break;
+    const sliceEnd = tier.threshold === null ? Infinity : tier.threshold;
+    const sliceWidth = sliceEnd - prevThreshold;
+    const slice = Math.min(remaining, sliceWidth);
+    total += slice * (tier.pct / 100);
+    remaining -= slice;
+    prevThreshold = sliceEnd;
   }
   return round2(total);
 }
 
+/** Cliff — find the tier whose range contains gross, apply pct to whole. */
+function commissionDollarsCliff(
+  gross: number,
+  tiers: CommissionTier[],
+): number {
+  const sorted = sortTiersAscending(tiers);
+  // Walk tiers in order; the first one whose end-threshold ≥ gross
+  // is the bucket gross falls into. (Tier i covers (prev.threshold,
+  // sorted[i].threshold]; gross sits inside if gross > prev AND
+  // gross ≤ sorted[i].threshold.) Null threshold = +∞, so the
+  // terminal tier always catches whatever's left.
+  for (const tier of sorted) {
+    const sliceEnd = tier.threshold === null ? Infinity : tier.threshold;
+    if (gross <= sliceEnd) {
+      return round2(gross * (tier.pct / 100));
+    }
+  }
+  // Defensive — should be unreachable if any tier has threshold null.
+  // Fall back to the last tier's pct.
+  return round2(gross * (sorted[sorted.length - 1].pct / 100));
+}
+
 /**
- * Derive an effective % from a progressive tier table for a given
- * gross. Returns null when no tiers supplied (caller falls back to the
- * deal's flat pct).
+ * Derive a single blended % from a tier table. Lets callers that
+ * multiply against a separate commission base (e.g. Telegram on net +
+ * top-up, OnlyFans on net when basis=net) keep using the existing
+ * "effective pct × base" pattern — works under both modes.
  *
- * The result is `commissionDollars / gross × 100` — a single rate that
- * captures the blended cost across all crossed tiers. Existing call
- * sites (calcOFPeriod, calcTelePeriod) multiply this against the
- * commission base (gross OR net depending on `basis`), so a progressive
- * tier table works under both `basis: "gross"` and `basis: "net"`.
+ * Returns null when no tiers supplied.
  */
 export function effectivePctFromTiers(
   gross: number,
   tiers: CommissionTier[] | null | undefined,
+  mode: CommissionMode = "progressive",
 ): number | null {
   if (!tiers || tiers.length === 0) return null;
   if (gross <= 0) {
     // Edge: no gross to slice. Return the FIRST tier's rate so a
     // "what would a $1 trial gross net me?" preview doesn't divide
-    // by zero. Inert for the calc itself (commission = base × 0% = 0
-    // when gross is 0, regardless of basis).
-    const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
+    // by zero.
+    const sorted = sortTiersAscending(tiers);
     return sorted[0].pct;
   }
-  const dollars = commissionDollarsFromTiers(gross, tiers);
+  const dollars = commissionDollarsFromTiers(gross, tiers, mode);
   return (dollars / gross) * 100;
 }
 
-/** Pull a tier array out of a creator's commission_pct_by_platform JSONB.
- *  Backwards-compat: a flat number or null returns null (calc engine
- *  falls back to the deal's flat pct in that case). */
+/** Sort tiers ascending by threshold; null threshold sorts last. */
+function sortTiersAscending(tiers: CommissionTier[]): CommissionTier[] {
+  return [...tiers].sort((a, b) => {
+    if (a.threshold === null) return 1;
+    if (b.threshold === null) return -1;
+    return a.threshold - b.threshold;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// tiersFromProfile — single read path
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Read a creator's tier table for one platform. Tries the canonical
+ * column (commission_tiers, new shape) first; if empty, falls back to
+ * the legacy column (commission_pct_by_platform) and translates its
+ * shape on the fly.
+ *
+ * The legacy column stores threshold as "tier STARTS at" (and uses a
+ * flat number for single-rate creators); we translate to the new
+ * "tier ENDS at" shape so downstream math works on one shape only.
+ *
+ * Returns null when neither column has data for this platform.
+ */
 export function tiersFromProfile(
-  commissionByPlatform: unknown,
+  creator:
+    | {
+        commission_tiers?: unknown;
+        commission_pct_by_platform?: unknown;
+      }
+    | null
+    | undefined,
   platform: "onlyfans" | "telegram" | "efuse",
 ): CommissionTier[] | null {
-  if (!commissionByPlatform || typeof commissionByPlatform !== "object") return null;
-  const map = commissionByPlatform as Record<string, unknown>;
-  const v = map[platform];
-  if (!Array.isArray(v)) return null;
-  // Sanity-filter so a malformed JSONB row doesn't crash the calc.
-  const out: CommissionTier[] = [];
-  for (const t of v as Array<Record<string, unknown>>) {
-    if (typeof t?.threshold === "number" && typeof t?.pct === "number") {
-      out.push({ threshold: t.threshold, pct: t.pct });
+  if (!creator) return null;
+
+  // 1. New canonical column.
+  const canonical = creator.commission_tiers;
+  if (canonical && typeof canonical === "object") {
+    const v = (canonical as Record<string, unknown>)[platform];
+    if (Array.isArray(v) && v.length > 0) {
+      const out: CommissionTier[] = [];
+      for (const t of v) {
+        if (
+          typeof t !== "object" ||
+          t === null ||
+          typeof (t as { pct?: unknown }).pct !== "number"
+        ) {
+          continue;
+        }
+        const rawT = (t as { threshold?: unknown }).threshold;
+        const threshold =
+          rawT === null
+            ? null
+            : typeof rawT === "number"
+              ? rawT
+              : null;
+        out.push({ threshold, pct: (t as { pct: number }).pct });
+      }
+      if (out.length > 0) return out;
     }
   }
-  return out.length > 0 ? out : null;
+
+  // 2. Legacy fallback — translate "starts at" → "ends at".
+  const legacy = creator.commission_pct_by_platform;
+  if (!legacy || typeof legacy !== "object") return null;
+  const v = (legacy as Record<string, unknown>)[platform];
+  if (v == null) return null;
+
+  // 2a. Flat number → single-tier covering everything.
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return [{ threshold: null, pct: v }];
+  }
+
+  // 2b. Legacy tier array (starts-at). Sort ascending by start, then
+  //     translate position i → {threshold: next.start, pct: this.pct}
+  //     with the last position getting threshold:null.
+  if (Array.isArray(v)) {
+    const cleaned: Array<{ threshold: number; pct: number }> = [];
+    for (const t of v) {
+      if (
+        typeof t === "object" &&
+        t !== null &&
+        typeof (t as { threshold?: unknown }).threshold === "number" &&
+        typeof (t as { pct?: unknown }).pct === "number"
+      ) {
+        cleaned.push({
+          threshold: (t as { threshold: number }).threshold,
+          pct: (t as { pct: number }).pct,
+        });
+      }
+    }
+    if (cleaned.length === 0) return null;
+    cleaned.sort((a, b) => a.threshold - b.threshold);
+    const out: CommissionTier[] = [];
+    for (let i = 0; i < cleaned.length; i++) {
+      const nextThreshold =
+        i + 1 < cleaned.length ? cleaned[i + 1].threshold : null;
+      out.push({ threshold: nextThreshold, pct: cleaned[i].pct });
+    }
+    return out;
+  }
+
+  return null;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Telegram
+// ─────────────────────────────────────────────────────────────────────
 
 const TELEGRAM_PLATFORM_NET_RATIO = 0.5;
 const TELEGRAM_MG_QUALIFIER_RATIO = 0.5;
@@ -131,9 +266,12 @@ export interface TelePeriodInput {
   recast_commission_pct: number;  // e.g. 20 for 20% (used when tiers is null/empty)
   commission_basis: "gross" | "net";
   min_guarantee?: number | null;  // null = no MG
-  /** Optional tier table from the creator's profile. When present, overrides
-   *  recast_commission_pct using cliff semantics (see effectivePctFromTiers). */
+  /** Optional tier table from the creator's profile. When present,
+   *  overrides recast_commission_pct via the chosen commission mode. */
   tiers?: CommissionTier[] | null;
+  /** Round 3 Q1 (migration 0035): "progressive" (default) or "cliff"
+   *  for grandfathered creators. Read from creator.commission_uses_cliff. */
+  commissionMode?: CommissionMode;
 }
 
 export function calcTelePeriod(input: TelePeriodInput): TelePeriodCalc {
@@ -150,10 +288,11 @@ export function calcTelePeriod(input: TelePeriodInput): TelePeriodCalc {
 
   const baseForCommission =
     input.commission_basis === "gross" ? gross : round2(net + topUp);
-  // Tiers, if present, are evaluated against the GROSS revenue — Gustavo's
-  // monthly threshold is "how much did the creator make this month", not
-  // "how much was Recast's base after splits". Cliff semantics per spec.
-  const tieredPct = effectivePctFromTiers(gross, input.tiers);
+  // Tiers, if present, are evaluated against the GROSS revenue —
+  // Gustavo's monthly threshold is "how much did the creator make
+  // this month", not "how much was Recast's base after splits".
+  const mode = input.commissionMode ?? "progressive";
+  const tieredPct = effectivePctFromTiers(gross, input.tiers, mode);
   const effectivePct = tieredPct ?? input.recast_commission_pct;
   const recastCommission = round2(baseForCommission * (effectivePct / 100));
 
@@ -170,6 +309,8 @@ export function calcTelePeriod(input: TelePeriodInput): TelePeriodCalc {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// OnlyFans
+// ─────────────────────────────────────────────────────────────────────
 
 export interface OFPeriodCalc {
   gross_revenue: number;
@@ -183,8 +324,11 @@ export interface OFPeriodInput {
   net_revenue?: number;           // optional override; defaults equal to gross
   recast_pct: number;             // e.g. 35 for 35% (used when tiers is null/empty)
   basis: "gross" | "net";
-  /** Optional tier table from the creator's profile. Cliff semantics per K-2. */
+  /** Optional tier table from the creator's profile. */
   tiers?: CommissionTier[] | null;
+  /** Round 3 Q1: "progressive" (default) or "cliff" for grandfathered
+   *  creators. Read from creator.commission_uses_cliff. */
+  commissionMode?: CommissionMode;
 }
 
 export function calcOFPeriod(input: OFPeriodInput): OFPeriodCalc {
@@ -195,7 +339,8 @@ export function calcOFPeriod(input: OFPeriodInput): OFPeriodCalc {
       : gross;
 
   const baseForCommission = input.basis === "gross" ? gross : net;
-  const tieredPct = effectivePctFromTiers(gross, input.tiers);
+  const mode = input.commissionMode ?? "progressive";
+  const tieredPct = effectivePctFromTiers(gross, input.tiers, mode);
   const effectivePct = tieredPct ?? input.recast_pct;
   const recastCommission = round2(baseForCommission * (effectivePct / 100));
   const girlsShare = round2(net - recastCommission);

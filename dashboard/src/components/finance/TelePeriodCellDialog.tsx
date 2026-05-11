@@ -75,13 +75,19 @@ export function TelePeriodCellDialog({
   }, [open, existing]);
 
   const grossNum = Number(gross) || 0;
-  // Phase K-2: pull tiered commission from the creator's profile.
-  // When tiers exist, calcTelePeriod uses cliff semantics and the deal's
-  // flat pct is ignored; otherwise the deal's flat pct is authoritative.
+  // R3 Q1+Q7: tiers resolved from canonical commission_tiers column
+  // first (legacy fallback inside tiersFromProfile). Mode reads the
+  // per-creator commission_uses_cliff flag — false (default) = the
+  // new progressive math, true = the K-2 cliff behaviour for
+  // grandfathered contracts. When tiers exist they override the
+  // deal's flat pct; without tiers the deal pct is authoritative.
   const tiers = React.useMemo(
-    () => tiersFromProfile(deal.creator?.commission_pct_by_platform, "telegram"),
-    [deal.creator?.commission_pct_by_platform],
+    () => tiersFromProfile(deal.creator, "telegram"),
+    [deal.creator],
   );
+  const commissionMode = deal.creator?.commission_uses_cliff
+    ? "cliff"
+    : "progressive";
   const preview = React.useMemo(
     () =>
       calcTelePeriod({
@@ -91,8 +97,9 @@ export function TelePeriodCellDialog({
         commission_basis: deal.commission_basis as CommissionBasis,
         min_guarantee: deal.min_guarantee,
         tiers,
+        commissionMode,
       }),
-    [grossNum, useOverride, netOverride, deal, tiers],
+    [grossNum, useOverride, netOverride, deal, tiers, commissionMode],
   );
 
   async function onSave() {
@@ -114,6 +121,7 @@ export function TelePeriodCellDialog({
         commission_basis: deal.commission_basis as CommissionBasis,
         min_guarantee: deal.min_guarantee,
         tiers,
+        commissionMode,
       });
       toast.success(`${MONTH_NAMES[month - 1]} ${year} updated`);
       onOpenChange(false);

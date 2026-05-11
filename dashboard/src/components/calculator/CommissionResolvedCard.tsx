@@ -7,6 +7,7 @@ import {
   commissionDollarsFromTiers,
   effectivePctFromTiers,
   tiersFromProfile,
+  type CommissionMode,
   type CommissionTier,
 } from "@/lib/finance/calc";
 import { cn, formatUSD } from "@/lib/utils";
@@ -17,19 +18,14 @@ import { cn, formatUSD } from "@/lib/utils";
  * platform columns (OnlyFans, Telegram, Overlay) so Gustavo can sanity
  * check what each platform's deal pays before opening any tab.
  *
- * Inputs:
- *   • Talent id (page-level pick)
- *   • Example monthly gross (defaults to $20K; freely editable)
- *
- * For each platform we resolve the creator's tier table from
- * commission_pct_by_platform (legacy K-2 shape, threshold = tier
- * STARTS at) and run progressive math via commissionDollarsFromTiers.
- * When no tiers exist for a platform (flat or null), we display the
- * stored flat percentage instead.
- *
- * The breakdown lists each slice — $0–$10K @ 30% = $3,000 — so the
- * progressive logic is auditable. Effective rate sits at the bottom
- * of each card.
+ * R3 Q1+Q7 update:
+ *   • Reads from the canonical commission_tiers column first via
+ *     tiersFromProfile (legacy commission_pct_by_platform stays as a
+ *     fallback during the migration window).
+ *   • Honours the per-creator commission_uses_cliff toggle. When ON,
+ *     the card shows a single-rate cliff result. When OFF (default),
+ *     the slice-by-slice progressive breakdown.
+ *   • A mode chip in the header labels which math you're seeing.
  */
 
 interface Props {
@@ -55,18 +51,34 @@ export function CommissionResolvedCard({ talentId }: Props) {
   if (!creator) return null;
 
   const grossNum = Math.max(0, Number(exampleGross) || 0);
+  const mode: CommissionMode = creator.commission_uses_cliff
+    ? "cliff"
+    : "progressive";
 
   return (
     <div className="rounded-lg border bg-card p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <EyebrowLabel withRule>
-            Resolved commission · {creator.name}
-          </EyebrowLabel>
+          <div className="flex items-center gap-2">
+            <EyebrowLabel withRule>
+              Resolved commission · {creator.name}
+            </EyebrowLabel>
+            <ModeChip mode={mode} />
+          </div>
           <p className="mt-1 max-w-[60ch] text-[12px] text-steel">
-            Per-platform commission breakdown for an example monthly gross.
-            Progressive tier math — each tier applies to its slice
-            only.
+            {mode === "cliff" ? (
+              <>
+                Legacy cliff math — the tier the creator reaches applies
+                its pct to the entire monthly gross. Toggle this off
+                from the talent profile to switch to progressive.
+              </>
+            ) : (
+              <>
+                Per-platform commission breakdown for an example monthly
+                gross. Progressive — each tier applies to its slice
+                only.
+              </>
+            )}
           </p>
         </div>
         <label className="flex items-center gap-2 text-[12px] text-steel">
@@ -91,13 +103,32 @@ export function CommissionResolvedCard({ talentId }: Props) {
           <PlatformResolved
             key={p.key}
             label={p.label}
-            tiers={tiersFromProfile(creator.commission_pct_by_platform, p.key)}
-            flatPct={extractFlatPct(creator.commission_pct_by_platform, p.key)}
+            tiers={tiersFromProfile(creator, p.key)}
             gross={grossNum}
+            mode={mode}
           />
         ))}
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Header mode chip
+// ─────────────────────────────────────────────────────────────────────
+
+function ModeChip({ mode }: { mode: CommissionMode }) {
+  if (mode === "cliff") {
+    return (
+      <span className="rounded-sm bg-overdue-tint px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-overdue">
+        Legacy cliff
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-sm bg-paid-tint px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-paid">
+      Progressive
+    </span>
   );
 }
 
@@ -108,16 +139,16 @@ export function CommissionResolvedCard({ talentId }: Props) {
 function PlatformResolved({
   label,
   tiers,
-  flatPct,
   gross,
+  mode,
 }: {
   label: string;
   tiers: CommissionTier[] | null;
-  flatPct: number | null;
   gross: number;
+  mode: CommissionMode;
 }) {
-  // No tiers + no flat → nothing on file for this platform.
-  if (!tiers && flatPct == null) {
+  // No tiers → nothing on file for this platform.
+  if (!tiers || tiers.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-rule p-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-steel">
@@ -131,9 +162,14 @@ function PlatformResolved({
     );
   }
 
-  // Flat-only path: single percentage, no slicing.
-  if (!tiers && flatPct != null) {
-    const dollars = gross * (flatPct / 100);
+  // Flat detect: a single tier with threshold:null is a flat rate
+  // covering everything. Display as a simpler card with no slice
+  // breakdown — same in either mode (cliff == progressive when only
+  // one tier exists).
+  const isFlat = tiers.length === 1 && tiers[0].threshold === null;
+  if (isFlat) {
+    const pct = tiers[0].pct;
+    const dollars = gross * (pct / 100);
     return (
       <div className="rounded-md border bg-[#0d0d0d] p-3">
         <div className="flex items-center justify-between">
@@ -149,36 +185,59 @@ function PlatformResolved({
           {formatUSD(dollars, { decimals: 0 })}
         </div>
         <div className="mt-1 text-[11px] text-steel">
-          {flatPct}% of {formatUSD(gross, { decimals: 0 })} gross
+          {pct}% of {formatUSD(gross, { decimals: 0 })} gross
         </div>
       </div>
     );
   }
 
-  // Tiered path: progressive slice breakdown.
-  const sorted = [...(tiers ?? [])].sort((a, b) => a.threshold - b.threshold);
+  // Tiered. Build slices: tier 0's slice is $0–threshold[0], tier i's
+  // slice is threshold[i-1]–threshold[i], terminal tier's slice is
+  // threshold[n-1]–∞. Under progressive each slice contributes its
+  // own commission; under cliff the bucket containing gross gets
+  // the whole gross × its pct.
+  const sorted = [...tiers].sort((a, b) => {
+    if (a.threshold === null) return 1;
+    if (b.threshold === null) return -1;
+    return a.threshold - b.threshold;
+  });
   const slices: Array<{
     from: number;
     to: number | null;
     pct: number;
-    sliceDollars: number;
-    commission: number;
+    sliceConsumed: number;
+    sliceCommission: number;
+    isActiveCliffTier: boolean;
   }> = [];
+  let prevThreshold = 0;
+  let cliffBucketFound = false;
   for (let i = 0; i < sorted.length; i++) {
-    const from = sorted[i].threshold;
-    const to = i + 1 < sorted.length ? sorted[i + 1].threshold : null;
+    const from = prevThreshold;
+    const to = sorted[i].threshold;
     const sliceCap = to ?? Infinity;
     const consumed = Math.max(0, Math.min(gross, sliceCap) - from);
+    // Cliff selects the tier whose range contains gross — i.e. first
+    // tier with end ≥ gross (and we haven't yet found it).
+    const isActiveCliffTier =
+      mode === "cliff" && !cliffBucketFound && gross <= sliceCap;
+    if (isActiveCliffTier) cliffBucketFound = true;
     slices.push({
       from,
       to,
       pct: sorted[i].pct,
-      sliceDollars: consumed,
-      commission: consumed * (sorted[i].pct / 100),
+      sliceConsumed: consumed,
+      sliceCommission:
+        mode === "cliff"
+          ? isActiveCliffTier
+            ? gross * (sorted[i].pct / 100)
+            : 0
+          : consumed * (sorted[i].pct / 100),
+      isActiveCliffTier,
     });
+    prevThreshold = sliceCap;
   }
-  const total = commissionDollarsFromTiers(gross, tiers);
-  const effective = effectivePctFromTiers(gross, tiers);
+  const total = commissionDollarsFromTiers(gross, tiers, mode);
+  const effective = effectivePctFromTiers(gross, tiers, mode);
 
   return (
     <div className="rounded-md border bg-[#0d0d0d] p-3">
@@ -196,33 +255,45 @@ function PlatformResolved({
         {formatUSD(total, { decimals: 0 })}
       </div>
       <div className="mt-1 text-[11px] text-steel">
-        Effective {effective != null ? `${effective.toFixed(1)}%` : "—"} of{" "}
+        {mode === "cliff" ? "Cliff rate" : "Effective"}{" "}
+        {effective != null ? `${effective.toFixed(1)}%` : "—"} of{" "}
         {formatUSD(gross, { decimals: 0 })}
       </div>
 
-      {/* Slice breakdown — only show slices that have non-zero
-          consumed dollars, to keep tiny gross examples readable. */}
+      {/* Slice breakdown. Under progressive every consumed slice gets
+          its own line. Under cliff the active bucket lights up
+          highlighted and shows the whole-month math; other tiers are
+          rendered dimmed for context. */}
       <div className="mt-2.5 space-y-1 border-t border-rule pt-2">
-        {slices
-          .filter((s) => s.sliceDollars > 0 || s === slices[0])
-          .map((s, i) => (
+        {slices.map((s, i) => {
+          const dim =
+            mode === "cliff"
+              ? !s.isActiveCliffTier
+              : s.sliceConsumed === 0;
+          return (
             <div
               key={i}
               className={cn(
                 "flex items-baseline justify-between gap-2 text-[11px]",
-                s.sliceDollars === 0 && "opacity-40",
+                dim && "opacity-40",
+                mode === "cliff" && s.isActiveCliffTier && "text-electric",
               )}
             >
               <span className="text-steel">
                 {fmtRange(s.from, s.to)} <span className="text-white/60">@ {s.pct}%</span>
               </span>
               <span className="tabular text-white">
-                {s.sliceDollars > 0
-                  ? formatUSD(s.commission, { decimals: 0 })
-                  : "—"}
+                {mode === "cliff"
+                  ? s.isActiveCliffTier
+                    ? formatUSD(s.sliceCommission, { decimals: 0 })
+                    : "—"
+                  : s.sliceConsumed > 0
+                    ? formatUSD(s.sliceCommission, { decimals: 0 })
+                    : "—"}
               </span>
             </div>
-          ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -239,16 +310,4 @@ function compactDollar(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n}`;
-}
-
-/** Extract a single flat % from the legacy commission_pct_by_platform.
- *  Returns null when the platform key holds a tier array or no value. */
-function extractFlatPct(
-  commissionByPlatform: unknown,
-  platform: string,
-): number | null {
-  if (!commissionByPlatform || typeof commissionByPlatform !== "object") return null;
-  const v = (commissionByPlatform as Record<string, unknown>)[platform];
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  return null;
 }
