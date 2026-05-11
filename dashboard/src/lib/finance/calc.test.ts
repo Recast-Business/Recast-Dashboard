@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { calcOFPeriod, calcTelePeriod, effectivePctFromTiers } from "./calc";
+import {
+  calcOFPeriod,
+  calcTelePeriod,
+  commissionDollarsFromTiers,
+  effectivePctFromTiers,
+} from "./calc";
 
 describe("calcTelePeriod — Telegram MG logic", () => {
   it("default 50% net, 20% commission on net, no MG", () => {
@@ -170,10 +175,60 @@ describe("calcOFPeriod — OnlyFans split", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// Phase K-2: tiered commissions (cliff)
+// Round 3 (Gustavo decision B): tier semantics PROGRESSIVE
+//
+// The legacy K-2 tests asserted CLIFF behaviour (highest crossed tier
+// applies to the whole month). Those expectations are obsolete — see
+// the calc.ts header for the new spec. The data shape is unchanged;
+// only the math reading it flipped.
 // ─────────────────────────────────────────────────────────────────────
 
-describe("effectivePctFromTiers — cliff semantics", () => {
+describe("commissionDollarsFromTiers — progressive (income-bracket) semantics", () => {
+  const tiers = [
+    { threshold: 0, pct: 30 },
+    { threshold: 10_000, pct: 25 },
+    { threshold: 50_000, pct: 20 },
+  ];
+
+  it("returns 0 when tiers empty or gross zero", () => {
+    expect(commissionDollarsFromTiers(5_000, [])).toBe(0);
+    expect(commissionDollarsFromTiers(5_000, null)).toBe(0);
+    expect(commissionDollarsFromTiers(5_000, undefined)).toBe(0);
+    expect(commissionDollarsFromTiers(0, tiers)).toBe(0);
+  });
+
+  it("whole gross sits inside the first tier", () => {
+    // $5,000 entirely inside 0–10K @ 30% → 1500
+    expect(commissionDollarsFromTiers(5_000, tiers)).toBe(1_500);
+  });
+
+  it("gross spans two tiers — each slice billed independently", () => {
+    // $15,000 → first 10K @ 30% (3000) + next 5K @ 25% (1250) = 4250
+    expect(commissionDollarsFromTiers(15_000, tiers)).toBe(4_250);
+  });
+
+  it("gross spans all three tiers", () => {
+    // $60,000 → 10K @ 30% (3000) + 40K @ 25% (10000) + 10K @ 20% (2000) = 15000
+    expect(commissionDollarsFromTiers(60_000, tiers)).toBe(15_000);
+  });
+
+  it("handles unsorted tier input", () => {
+    const unsorted = [
+      { threshold: 50_000, pct: 20 },
+      { threshold: 0, pct: 30 },
+      { threshold: 10_000, pct: 25 },
+    ];
+    expect(commissionDollarsFromTiers(15_000, unsorted)).toBe(4_250);
+  });
+
+  it("exact threshold boundary — slice width is 0 at that tier edge", () => {
+    // gross = 10000 exactly → all in tier 0 (10K @ 30% = 3000), the
+    // 10K boundary contributes 0 width.
+    expect(commissionDollarsFromTiers(10_000, tiers)).toBe(3_000);
+  });
+});
+
+describe("effectivePctFromTiers — derived from progressive math", () => {
   const tiers = [
     { threshold: 0, pct: 30 },
     { threshold: 10_000, pct: 25 },
@@ -186,57 +241,53 @@ describe("effectivePctFromTiers — cliff semantics", () => {
     expect(effectivePctFromTiers(5_000, undefined)).toBeNull();
   });
 
-  it("uses the first tier when below all thresholds (defensive)", () => {
-    // Threshold[0] = 0 normally covers this; check unsorted edge case.
-    const weird = [{ threshold: 100, pct: 40 }, { threshold: 50, pct: 50 }];
-    expect(effectivePctFromTiers(0, weird)).toBe(50); // sorted: 50 first
-  });
-
-  it("picks the highest tier whose threshold <= gross", () => {
+  it("zero gross — returns first-tier pct (avoids divide-by-zero)", () => {
     expect(effectivePctFromTiers(0, tiers)).toBe(30);
-    expect(effectivePctFromTiers(9_999.99, tiers)).toBe(30);
-    expect(effectivePctFromTiers(10_000, tiers)).toBe(25); // exact match → cliff
-    expect(effectivePctFromTiers(15_000, tiers)).toBe(25);
-    expect(effectivePctFromTiers(50_000, tiers)).toBe(20);
-    expect(effectivePctFromTiers(99_999, tiers)).toBe(20);
   });
 
-  it("handles unsorted tier input", () => {
-    const unsorted = [
-      { threshold: 50_000, pct: 20 },
-      { threshold: 0, pct: 30 },
-      { threshold: 10_000, pct: 25 },
-    ];
-    expect(effectivePctFromTiers(15_000, unsorted)).toBe(25);
+  it("blended rate inside a single tier equals that tier's pct", () => {
+    expect(effectivePctFromTiers(5_000, tiers)).toBeCloseTo(30, 4);
+  });
+
+  it("blended rate across two tiers is between the two pcts", () => {
+    // $15,000: 10K @ 30% + 5K @ 25% = 4250 → 4250/15000 ≈ 28.33%
+    expect(effectivePctFromTiers(15_000, tiers)).toBeCloseTo(28.333, 2);
+  });
+
+  it("blended rate across all three tiers", () => {
+    // $60,000: commission 15000 → 25% effective
+    expect(effectivePctFromTiers(60_000, tiers)).toBeCloseTo(25, 4);
   });
 });
 
-describe("calcTelePeriod with tiers — cliff applies to whole month", () => {
+describe("calcTelePeriod with progressive tiers", () => {
   const tiers = [
     { threshold: 0, pct: 30 },
     { threshold: 10_000, pct: 20 },
   ];
 
-  it("under threshold: 30% applies", () => {
+  it("under threshold: full 30%", () => {
     const r = calcTelePeriod({
       gross_revenue: 8_000,
       recast_commission_pct: 50, // ignored when tiers present
       commission_basis: "net",
       tiers,
     });
-    // net = 4000, commission = 4000 * 0.30 = 1200
+    // gross 8000 entirely inside tier 0 → effective 30%
+    // net = 4000, commission = 4000 × 30% = 1200
     expect(r.recast_commission).toBe(1_200);
   });
 
-  it("crosses threshold: 20% applies to the full month (cliff, not marginal)", () => {
+  it("crosses threshold: blended rate applies to the commission base (net)", () => {
     const r = calcTelePeriod({
       gross_revenue: 12_000,
       recast_commission_pct: 50, // ignored
       commission_basis: "net",
       tiers,
     });
-    // net = 6000, commission = 6000 * 0.20 = 1200 (NOT marginal)
-    expect(r.recast_commission).toBe(1_200);
+    // gross 12000: 10K @ 30% + 2K @ 20% = 3400 → effective ≈ 28.33%
+    // net = 6000, commission = 6000 × 28.33% ≈ 1700
+    expect(r.recast_commission).toBeCloseTo(1_700, 1);
   });
 
   it("falls back to flat pct when tiers omitted", () => {
@@ -245,52 +296,55 @@ describe("calcTelePeriod with tiers — cliff applies to whole month", () => {
       recast_commission_pct: 25,
       commission_basis: "net",
     });
-    // net = 6000, commission = 6000 * 0.25 = 1500
+    // net = 6000, commission = 6000 × 25% = 1500
     expect(r.recast_commission).toBe(1_500);
   });
 
-  it("tiers + MG: tier pct applies to (net + top-up)", () => {
+  it("tiers + MG: effective pct applies to (net + top-up)", () => {
     const r = calcTelePeriod({
-      gross_revenue: 8_000, // net 4000, mg qualifier ok
+      gross_revenue: 8_000,
       recast_commission_pct: 50, // ignored
       commission_basis: "net",
       min_guarantee: 5_000,
       tiers,
     });
+    // gross 8000 entirely inside tier 0 → effective 30%
     // net 4000 ≥ 50% of 5000 → qualified, top-up = 1000, base = 5000
-    // tiers: gross 8000 < 10000 → 30%
-    // commission = 5000 * 0.30 = 1500
+    // commission = 5000 × 30% = 1500
     expect(r.qualified_for_mg).toBe(true);
     expect(r.mg_top_up).toBe(1_000);
     expect(r.recast_commission).toBe(1_500);
   });
 });
 
-describe("calcOFPeriod with tiers", () => {
+describe("calcOFPeriod with progressive tiers", () => {
   const tiers = [
     { threshold: 0, pct: 50 },
     { threshold: 5_000, pct: 40 },
   ];
 
-  it("under threshold: 50%", () => {
+  it("under threshold: 50% on full gross", () => {
     const r = calcOFPeriod({
       gross_revenue: 3_000,
       recast_pct: 99, // ignored
       basis: "gross",
       tiers,
     });
+    // entirely inside tier 0 → 1500 commission
     expect(r.recast_commission).toBe(1_500);
     expect(r.girls_share).toBe(1_500);
   });
 
-  it("at/above threshold: 40% applies to full gross", () => {
+  it("at/above threshold: blended rate, not cliff", () => {
     const r = calcOFPeriod({
       gross_revenue: 10_000,
       recast_pct: 99,
       basis: "gross",
       tiers,
     });
-    expect(r.recast_commission).toBe(4_000);
-    expect(r.girls_share).toBe(6_000);
+    // 5K @ 50% (2500) + 5K @ 40% (2000) = 4500 → effective 45%
+    // commission = 10000 × 45% = 4500
+    expect(r.recast_commission).toBe(4_500);
+    expect(r.girls_share).toBe(5_500);
   });
 });

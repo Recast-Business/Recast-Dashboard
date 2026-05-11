@@ -1,56 +1,79 @@
 import * as React from "react";
-import { Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OFIncomeSection } from "@/components/finance/OFIncomeSection";
 import { TeleIncomeSection } from "@/components/finance/TeleIncomeSection";
 import { EFuseIncomeSummary } from "@/components/finance/EFuseIncomeSummary";
 import { EyebrowLabel } from "@/components/recast";
+import { TalentPicker } from "@/components/calculator/TalentPicker";
+import { CommissionResolvedCard } from "@/components/calculator/CommissionResolvedCard";
 
 /**
- * Phase M-5: Calculator page — the math home Gustavo asked for.
+ * Calculator page — math home.
  *
- * Renamed from "Campaigns" in the sidebar. All performance + revenue
- * calculations live here so the Talent section (M-6) can become pure
- * AR / invoice tracking.
+ * Phase M-5 shipped this as the math-only counterpart to the Talent
+ * ledger (AR / invoices). Round 3 E layers a talent picker over the
+ * whole thing: pick a creator at the top and every sub-tab scopes to
+ * that creator's deals, plus a resolved-commission card shows their
+ * per-platform tier math against an example monthly gross.
  *
  * Sub-tabs:
- *   • OnlyFans   — per-page deals + monthly performance grid (existing OFIncomeSection)
- *   • Telegram   — per-creator deals + monthly performance grid (existing TeleIncomeSection)
- *   • Deals      — placeholder for one-off deal math (lands in a follow-up
- *                  if Gustavo's real-use surfaces a structured need)
- *   • Ad Overlay — eFuse / Overlay campaign tracker (existing EFuseIncomeSummary)
+ *   • OnlyFans   — per-page deals + monthly performance grid
+ *   • Telegram   — per-creator deals + monthly performance grid
+ *   • Deals      — pointer to /campaigns (which already does brand-
+ *                  deal math end-to-end; no duplicate engine here)
+ *   • Ad Overlay — Overlay / eFuse campaign tracker
  *
- * Out of scope for M-5
- * ────────────────────
- * Once Calculator owns the math, M-6 will strip the Income sub-tab out of
- * the Talent → DivisionView so there's no duplication. M-5 ships side-by-
- * side temporarily to keep migrations safe.
+ * Tier math (R3E.1) is now PROGRESSIVE (Gustavo decision B) — each
+ * slice billed at its own pct, blended into an effective rate that
+ * still flows through the existing commission_basis logic. See
+ * dashboard/src/lib/finance/calc.ts header for the spec.
  */
 
 export function CalculatorPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = React.useState(currentYear);
 
+  // Page-level state: a single optional talent filter applied to all
+  // four sub-tabs. Lifting it up keeps tab-switching cheap (no
+  // remount-loses-pick UX gotcha) and lets the picker live next to
+  // the year selector in the page header.
+  const [talentId, setTalentId] = React.useState<string | null>(null);
+
   return (
     <div className="space-y-6">
-      {/* Top eyebrow strip — canonical page anchor. */}
       <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
         Workspace · Calculator
       </div>
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <EyebrowLabel withRule>Calculator · {year}</EyebrowLabel>
           <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
             Calculator
           </h1>
           <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
-            Performance and revenue math. Enter raw numbers per platform —
-            gross / net / commission splits compute automatically and feed
-            the Talent section&apos;s invoices.
+            Performance and revenue math. Pick a talent to scope every
+            sub-tab to their deals and resolve their commission tiers
+            against an example gross — or leave it cleared for the
+            full-division view.
           </p>
         </div>
-        <YearSelector value={year} onChange={setYear} />
+        <div className="flex items-end gap-3">
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
+              Talent
+            </span>
+            <TalentPicker value={talentId} onChange={setTalentId} />
+          </div>
+          <YearSelector value={year} onChange={setYear} />
+        </div>
       </div>
+
+      {/* Resolved-commission card shows up only when a talent is
+          picked. Hides for the unfiltered roll-up view because the
+          card is creator-specific. */}
+      <CommissionResolvedCard talentId={talentId} />
 
       <Tabs defaultValue="onlyfans" className="space-y-4">
         <TabsList className="h-10">
@@ -69,18 +92,22 @@ export function CalculatorPage() {
         </TabsList>
 
         <TabsContent value="onlyfans">
-          <OFIncomeSection year={year} />
+          <OFIncomeSection year={year} talentFilterId={talentId} />
         </TabsContent>
 
         <TabsContent value="telegram">
-          <TeleIncomeSection year={year} />
+          <TeleIncomeSection year={year} talentFilterId={talentId} />
         </TabsContent>
 
         <TabsContent value="deals">
-          <DealsPlaceholder />
+          <DealsPointer />
         </TabsContent>
 
         <TabsContent value="overlay">
+          {/* EFuseIncomeSummary doesn't yet take talentFilterId — its
+              campaign-centric data shape needs a different filter
+              path. Leaving unfiltered for now keeps the analytics
+              roll-up intact even when a talent is picked elsewhere. */}
           <EFuseIncomeSummary year={year} />
         </TabsContent>
       </Tabs>
@@ -89,26 +116,36 @@ export function CalculatorPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Deals placeholder
+// Deals tab — pointer to /campaigns
+//
+// R3F note: rather than duplicating the campaign math engine here,
+// the Deals tab links to the existing /campaigns page (8-type deal
+// structures, expandable cards, finance hub roll-ups). One source of
+// truth for one-off deal accounting.
 // ─────────────────────────────────────────────────────────────────────
 
-function DealsPlaceholder() {
+function DealsPointer() {
   return (
     <div className="rounded-lg border bg-card p-6 text-sm">
       <div className="flex items-start gap-3">
-        <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-        <div>
-          <h3 className="text-h3">One-off deal calculator</h3>
-          <p className="mt-1 text-muted-foreground">
-            Coming next iteration. This tab will host the math for one-off brand
-            deals + project work that don't fit the recurring monthly grids:
-            enter gross / net / Recast share / contract dates and get the
-            invoice numbers Frazier sends out.
+        <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-electric" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-h3 font-bold tracking-[-0.02em]">
+            One-off deal math lives on Campaigns
+          </h3>
+          <p className="mt-1 max-w-[60ch] text-steel">
+            Brand-deal accounting (flat fee, per-stream rates, CPM
+            bonuses, hybrid stacks) runs end-to-end on the Campaigns
+            page — expandable creator rows, per-deal commission, and
+            full payment-status tracking. We don't duplicate that math
+            here so there's a single source of truth.
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            For now, recurring per-creator deal math lives under the OnlyFans
-            and Telegram tabs above.
-          </p>
+          <Link
+            to="/campaigns"
+            className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-electric hover:underline"
+          >
+            Open Campaigns <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+          </Link>
         </div>
       </div>
     </div>
@@ -129,12 +166,14 @@ function YearSelector({
   const now = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted-foreground">Year:</span>
+    <div className="flex flex-col items-start gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
+        Year
+      </span>
       <select
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="rounded-md border bg-background px-2 py-1 text-sm"
+        className="h-9 rounded-md border bg-background px-2 text-sm"
       >
         {years.map((y) => (
           <option key={y} value={y}>

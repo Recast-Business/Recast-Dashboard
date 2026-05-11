@@ -35,23 +35,31 @@ const STATUS_STYLES: Record<PaymentStatusV2, string> = {
 
 interface Props {
   year: number;
+  /**
+   * R3E: when the page-level TalentPicker is set, scope the visible
+   * deal rows to that creator only. `null` / undefined = show all.
+   */
+  talentFilterId?: string | null;
 }
 
-export function OFIncomeSection({ year }: Props) {
+export function OFIncomeSection({ year, talentFilterId }: Props) {
   const { data: deals, isLoading, error } = useOFDeals();
   const [search, setSearch] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingDeal, setEditingDeal] = React.useState<OFDealRow | null>(null);
 
   const filtered = React.useMemo(() => {
+    let rows = deals ?? [];
+    // R3E: scope to picked talent first (cheap eq), then apply search.
+    if (talentFilterId) rows = rows.filter((d) => d.creator_id === talentFilterId);
     const q = search.trim().toLowerCase();
-    if (!q) return deals ?? [];
-    return (deals ?? []).filter(
+    if (!q) return rows;
+    return rows.filter(
       (d) =>
         d.creator?.name.toLowerCase().includes(q) ||
         d.page_name.toLowerCase().includes(q),
     );
-  }, [deals, search]);
+  }, [deals, search, talentFilterId]);
 
   const dealIds = React.useMemo(() => filtered.map((d) => d.id), [filtered]);
   const { data: periodsByDeal } = useOFPeriodsByDeals(dealIds, year);

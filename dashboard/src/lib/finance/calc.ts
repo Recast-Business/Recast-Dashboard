@@ -10,38 +10,86 @@
  * OnlyFans is simpler — Recast takes a % of gross or net depending on the deal,
  * the rest is the creator's "girls share". No MG.
  *
- * Phase K-2: tiered commissions with cliff semantics.
- *   • Tiers are an array of { threshold, pct } sorted by threshold.
- *   • For a given month's gross G, find the highest-threshold tier where
- *     threshold <= G — its pct applies to the WHOLE month (cliff, not
- *     marginal). Confirmed by Gustavo.
- *   • If gross < lowest threshold (rare — usually threshold=0 covers it),
- *     fall back to the lowest tier's pct.
- *   • Backward compat: when tiers is null/undefined/empty, the calc uses
+ * Round 3 (Gustavo decision B): tier semantics flipped from CLIFF →
+ * PROGRESSIVE (income-tax-bracket style).
+ *   • Each tier's pct applies to its SLICE only. Threshold values mean
+ *     "this tier starts at" (the legacy K-2 data shape stored exactly
+ *     this — no migration needed; only the math reading it changes).
+ *   • Example: tiers [{threshold:0, pct:30}, {threshold:10000, pct:20}]
+ *     on a $15,000 gross →
+ *       first $10,000 @ 30% = $3,000
+ *       remaining $5,000 @ 20% = $1,000
+ *       total commission = $4,000  (effective rate ≈ 26.7%)
+ *     Under the old cliff rule, the same data → $15,000 × 20% = $3,000.
+ *   • Backward compat: when tiers is null/undefined/empty the calc uses
  *     the deal's flat pct as before.
+ *
+ * Two helpers live below: `commissionDollarsFromTiers` returns the raw $
+ * for previewing the breakdown, and `effectivePctFromTiers` returns the
+ * derived effective % so callers that previously assumed a single rate
+ * (commission_basis="net" multiplies that rate against the net base)
+ * keep working with minimal change.
  */
 
 export interface CommissionTier {
-  /** Monthly gross >= this threshold → use this pct (cliff). */
+  /** Monthly gross >= this threshold → tier STARTS here (progressive). */
   threshold: number;
-  /** Recast's cut, 0–100. */
+  /** Recast's cut on this slice, 0–100. */
   pct: number;
 }
 
-/** Resolve which tier applies for a given monthly gross under cliff
- *  semantics. Returns null if no tiers provided. */
+/**
+ * Round 3: compute Recast's commission dollars under PROGRESSIVE
+ * semantics. The slice between tier[i].threshold and tier[i+1].threshold
+ * (or +Infinity for the last) gets tier[i].pct.
+ *
+ * Returns 0 when tiers is null/empty/zero gross — caller falls back to
+ * the deal's flat pct in that case via effectivePctFromTiers().
+ */
+export function commissionDollarsFromTiers(
+  gross: number,
+  tiers: CommissionTier[] | null | undefined,
+): number {
+  if (!tiers || tiers.length === 0 || gross <= 0) return 0;
+  const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
+  let total = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const tierStart = sorted[i].threshold;
+    if (gross <= tierStart) break;
+    const tierEnd =
+      i + 1 < sorted.length ? sorted[i + 1].threshold : Infinity;
+    const sliceWidth = Math.min(gross, tierEnd) - tierStart;
+    total += sliceWidth * (sorted[i].pct / 100);
+  }
+  return round2(total);
+}
+
+/**
+ * Derive an effective % from a progressive tier table for a given
+ * gross. Returns null when no tiers supplied (caller falls back to the
+ * deal's flat pct).
+ *
+ * The result is `commissionDollars / gross × 100` — a single rate that
+ * captures the blended cost across all crossed tiers. Existing call
+ * sites (calcOFPeriod, calcTelePeriod) multiply this against the
+ * commission base (gross OR net depending on `basis`), so a progressive
+ * tier table works under both `basis: "gross"` and `basis: "net"`.
+ */
 export function effectivePctFromTiers(
   gross: number,
   tiers: CommissionTier[] | null | undefined,
 ): number | null {
   if (!tiers || tiers.length === 0) return null;
-  const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
-  let chosen = sorted[0].pct;
-  for (const t of sorted) {
-    if (gross >= t.threshold) chosen = t.pct;
-    else break;
+  if (gross <= 0) {
+    // Edge: no gross to slice. Return the FIRST tier's rate so a
+    // "what would a $1 trial gross net me?" preview doesn't divide
+    // by zero. Inert for the calc itself (commission = base × 0% = 0
+    // when gross is 0, regardless of basis).
+    const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
+    return sorted[0].pct;
   }
-  return chosen;
+  const dollars = commissionDollarsFromTiers(gross, tiers);
+  return (dollars / gross) * 100;
 }
 
 /** Pull a tier array out of a creator's commission_pct_by_platform JSONB.

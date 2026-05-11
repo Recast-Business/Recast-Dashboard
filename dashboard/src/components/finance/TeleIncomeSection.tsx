@@ -38,9 +38,14 @@ const STATUS_STYLES: Record<PaymentStatusV2, string> = {
 
 interface Props {
   year: number;
+  /**
+   * R3E: when the page-level TalentPicker is set, scope the visible
+   * deal rows to that creator only. `null` / undefined = show all.
+   */
+  talentFilterId?: string | null;
 }
 
-export function TeleIncomeSection({ year }: Props) {
+export function TeleIncomeSection({ year, talentFilterId }: Props) {
   const { data: deals, isLoading, error } = useTeleDeals();
   const { data: orphans } = useOrphanTeleCreators(year);
   const [search, setSearch] = React.useState("");
@@ -49,12 +54,15 @@ export function TeleIncomeSection({ year }: Props) {
   const [prefilledCreatorId, setPrefilledCreatorId] = React.useState<string | undefined>(undefined);
 
   const filtered = React.useMemo(() => {
+    let rows = deals ?? [];
+    // R3E: scope to picked talent first (cheap eq), then apply search.
+    if (talentFilterId) rows = rows.filter((d) => d.creator_id === talentFilterId);
     const q = search.trim().toLowerCase();
-    if (!q) return deals ?? [];
-    return (deals ?? []).filter((d) =>
+    if (!q) return rows;
+    return rows.filter((d) =>
       d.creator?.name.toLowerCase().includes(q),
     );
-  }, [deals, search]);
+  }, [deals, search, talentFilterId]);
 
   const creatorIds = React.useMemo(() => filtered.map((d) => d.creator_id), [filtered]);
   const { data: periodsByCreator } = useTelePeriodsByCreators(creatorIds, year);
