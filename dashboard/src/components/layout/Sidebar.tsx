@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
 import {
-  Building2,
   Calculator,
   ChevronDown,
   DollarSign,
   FileText,
+  Home,
   LayoutDashboard,
   LogOut,
   Search,
@@ -53,7 +53,8 @@ interface NavItem {
 }
 
 interface NavSection {
-  header: string;
+  /** Eyebrow label above the section. Omit for an ungrouped block of items. */
+  header?: string;
   items: NavItem[];
 }
 
@@ -88,13 +89,12 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
-    header: "Properties",
+    // Round 3A revision: user said "this is fraziers house so no need"
+    // for the PROPERTIES group concept. Standalone entry below Ledgers,
+    // no group header (NavSection.header omitted), label reverted to
+    // "Frazier's House" since that's how it's identified verbally.
     items: [
-      // Round 3A: Frazier's House out of Ledgers (it's not a
-      // counterparty), renamed to "7419" per Gustavo so it reads as a
-      // standalone property entity. Group will grow if Recast picks
-      // up another address.
-      { to: "/house", label: "7419", icon: Building2, allow: ["admin", "partner", "finance"] },
+      { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
     ],
   },
 ];
@@ -138,9 +138,15 @@ export function Sidebar() {
           if (visible.length === 0) return null;
           return (
             <div key={i} className={cn(i > 0 && "mt-5")}>
-              <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
-                {section.header}
-              </div>
+              {/* Header is optional — headerless sections render as
+                  ungrouped item blocks (used for Frazier's House so
+                  it sits standalone below Ledgers without a redundant
+                  one-item group label). */}
+              {section.header ? (
+                <div className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
+                  {section.header}
+                </div>
+              ) : null}
               <div className="space-y-0.5">
                 {visible.map((item) => {
                   const Icon = item.icon;
