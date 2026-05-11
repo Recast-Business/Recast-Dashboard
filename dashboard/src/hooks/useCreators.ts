@@ -229,6 +229,11 @@ export interface CreatorProfilePatch {
     string,
     number | null | Array<{ threshold: number; pct: number }>
   >;
+  /** Round 3 (Gustavo, migration 0034): clickable agreement URLs per
+   *  platform. Shape: { platform_slug: url }. Empty/missing keys mean
+   *  "no agreement on file yet" — the talent profile UI shows them as
+   *  empty input rows with no Open button. */
+  agreement_links?: Record<string, string>;
   /** Allow the dialog to also tweak the everyday fields. */
   name?: string;
   country?: string | null;

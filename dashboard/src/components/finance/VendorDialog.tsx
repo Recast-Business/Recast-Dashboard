@@ -81,6 +81,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
     username_handle: "",
     nda_signed: false,
     nda_url: "",
+    service_provided: "",
   });
 
   React.useEffect(() => {
@@ -100,6 +101,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         username_handle: vendor.username_handle ?? "",
         nda_signed: vendor.nda_signed,
         nda_url: vendor.nda_url ?? "",
+        service_provided: vendor.service_provided ?? "",
       });
     } else {
       setForm({
@@ -116,6 +118,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         username_handle: "",
         nda_signed: false,
         nda_url: "",
+        service_provided: "",
       });
     }
   }, [open, vendor, defaultDivision, defaultKind]);
@@ -139,6 +142,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       notes: form.notes?.trim() || null,
       username_handle: form.username_handle?.trim() || null,
       nda_url: form.nda_url?.trim() || null,
+      service_provided: form.service_provided?.trim() || null,
       // Round 3A (Gustavo): kind="vendor" rows have no Division. The
       // form already hides the field for vendors, but legacy rows can
       // still carry stale division values. Force-null on save so the
@@ -231,6 +235,19 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 onChange={(e) => set("account_profile", e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Round 3 (Gustavo): short description of what this vendor
+              does for Recast — surfaces on the vendor row + detail page
+              so it's easy to identify at a glance. */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="v-service">Service provided</Label>
+            <Input
+              id="v-service"
+              placeholder="e.g. Streaming infra, Legal — talent agreements, Design contractor"
+              value={form.service_provided ?? ""}
+              onChange={(e) => set("service_provided", e.target.value)}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-3">

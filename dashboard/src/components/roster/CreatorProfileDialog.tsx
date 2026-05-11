@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { ExternalLink, Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +54,8 @@ interface CreatorMinimal {
     string,
     number | null | Array<{ threshold: number; pct: number }>
   > | null;
+  /** Round 3 (0034): map of platform slug → agreement URL. */
+  agreement_links?: Record<string, string> | null;
 }
 
 interface Props {
@@ -66,6 +68,17 @@ const PLATFORMS: { key: string; label: string }[] = [
   { key: "onlyfans", label: "OnlyFans" },
   { key: "telegram", label: "Telegram" },
   { key: "efuse", label: "Overlay" }, // display-only rename
+];
+
+/** Round 3: list of agreement-link slots shown in the profile dialog.
+ *  Open-ended slugs — keys not on this list are preserved as-is on save
+ *  so future platforms can be added without code changes. */
+const AGREEMENT_PLATFORMS: { key: string; label: string }[] = [
+  { key: "onlyfans", label: "OnlyFans agreement" },
+  { key: "telegram", label: "Telegram agreement" },
+  { key: "overlay", label: "Ad Overlay agreement" },
+  { key: "deal", label: "Brand-deal master" },
+  { key: "other", label: "Other / generic" },
 ];
 
 export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
@@ -88,6 +101,13 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
   // Commission per platform — empty array means "no deal on this platform"
   const [tiersByPlatform, setTiersByPlatform] = React.useState<Record<string, TierEditor[]>>(
     () => loadTiersFromCreator(creator),
+  );
+
+  // Round 3: agreement links — { platform_slug: url } map.
+  const [agreementLinks, setAgreementLinks] = React.useState<Record<string, string>>(
+    () => (creator.agreement_links && typeof creator.agreement_links === "object"
+      ? creator.agreement_links
+      : {}),
   );
 
   // Multi-platform usernames (kept on socials JSON — already exists)
@@ -114,6 +134,11 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setPaymentPref(creator.payment_method_pref ?? "");
     setTaxId(creator.tax_id ?? "");
     setTiersByPlatform(loadTiersFromCreator(creator));
+    setAgreementLinks(
+      creator.agreement_links && typeof creator.agreement_links === "object"
+        ? creator.agreement_links
+        : {},
+    );
     const s = creator.socials ?? {};
     setTwitchHandle(s.twitch ?? "");
     setKickHandle(s.kick ?? "");
@@ -143,6 +168,15 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     if (ofPage2.trim()) socials.of_page_2 = ofPage2.trim();
     if (telegramUser.trim()) socials.telegram = telegramUser.trim();
 
+    // Round 3: serialise agreement links — strip empty values so the
+    // stored jsonb only carries real URLs. Keys are preserved verbatim
+    // (open-ended slugs).
+    const cleanLinks: Record<string, string> = {};
+    for (const [slug, url] of Object.entries(agreementLinks)) {
+      const trimmed = (url ?? "").trim();
+      if (trimmed) cleanLinks[slug] = trimmed;
+    }
+
     const patch: CreatorProfilePatch = {
       name: name.trim(),
       country: country.trim() || null,
@@ -155,6 +189,7 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       payment_method_pref: paymentPref.trim() || null,
       tax_id: taxId.trim() || null,
       commission_pct_by_platform: pct,
+      agreement_links: cleanLinks,
       socials,
     };
     try {
@@ -226,6 +261,47 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
                   }
                 />
               ))}
+            </div>
+          </Section>
+
+          {/* Round 3 (Gustavo): agreement-link slots per platform.
+              Each row shows a URL input + an Open ↗ button that opens
+              the document in a new tab — saves Gustavo from having to
+              hunt through Google Drive every time he generates an
+              invoice. Empty rows are just collapsed into the stored
+              jsonb on save. */}
+          <Section
+            title="Agreements"
+            help="Paste the Google Drive / Dropbox link for each signed agreement so it's one click away. Empty rows are ignored on save."
+          >
+            <div className="space-y-2">
+              {AGREEMENT_PLATFORMS.map((p) => {
+                const url = agreementLinks[p.key] ?? "";
+                return (
+                  <div key={p.key} className="grid grid-cols-[140px_1fr_auto] items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">{p.label}</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://drive.google.com/…"
+                      value={url}
+                      onChange={(e) =>
+                        setAgreementLinks((cur) => ({ ...cur, [p.key]: e.target.value }))
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      disabled={!url.trim()}
+                      onClick={() => window.open(url.trim(), "_blank", "noopener,noreferrer")}
+                      title={url.trim() ? "Open agreement in a new tab" : "Paste a URL first"}
+                    >
+                      <ExternalLink className="mr-1 h-3 w-3" /> Open
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </Section>
 
