@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Phase L (full): Recast canonical design tokens.
+ *
+ * Two layers:
+ *   1. shadcn semantic tokens (HSL triplets, used via hsl(var(--…)))
+ *      — kept intact so all existing shadcn primitives keep working.
+ *   2. Recast brand tokens (raw hex / px values, used directly)
+ *      — match the canonical design system and never mutate.
+ *
+ * Anything new should reach for the brand tokens first; only fall back
+ * to semantic tokens when something is genuinely shadcn-shaped (focus
+ * rings, popovers, dialog overlays).
+ *
+ * See dashboard/docs/DESIGN.md for the recipe cookbook + no-go list.
+ */
+
+@layer base {
+  :root {
+    /* ── shadcn semantic layer (HSL) ────────────────────────────────── */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    /* Electric Blue */
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 221 83% 96%;
+    --accent-foreground: 221 83% 30%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221 83% 53%;
+    --radius: 0.5rem;
+
+    /* ── Recast brand tokens ────────────────────────────────────────── */
+    /* Surface greys */
+    --rc-ash: #111111;
+    --rc-midnight: #1A1A2A;
+    --rc-steel: #6B7280;
+    --rc-rule: #1E1E1E;
+
+    /* Brand blue ramp */
+    --rc-electric: #2563EB;
+    --rc-electric-dk: #1A4FCC;
+    --rc-electric-lt: #3B82F6;
+
+    /* Status colours (fixed enum — never invent new ones) */
+    --rc-paid: #4ADE80;
+    --rc-partial: #F59E0B;
+    --rc-overdue: #F87171;
+    --rc-unpaid: #9CA3AF;
+
+    /* Status pill tints (12% alpha on the same hue) */
+    --rc-paid-tint: rgba(74, 222, 128, 0.12);
+    --rc-partial-tint: rgba(245, 158, 11, 0.12);
+    --rc-overdue-tint: rgba(248, 113, 113, 0.12);
+    --rc-unpaid-tint: rgba(156, 163, 175, 0.12);
+
+    /* Reconciliation strip 4th-cell tint (Electric Blue 6%) */
+    --rc-reconcile-tint: rgba(37, 99, 235, 0.06);
+
+    /* ── Spec aliases (match the canonical CSS-var names from the
+       full design prompt so a future reader can grep for either). ── */
+    --rc-pending: var(--rc-partial);
+    --rc-info: var(--rc-electric-lt);
+    --rc-row-hover: rgba(255, 255, 255, 0.04);
+    --rc-surface-3: rgba(255, 255, 255, 0.06);
+    --rc-shadow-tab-active: 0 1px 0 rgba(255, 255, 255, 0.04);
+
+    /* Active nav-item background per spec — Electric Blue 12%. */
+    --rc-nav-active: rgba(37, 99, 235, 0.12);
+
+    /* Radii */
+    --r-xs: 2px;
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+    --r-full: 9999px;
+
+    /* Spacing (canonical tile gaps) */
+    --sp-4: 16px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+
+    /* Motion */
+    --dur-base: 120ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dark {
+    /* shadcn semantic layer — Midnight-tinted for warmth without losing
+       readability. Brand tokens above stay constant across modes. */
+    --background: 240 12% 5%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 7%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 7%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 217 92% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 6% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 6% 14%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 221 70% 18%;
+    --accent-foreground: 217 92% 88%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 240 6% 14%;
+    --input: 240 6% 14%;
+    --ring: 217 92% 62%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    /* Spec-mandated for crisp on-dark rendering. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Tabular numerics for any element marked .tabular —
+     used on currency cells, KPI tiles, invoice grids. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Display sizes use Unbounded; body sizes use Inter. Both rules
+     are explicit so font-family doesn't accidentally inherit through
+     a nested span (e.g. a small `.00` decimal inside a `text-display`
+     dollar amount — without the body-side rule the decimal would
+     inherit Unbounded from its parent, which the spec disallows). */
+  .text-display,
+  .text-kpi,
+  .text-h2,
+  .text-h3 {
+    font-family: "Unbounded", "Inter", system-ui, sans-serif;
+  }
+  .text-body,
+  .text-small,
+  .text-eyebrow,
+  .text-pill,
+  .text-meta {
+    font-family: "Inter", system-ui, sans-serif;
+  }
+}

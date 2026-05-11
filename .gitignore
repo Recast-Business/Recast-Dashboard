@@ -1,0 +1,48 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+
+# Credentials (NEVER commit)
+google_credentials.json
+
+# Database dumps (may contain real data — never commit)
+backups/
+*.sql.gz
+*.dump
+
+# Internal-only docs — kept locally, not in the public repo
+dashboard/docs/recast-dashboard-design-prompt.txt
+
+# Archived legacy code — kept locally for reference, not in repo
+_archive/
+
+# Data files (live in Google Sheets, not git)
+*.xlsx
+chat_messages.json
+pipeline_extras.json
+recently_seen.json
+scout_backup.json
+dashboard.log
+dashboard_rebuild.log
+
+# Legacy files (kept locally, not deployed)
+kick_streamers.py
+main.py
+run_server.py
+server.py
+scout_server.py
+recast_dashboard.py
+rebuild_dashboard.py
+Recast_Creator_Dashboard.html
+RECAST_DASHBOARD_CONTEXT.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+recast-creator-scout/
