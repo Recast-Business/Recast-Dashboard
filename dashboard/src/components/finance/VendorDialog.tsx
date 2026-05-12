@@ -81,7 +81,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
     username_handle: "",
     nda_signed: false,
     nda_url: "",
-    service_provided: "",
     recurring_monthly: false,
     recurring_amount: null,
     requires_tax_info: false,
@@ -106,7 +105,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         username_handle: vendor.username_handle ?? "",
         nda_signed: vendor.nda_signed,
         nda_url: vendor.nda_url ?? "",
-        service_provided: vendor.service_provided ?? "",
         recurring_monthly: vendor.recurring_monthly ?? false,
         recurring_amount: vendor.recurring_amount ?? null,
         requires_tax_info: vendor.requires_tax_info ?? false,
@@ -128,7 +126,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         username_handle: "",
         nda_signed: false,
         nda_url: "",
-        service_provided: "",
         recurring_monthly: false,
         recurring_amount: null,
         requires_tax_info: false,
@@ -157,7 +154,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       notes: form.notes?.trim() || null,
       username_handle: form.username_handle?.trim() || null,
       nda_url: form.nda_url?.trim() || null,
-      service_provided: form.service_provided?.trim() || null,
       // Round 3A (Gustavo): kind="vendor" rows have no Division. The
       // form already hides the field for vendors, but legacy rows can
       // still carry stale division values. Force-null on save so the
@@ -252,26 +248,24 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
             </div>
           </div>
 
-          {/* Round 3 (Gustavo): short description of what this vendor
-              does for Recast — surfaces on the vendor row + detail page
-              so it's easy to identify at a glance. */}
-          <div className="grid gap-1.5">
-            <Label htmlFor="v-service">Service provided</Label>
-            <Input
-              id="v-service"
-              placeholder="e.g. Streaming infra, Legal — talent agreements, Design contractor"
-              value={form.service_provided ?? ""}
-              onChange={(e) => set("service_provided", e.target.value)}
-            />
-          </div>
+          {/* R5 Sweep 1 (Gustavo, T2 reversal): Service provided
+              field removed. Originally added in R3B; Gustavo asked to
+              drop it because "it's going to be listed on the
+              invoice". Column dropped by migration 0041. */}
 
           <div className="grid grid-cols-3 gap-3">
             <div className="grid gap-1.5">
-              <Label htmlFor="v-cname">Contact name</Label>
+              {/* R5 Sweep 1 (Gustavo, T2): "Contact name" → "Company name".
+                  The top-level Name field already captures the person's
+                  name; this slot is the optional legal/company entity
+                  the invoice goes to. Not required — some vendors operate
+                  under their own name. */}
+              <Label htmlFor="v-cname">Company name <span className="text-muted-foreground">(optional)</span></Label>
               <Input
                 id="v-cname"
                 value={form.contact_name ?? ""}
                 onChange={(e) => set("contact_name", e.target.value)}
+                placeholder="e.g. Acme Studios LLC"
               />
             </div>
             <div className="grid gap-1.5">

@@ -169,7 +169,7 @@ export function CampaignCreatorRow({
 
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={onEdit}>
-              <Pencil className="mr-1 h-3 w-3" /> Edit deal
+              <Pencil className="mr-1 h-3 w-3" /> Edit page
             </Button>
             <Button
               size="sm"

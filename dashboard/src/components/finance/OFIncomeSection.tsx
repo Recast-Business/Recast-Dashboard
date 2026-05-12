@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, ChevronRight, Pencil, Plus, Trash2, Wallet } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,6 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import { OFDealDialog } from "@/components/finance/OFDealDialog";
 import { OFPeriodCellDialog } from "@/components/finance/OFPeriodCellDialog";
-import { TalentReceiptDialog } from "@/components/finance/TalentReceiptDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import { monthlyAmountColumns, type CSVColumn } from "@/lib/export/csv";
@@ -203,7 +202,6 @@ interface DealRowProps {
 
 function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
   const [expanded, setExpanded] = React.useState(false);
-  const [payOpen, setPayOpen] = React.useState(false);
   const [editingMonth, setEditingMonth] = React.useState<number | null>(null);
   const del = useDeleteOFDeal();
   const confirm = useConfirm();
@@ -301,15 +299,17 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
             <Stat label="Net" value={formatUSD(totals.net, { decimals: 2 })} />
             <Stat label="Recast commission" value={formatUSD(totals.commission, { decimals: 2 })} />
             <Stat label="Girls share" value={formatUSD(totals.girls, { decimals: 2 })} emphasised />
-            <Stat label="Paid months" value={`${totals.paidCount}/12`} />
+            {/* R5 Sweep 1 (Gustavo, T1): "Paid months" stat removed —
+                payment status moves out of the calculator. */}
           </div>
 
           <div className="flex items-center gap-2 pt-1">
-            <Button size="sm" onClick={() => setPayOpen(true)}>
-              <Wallet className="mr-1 h-3 w-3" /> Log payment
-            </Button>
+            {/* R5 Sweep 1 (Gustavo, T1): "Log payment" moves to the
+                dedicated /payments sidebar page (Sweep 5). The OF
+                deal row stays focused on the deal terms (page name +
+                commission). */}
             <Button size="sm" variant="outline" onClick={onEdit}>
-              <Pencil className="mr-1 h-3 w-3" /> Edit deal
+              <Pencil className="mr-1 h-3 w-3" /> Edit page
             </Button>
             <Button
               size="sm"
@@ -333,18 +333,6 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
             />
           )}
 
-          {payOpen && (
-            <TalentReceiptDialog
-              open
-              onOpenChange={setPayOpen}
-              mode={{
-                kind: "onlyfans",
-                ofDealId: deal.id,
-                creatorName: deal.creator?.name ?? "Unknown creator",
-                pageName: deal.page_name,
-              }}
-            />
-          )}
         </div>
       )}
     </div>

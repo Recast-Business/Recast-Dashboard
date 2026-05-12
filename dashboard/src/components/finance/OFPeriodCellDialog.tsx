@@ -11,21 +11,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useUpsertOFPeriod, type OFDealRow } from "@/hooks/useOFDeals";
 import { calcOFPeriod, tiersFromProfile } from "@/lib/finance/calc";
 import { formatUSD } from "@/lib/utils";
-import { DatePicker } from "@/components/ui/date-picker";
 import type {
   CommissionBasis,
   OFPeriodPerformance,
-  PaymentStatusV2,
 } from "@/types/finance";
 
 const MONTH_NAMES = [
@@ -48,17 +39,11 @@ export function OFPeriodCellDialog({
   const upsert = useUpsertOFPeriod();
   const [gross, setGross] = React.useState("");
   const [net, setNet] = React.useState("");
-  const [status, setStatus] = React.useState<PaymentStatusV2>("unpaid");
-  const [paidAt, setPaidAt] = React.useState("");
-  const [notes, setNotes] = React.useState("");
 
   React.useEffect(() => {
     if (!open) return;
     setGross(existing?.gross_revenue != null ? String(existing.gross_revenue) : "");
     setNet(existing?.net_revenue != null ? String(existing.net_revenue) : "");
-    setStatus(existing?.status ?? "unpaid");
-    setPaidAt(existing?.paid_at ?? "");
-    setNotes(existing?.notes ?? "");
   }, [open, existing]);
 
   const grossNum = Number(gross) || 0;
@@ -92,15 +77,21 @@ export function OFPeriodCellDialog({
       return;
     }
     try {
+      // R5 Sweep 1 (Gustavo): status / paid_at / notes are no longer
+      // managed from this dialog — the calculator is pure data entry
+      // (gross + net) per T1 "this is literally just a calculator".
+      // Existing values are preserved on edit; new rows default to
+      // status='unpaid' server-side. The new /payments sidebar page
+      // (Sweep 5) is where payment status/dates get logged.
       await upsert.mutateAsync({
         of_deal_id: deal.id,
         period_year: year,
         period_month: month,
         gross_revenue: grossNum,
         net_revenue: net.trim() ? netNum : undefined,
-        status,
-        paid_at: paidAt || null,
-        notes: notes.trim() || null,
+        status: existing?.status,
+        paid_at: existing?.paid_at ?? null,
+        notes: existing?.notes ?? null,
         recast_pct: deal.recast_pct,
         basis: deal.basis as CommissionBasis,
         tiers,
@@ -150,37 +141,11 @@ export function OFPeriodCellDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="op-paid">Paid date</Label>
-              <DatePicker id="op-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
-            </div>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label htmlFor="op-notes">Notes</Label>
-            <textarea
-              id="op-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-          </div>
+          {/* R5 Sweep 1 (Gustavo, T1): status / paid date / notes
+              removed — "this is literally just a calculator". Period
+              year+month at the top is the only date concept needed;
+              payment status is managed from the dedicated /payments
+              page (Sweep 5). */}
 
           {/* Live calc */}
           <div className="rounded-md border bg-muted/30 p-3 text-xs">

@@ -89,6 +89,9 @@ interface LedgerRow {
   commission_tiers: Record<string, unknown> | null;
   /** Round 3 Q1+Q7 (migration 0035): legacy cliff math toggle. */
   commission_uses_cliff?: boolean | null;
+  /** R4 B (migration 0039): 1099/W9 tracking opt-in. The Tax ID
+   *  missing-pill only surfaces when this is true (R5 Sweep 1). */
+  requires_tax_info?: boolean | null;
 }
 
 /** Slugs that surface as agreement slots in CreatorProfileDialog. */
@@ -124,18 +127,19 @@ export function TalentLedgerPage() {
   // R3 Q3 (Gustavo, yes/yes):
   //   • tax_id is required for "complete".
   //   • Commission must be set per platform the creator actually
-  //     works on. We infer "works on" from agreement_links — every
-  //     platform with a signed agreement URL must have a matching
-  //     commission entry. Platforms without an agreement aren't
-  //     held to that rule. (Agreement = "this creator earns on this
-  //     platform" is the cleanest signal we have without adding a
-  //     separate active-platforms field.)
+  //     works on.
+  //
+  // R5 Sweep 1 update (Gustavo, T3): "Not everybody I'm gonna need
+  // the tax ID so maybe don't yeah, it's optional". tax_id only
+  // counts as missing for creators tagged with requires_tax_info
+  // (i.e. the 1099 cohort). Untagged creators don't surface the
+  // Tax ID pill.
   const audit = React.useMemo(() => {
     return rows.map((r) => {
       const missing: string[] = [];
       if (!r.email) missing.push("email");
       if (!r.address) missing.push("address");
-      if (!r.tax_id) missing.push("tax_id");
+      if (r.requires_tax_info && !r.tax_id) missing.push("tax_id");
       const agreementPlatforms = activeAgreementPlatforms(r);
       if (agreementPlatforms.length === 0) {
         // No agreements yet → still need at least one commission

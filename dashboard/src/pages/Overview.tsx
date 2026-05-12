@@ -270,7 +270,11 @@ export function OverviewPage() {
           eyebrow="Tele + OnlyFans gross combined"
           empty="No talent performance recorded yet this month."
           loading={isLoading}
-          headerLink={{ to: "/roster", label: "Roster" }}
+          /* R5 Sweep 1 (Gustavo, T3): header link → /talents (the CRM
+             page Gustavo actually works from). Per-row /talents/:id
+             links land when the underlying data starts carrying
+             creator_id. */
+          headerLink={{ to: "/talents", label: "Talents" }}
           rows={(data?.top_talents ?? []).map((t) => ({
             avatarName: t.name,
             primary: t.name,
@@ -285,7 +289,10 @@ export function OverviewPage() {
           eyebrow="Paid out · highest first"
           empty="No vendor payments logged yet this month."
           loading={isLoading}
-          headerLink={{ to: "/finance", label: "Vendors" }}
+          /* R5 Sweep 1 (Gustavo, T3): header link → /vendors (where
+             the invoicing grid currently lives). When vendor invoicing
+             migrates into /finance (Sweep 5), this link updates. */
+          headerLink={{ to: "/vendors", label: "Invoices" }}
           rows={(data?.top_vendors ?? []).map((v) => ({
             avatarName: v.name,
             primary: v.name,

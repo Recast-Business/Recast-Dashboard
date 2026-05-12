@@ -159,12 +159,16 @@ export function useFinanceOverview(year: number) {
       for (const m of monthlyPrev) m.net = m.inflow - m.outflow;
 
       // ── 2. Overdue rows across the six payment tables ──────────────────
+      // R5 Sweep 1: rent + utility queries kept (for potential future
+      // re-introduction or other metrics) but their results are
+      // intentionally NOT pushed into the dashboard overdue list per
+      // Gustavo's "Frazier's house stays separate" rule.
       const [
         vendorsOverdue,
         teleOverdue,
         ofOverdue,
-        rentOverdue,
-        utilityOverdue,
+        _rentOverdueUnused,
+        _utilityOverdueUnused,
         campaignOverdue,
       ] = await Promise.all([
         supabase
@@ -224,12 +228,17 @@ export function useFinanceOverview(year: number) {
         const page = r.deal?.page_name;
         pushOverdue("onlyfans", page ? `${cn} — ${page}` : cn, Number(r.recast_commission) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
       }
-      for (const r of (rentOverdue.data ?? []) as any[]) {
-        pushOverdue("house_rent", r.resident?.name ?? "Resident", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
-      }
-      for (const r of (utilityOverdue.data ?? []) as any[]) {
-        pushOverdue("house_utility", r.utility?.utility_name ?? "Utility", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
-      }
+      // R5 Sweep 1 (Gustavo, T1 + T3 emphasised): Frazier's House
+      // rent + utility overdues are NOT surfaced in the dashboard's
+      // overdue banner. "don't attach phrases house to that. Leave
+      // Fraser's house as the separate thing". The dedicated /house
+      // page keeps its own internal overdue treatment.
+      //
+      // Skipping the rent + utility loops here (data is still
+      // fetched above for accurate outstanding totals elsewhere if
+      // needed, but excluded from `overdue`/`most_overdue`).
+      //
+      // Intentionally left blank.
       for (const r of (campaignOverdue.data ?? []) as any[]) {
         pushOverdue("campaign", r.campaign_creator?.creator?.name ?? "Creator", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
       }

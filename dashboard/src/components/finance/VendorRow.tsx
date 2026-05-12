@@ -1,12 +1,11 @@
 import * as React from "react";
-import { ChevronDown, ChevronRight, FileSignature, Pencil, Trash2, Wallet } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSignature, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useDeleteVendor } from "@/hooks/useVendors";
 import { useConfirm } from "@/hooks/useConfirm";
 import { MonthlyPaymentGrid } from "@/components/finance/MonthlyPaymentGrid";
-import { LogReceiptDialog } from "@/components/finance/LogReceiptDialog";
 import { VendorInvoicesPanel } from "@/components/finance/VendorInvoicesPanel";
 import type { Vendor, VendorPayment, PaymentMethod } from "@/types/finance";
 
@@ -31,7 +30,6 @@ interface Props {
 
 export function VendorRow({ vendor, year, payments, onEdit }: Props) {
   const [expanded, setExpanded] = React.useState(false);
-  const [payOpen, setPayOpen] = React.useState(false);
   const del = useDeleteVendor();
   const confirm = useConfirm();
 
@@ -138,9 +136,9 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
           <VendorInvoicesPanel vendorId={vendor.id} vendorName={vendor.name} />
 
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setPayOpen(true)}>
-              <Wallet className="mr-1 h-3 w-3" /> Log payment
-            </Button>
+            {/* R5 Sweep 1 (Gustavo, T1): "Log payment" moves to the
+                dedicated /payments page (Sweep 5). Vendor row stays
+                focused on the vendor profile. */}
             <Button size="sm" variant="outline" onClick={onEdit}>
               <Pencil className="mr-1 h-3 w-3" /> Edit
             </Button>
@@ -157,17 +155,6 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
         </div>
       )}
 
-      {payOpen && (
-        <LogReceiptDialog
-          open
-          onOpenChange={setPayOpen}
-          mode={{
-            kind: "vendor",
-            vendorId: vendor.id,
-            vendorName: vendor.name,
-          }}
-        />
-      )}
     </div>
   );
 }

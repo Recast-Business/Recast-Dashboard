@@ -11,20 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useUpsertTelePeriod, type TeleDealRow } from "@/hooks/useTeleDeals";
 import { calcTelePeriod, tiersFromProfile } from "@/lib/finance/calc";
 import { formatUSD } from "@/lib/utils";
-import { DatePicker } from "@/components/ui/date-picker";
 import type {
   CommissionBasis,
-  PaymentStatusV2,
   TelePeriodPerformance,
 } from "@/types/finance";
 
@@ -54,9 +45,6 @@ export function TelePeriodCellDialog({
   const [gross, setGross] = React.useState("");
   const [netOverride, setNetOverride] = React.useState("");
   const [useOverride, setUseOverride] = React.useState(false);
-  const [status, setStatus] = React.useState<PaymentStatusV2>("unpaid");
-  const [paidAt, setPaidAt] = React.useState("");
-  const [notes, setNotes] = React.useState("");
 
   React.useEffect(() => {
     if (!open) return;
@@ -69,9 +57,6 @@ export function TelePeriodCellDialog({
       setUseOverride(false);
       setNetOverride("");
     }
-    setStatus(existing?.status ?? "unpaid");
-    setPaidAt(existing?.paid_at ?? "");
-    setNotes(existing?.notes ?? "");
   }, [open, existing]);
 
   const grossNum = Number(gross) || 0;
@@ -108,15 +93,18 @@ export function TelePeriodCellDialog({
       return;
     }
     try {
+      // R5 Sweep 1 (Gustavo, T1): status / paid_at / notes preserved
+      // on edit but no longer surfaced in the calculator dialog —
+      // payment status lives on the future /payments page (Sweep 5).
       await upsert.mutateAsync({
         creator_id: deal.creator_id,
         period_year: year,
         period_month: month,
         gross_revenue: grossNum,
         net_revenue: useOverride && netOverride.trim() ? Number(netOverride) : undefined,
-        status,
-        paid_at: paidAt || null,
-        notes: notes.trim() || null,
+        status: existing?.status,
+        paid_at: existing?.paid_at ?? null,
+        notes: existing?.notes ?? null,
         recast_commission_pct: deal.recast_commission_pct,
         commission_basis: deal.commission_basis as CommissionBasis,
         min_guarantee: deal.min_guarantee,
@@ -142,32 +130,16 @@ export function TelePeriodCellDialog({
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="tp-gross">Gross revenue</Label>
-              <Input
-                id="tp-gross"
-                type="number"
-                step="0.01"
-                value={gross}
-                onChange={(e) => setGross(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="tp-gross">Gross revenue</Label>
+            <Input
+              id="tp-gross"
+              type="number"
+              step="0.01"
+              value={gross}
+              onChange={(e) => setGross(e.target.value)}
+              autoFocus
+            />
           </div>
 
           <label className="flex items-center gap-2 text-xs">
@@ -188,23 +160,9 @@ export function TelePeriodCellDialog({
             />
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="tp-paid">Paid date</Label>
-              <DatePicker id="tp-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
-            </div>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label htmlFor="tp-notes">Notes</Label>
-            <textarea
-              id="tp-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-          </div>
+          {/* R5 Sweep 1: status / paid date / notes removed per T1
+              "this is literally just a calculator". Payment status
+              lives on the future /payments page. */}
 
           {/* Live calc preview */}
           <div className="rounded-md border bg-muted/30 p-3 text-xs">

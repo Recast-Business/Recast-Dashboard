@@ -1,13 +1,13 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Archive, ChevronRight, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { EyebrowLabel, InvoiceCell, MoneyCell } from "@/components/recast";
-import { useDeleteVendor, useVendors } from "@/hooks/useVendors";
+import { useDeleteVendor, useUpdateVendor, useVendors } from "@/hooks/useVendors";
 import { useVendorPaymentsByVendors } from "@/hooks/useVendorPayments";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
@@ -57,11 +57,26 @@ export function VendorsPage() {
   } | null>(null);
 
   const del = useDeleteVendor();
+  const update = useUpdateVendor();
   const confirm = useConfirm();
+
+  // R5 Sweep 1 (Gustavo, T2): split active vs inactive vendors. Main
+  // grid shows actives only; inactives surface in a separate panel
+  // below with a reactivate path. "make them disappear and then maybe
+  // put a little square here inactive vendors. that way I can just
+  // reactivate them"
+  const allActive = React.useMemo(
+    () => (vendors ?? []).filter((v) => v.active),
+    [vendors],
+  );
+  const allInactive = React.useMemo(
+    () => (vendors ?? []).filter((v) => !v.active),
+    [vendors],
+  );
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
-    let rows = vendors ?? [];
+    let rows = allActive;
     if (q) {
       rows = rows.filter((v) =>
         [v.name, v.contact_name, v.contact_email, v.notes].some(
@@ -70,7 +85,7 @@ export function VendorsPage() {
       );
     }
     return rows;
-  }, [vendors, search]);
+  }, [allActive, search]);
 
   const ids = React.useMemo(() => filtered.map((v) => v.id), [filtered]);
   const { data: paymentsByVendor, isLoading: paymentsLoading } = useVendorPaymentsByVendors(ids, year);
@@ -409,6 +424,27 @@ export function VendorsPage() {
       {/* Reconciliation strip */}
       {!isLoading && filteredByStatus.length > 0 ? <ReconciliationStrip totals={totals} /> : null}
 
+      {/* R5 Sweep 1 (Gustavo, T2): inactive vendors live in a separate
+          panel below the main grid. Reactivate flips them back into
+          the active list. */}
+      {allInactive.length > 0 ? (
+        <InactiveVendorsPanel
+          inactive={allInactive}
+          onReactivate={async (v) => {
+            try {
+              await update.mutateAsync({
+                id: v.id,
+                patch: { active: true },
+              });
+              toast.success(`${v.name} reactivated`);
+            } catch (e) {
+              toast.error(`Reactivate failed: ${(e as Error).message}`);
+            }
+          }}
+          isPending={update.isPending}
+        />
+      ) : null}
+
       {editingCell ? (
         <PaymentCellDialog
           open
@@ -572,6 +608,78 @@ function ReconciliationCell({
         {value}
       </div>
       <div className="mt-1 text-[11px] text-steel">{sub}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// R5 Sweep 1 (Gustavo, T2): inactive vendors panel
+// ─────────────────────────────────────────────────────────────────────
+// Collapsible list of vendors with active=false. Each row has a small
+// "Reactivate" button that flips active back to true via useUpdateVendor.
+// Default-collapsed so the active grid stays the focus when the list
+// is small or empty.
+
+function InactiveVendorsPanel({
+  inactive,
+  onReactivate,
+  isPending,
+}: {
+  inactive: Vendor[];
+  onReactivate: (v: Vendor) => void;
+  isPending: boolean;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  return (
+    <div className="rounded-lg border bg-card">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-base ease-out hover:bg-white/[0.03]"
+        aria-expanded={expanded}
+      >
+        <div className="flex items-center gap-2">
+          <Archive className="h-3.5 w-3.5 text-steel" strokeWidth={1.5} />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-steel">
+            Inactive vendors · {inactive.length}
+          </span>
+        </div>
+        <ChevronRight
+          className={cn(
+            "h-4 w-4 text-steel transition-transform duration-base ease-out",
+            expanded && "rotate-90",
+          )}
+          strokeWidth={1.5}
+        />
+      </button>
+      {expanded ? (
+        <div className="border-t border-rule">
+          {inactive.map((v) => (
+            <div
+              key={v.id}
+              className="flex items-center justify-between gap-3 border-b border-rule px-4 py-2.5 last:border-b-0"
+            >
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-white">{v.name}</div>
+                {v.contact_name ? (
+                  <div className="text-[11px] text-steel">{v.contact_name}</div>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px]"
+                onClick={() => onReactivate(v)}
+                disabled={isPending}
+                title="Reactivate this vendor — moves them back into the active list"
+              >
+                <RotateCcw className="mr-1 h-3 w-3" strokeWidth={1.5} />
+                Reactivate
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -36,13 +36,8 @@ const TYPE_OPTIONS = [
   "Brand Ambassador",
 ];
 
-const STATUS_OPTIONS: { value: CampaignStatusV2; label: string }[] = [
-  { value: "pending", label: "Pending" },
-  { value: "active", label: "Active" },
-  { value: "awaiting_payment", label: "Awaiting payment" },
-  { value: "overdue", label: "Overdue" },
-  { value: "completed", label: "Completed" },
-];
+// R5 Sweep 1: STATUS_OPTIONS removed — Status field dropped from the
+// form. Status changes happen via card actions post-creation.
 
 interface Props {
   open: boolean;
@@ -58,10 +53,21 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
   const [name, setName] = React.useState("");
   const [brand, setBrand] = React.useState("");
   const [campaignType, setCampaignType] = React.useState<string>("");
-  const [status, setStatus] = React.useState<CampaignStatusV2>("pending");
+  // R5 Sweep 1 (Gustavo, T1): Status field removed from the form
+  // (defaults to 'pending' on creation; editable via card actions
+  // post-creation). Preserve the value on edit so we don't blow it
+  // away.
+  const [statusInternal, setStatusInternal] = React.useState<CampaignStatusV2>("pending");
   const [defaultPct, setDefaultPct] = React.useState<string>("20");
   const [start, setStart] = React.useState<string>("");
-  const [end, setEnd] = React.useState<string>("");
+  // R5 Sweep 1 (Gustavo, T2): End date dropped from the form —
+  // campaigns are deliverables-based, not date-bounded. Existing
+  // end_date values preserved on edit via endInternal so we don't
+  // overwrite them.
+  const [endInternal, setEndInternal] = React.useState<string>("");
+  // R5 Sweep 1 (Gustavo, T2): Deliverables count replaces end_date as
+  // the "how much work" signal. Optional.
+  const [deliverablesCount, setDeliverablesCount] = React.useState<string>("");
   const [isAdOverlay, setIsAdOverlay] = React.useState(false);
   const [description, setDescription] = React.useState("");
   const [notes, setNotes] = React.useState("");
@@ -72,10 +78,13 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
       setName(campaign.name);
       setBrand(campaign.brand);
       setCampaignType(campaign.campaign_type ?? "");
-      setStatus(campaign.status);
+      setStatusInternal(campaign.status);
       setDefaultPct(String(campaign.default_commission_pct));
       setStart(campaign.start_date ?? "");
-      setEnd(campaign.end_date ?? "");
+      setEndInternal(campaign.end_date ?? "");
+      setDeliverablesCount(
+        campaign.deliverables_count != null ? String(campaign.deliverables_count) : "",
+      );
       setIsAdOverlay(campaign.is_ad_overlay);
       setDescription(campaign.description ?? "");
       setNotes(campaign.notes ?? "");
@@ -83,10 +92,11 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
       setName("");
       setBrand("");
       setCampaignType("");
-      setStatus("pending");
+      setStatusInternal("pending");
       setDefaultPct("20");
       setStart("");
-      setEnd("");
+      setEndInternal("");
+      setDeliverablesCount("");
       setIsAdOverlay(false);
       setDescription("");
       setNotes("");
@@ -99,15 +109,24 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
     const pct = Number(defaultPct);
     if (Number.isNaN(pct) || pct < 0 || pct > 100) return toast.error("Default commission % must be between 0 and 100.");
 
+    const deliverablesNum = deliverablesCount.trim() === "" ? null : Number(deliverablesCount);
+    if (deliverablesNum != null && (!Number.isFinite(deliverablesNum) || deliverablesNum < 0)) {
+      return toast.error("Deliverables count must be a non-negative number.");
+    }
+
     const input: CampaignInput = {
       name: name.trim(),
       brand: brand.trim(),
       campaign_type: campaignType.trim() || null,
-      status,
+      // R5 Sweep 1: status preserved from existing (or default 'pending'
+      // on create) — no longer surfaced in the form.
+      status: statusInternal,
       default_commission_pct: pct,
       description: description.trim() || null,
       start_date: start || null,
-      end_date: end || null,
+      // R5 Sweep 1: end_date preserved on edit; not exposed in the form.
+      end_date: endInternal || null,
+      deliverables_count: deliverablesNum,
       is_ad_overlay: isAdOverlay,
       notes: notes.trim() || null,
     };
@@ -165,18 +184,25 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
                 </SelectContent>
               </Select>
             </div>
+            {/* R5 Sweep 1 (Gustavo, T1): Status field removed —
+                "I don't think this is necessary, though... you're just
+                putting in data". Status defaults to 'pending' on
+                creation and is changed via the campaign-card actions
+                post-creation. */}
             <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as CampaignStatusV2)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="c-deliverables">
+                Deliverables <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="c-deliverables"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={deliverablesCount}
+                onChange={(e) => setDeliverablesCount(e.target.value)}
+                placeholder="e.g. 3 posts"
+              />
             </div>
             {seeFinancials ? (
               <div className="grid gap-1.5">
@@ -201,20 +227,16 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="c-start">Start date</Label>
-              <DatePicker id="c-start" value={start} onChange={(v) => setStart(v ?? "")} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="c-end">End date</Label>
-              <DatePicker
-                id="c-end"
-                value={end}
-                onChange={(v) => setEnd(v ?? "")}
-                minDate={start ? new Date(start) : undefined}
-              />
-            </div>
+          {/* R5 Sweep 1 (Gustavo, T2): End date dropped from the
+              form. "There's no start date. It's usually how many
+              posts you make" — campaigns are deliverables-based.
+              Start date kept as optional since some deals do have
+              clear start days. */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="c-start">
+              Start date <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <DatePicker id="c-start" value={start} onChange={(v) => setStart(v ?? "")} />
           </div>
 
           <label className="flex items-center gap-2 text-sm">

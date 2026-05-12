@@ -59,8 +59,7 @@ export interface VendorInput {
   username_handle?: string | null;
   nda_signed?: boolean;
   nda_url?: string | null;
-  // Round 3 (0034): vendor service description
-  service_provided?: string | null;
+  // R5 Sweep 1: vendor.service_provided dropped via 0041
   // Round 4 (0037): opt-in recurring monthly bill
   recurring_monthly?: boolean;
   recurring_amount?: number | null;

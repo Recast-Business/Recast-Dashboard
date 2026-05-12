@@ -120,10 +120,9 @@ export interface Vendor {
    *  for this on every vendor; the URL is optional supporting evidence. */
   nda_signed: boolean;
   nda_url: string | null;
-  /** Round 3 (0034): short description of what this vendor does for Recast,
-   *  e.g. "Streaming infra", "Legal — talent agreements". Human-facing only;
-   *  not used in any calculation. */
-  service_provided: string | null;
+  // R5 Sweep 1 (Gustavo, T2 reversal): service_provided dropped via
+  // migration 0041. Originally added in 0034 (R3B); removed because
+  // "it's going to be listed on the invoice".
   /** Round 4 (0037): when TRUE the vendor grid renders an "Expected $X"
    *  placeholder for each unbilled month using recurring_amount. */
   recurring_monthly: boolean;
@@ -365,6 +364,10 @@ export interface CampaignV2 {
   description: string | null;
   start_date: string | null;
   end_date: string | null;
+  /** R5 Sweep 1 (Gustavo, T2): number of posts/deliverables agreed for
+   *  the campaign. Replaces fixed end-date as the "how much work"
+   *  signal — campaigns are deliverables-based, not date-bounded. */
+  deliverables_count: number | null;
   is_ad_overlay: boolean;
   brief_id: string | null;
   notes: string | null;

@@ -48,6 +48,9 @@ export interface CampaignInput {
   description?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** R5 Sweep 1 (Gustavo, T2): deliverables count replaces end-date as
+   *  the "how much work" signal. */
+  deliverables_count?: number | null;
   is_ad_overlay?: boolean;
   notes?: string | null;
 }
