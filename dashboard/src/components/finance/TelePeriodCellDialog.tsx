@@ -73,6 +73,13 @@ export function TelePeriodCellDialog({
   const commissionMode = deal.creator?.commission_uses_cliff
     ? "cliff"
     : "progressive";
+  // R5 Sweep 2 (Gustavo, T1, migration 0042): MG lives on the creator
+  // profile now. Read from creator first; fall back to legacy deal-
+  // level value for backward-compat with rows pre-dating the move.
+  const effectiveMG =
+    deal.creator?.min_guarantee != null
+      ? Number(deal.creator.min_guarantee)
+      : deal.min_guarantee;
   const preview = React.useMemo(
     () =>
       calcTelePeriod({
@@ -80,11 +87,11 @@ export function TelePeriodCellDialog({
         net_revenue: useOverride && netOverride.trim() ? Number(netOverride) : undefined,
         recast_commission_pct: deal.recast_commission_pct,
         commission_basis: deal.commission_basis as CommissionBasis,
-        min_guarantee: deal.min_guarantee,
+        min_guarantee: effectiveMG,
         tiers,
         commissionMode,
       }),
-    [grossNum, useOverride, netOverride, deal, tiers, commissionMode],
+    [grossNum, useOverride, netOverride, deal, tiers, commissionMode, effectiveMG],
   );
 
   async function onSave() {
@@ -107,7 +114,9 @@ export function TelePeriodCellDialog({
         notes: existing?.notes ?? null,
         recast_commission_pct: deal.recast_commission_pct,
         commission_basis: deal.commission_basis as CommissionBasis,
-        min_guarantee: deal.min_guarantee,
+        // R5 Sweep 2: effective MG (creator profile first, deal as
+        // fallback). See `effectiveMG` above the preview useMemo.
+        min_guarantee: effectiveMG,
         tiers,
         commissionMode,
       });
@@ -129,7 +138,15 @@ export function TelePeriodCellDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 py-2">
+        {/* R5 Sweep 2 (Gustavo, T1): paste-and-go. Enter submits from
+            either input. */}
+        <form
+          className="grid gap-3 py-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave();
+          }}
+        >
           <div className="grid gap-1.5">
             <Label htmlFor="tp-gross">Gross revenue</Label>
             <Input
@@ -195,7 +212,7 @@ export function TelePeriodCellDialog({
               />
             </dl>
           </div>
-        </div>
+        </form>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={upsert.isPending}>

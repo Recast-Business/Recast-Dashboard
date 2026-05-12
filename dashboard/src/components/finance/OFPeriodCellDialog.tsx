@@ -115,7 +115,17 @@ export function OFPeriodCellDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 py-2">
+        {/* R5 Sweep 2 (Gustavo, T1): paste-and-go entry. The form
+            wrapper lets Enter submit from either input — Gustavo
+            copies a gross number from his data extraction sheet,
+            pastes, hits Enter. */}
+        <form
+          className="grid gap-3 py-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave();
+          }}
+        >
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="op-gross">Gross revenue</Label>
@@ -166,7 +176,7 @@ export function OFPeriodCellDialog({
               />
             </dl>
           </div>
-        </div>
+        </form>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={upsert.isPending}>

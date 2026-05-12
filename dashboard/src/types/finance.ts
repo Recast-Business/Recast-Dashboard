@@ -129,6 +129,10 @@ export interface Vendor {
   /** Round 4 (0037): default monthly payment amount; populates the
    *  placeholder cell + pre-fills the payment dialog on click. */
   recurring_amount: number | null;
+  /** R5 Sweep 2 (0042): multi-platform handles. Shape:
+   *  { platform_slug: handle }. Mirrors creators.socials. The legacy
+   *  username_handle column is preserved as a backward-compat shim. */
+  socials: Record<string, string>;
   /** Round 4 B (0039): tag this vendor for 1099 tracking. When TRUE
    *  it surfaces on /tax. */
   requires_tax_info: boolean;

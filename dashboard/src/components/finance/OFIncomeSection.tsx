@@ -263,32 +263,57 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
           <div className="text-xs font-medium uppercase text-muted-foreground">
             Monthly performance — {year}
           </div>
+          {/* R5 Sweep 2 (Gustavo, T1): "it needs to show the calculation
+              in the monthly box". The cell stacks gross / Recast cut /
+              creator share so all three reads are visible at a glance —
+              no need to open the dialog to see month detail. */}
           <div className="grid grid-cols-12 gap-1 text-xs">
             {MONTHS.map((label, i) => {
               const month = i + 1;
               const p = periods[month];
               const status = p?.status ?? "unpaid";
+              const hasData =
+                p?.gross_revenue != null && Number(p.gross_revenue) > 0;
+              const tooltip = hasData
+                ? `Gross: ${formatUSD(p!.gross_revenue, { decimals: 2 })}\nRecast: ${formatUSD(p!.recast_commission ?? 0, { decimals: 2 })}\nGirls share: ${formatUSD(p!.girls_share ?? 0, { decimals: 2 })}`
+                : undefined;
               return (
                 <button
                   key={month}
                   type="button"
                   onClick={() => setEditingMonth(month)}
-                  title={
-                    p?.gross_revenue != null && Number(p.gross_revenue) > 0
-                      ? formatUSD(p.gross_revenue, { decimals: 2 })
-                      : undefined
-                  }
+                  title={tooltip}
                   className={cn(
-                    "flex flex-col items-stretch gap-1 rounded-md border px-2 py-2 text-left transition hover:border-primary/50",
+                    "flex flex-col items-stretch gap-0.5 rounded-md border px-2 py-1.5 text-left transition hover:border-primary/50",
                     STATUS_STYLES[status],
                   )}
                 >
-                  <div className="text-[11px] font-medium uppercase tracking-wider">{label}</div>
-                  <div className="text-sm font-semibold tabular-nums">
-                    {p?.gross_revenue != null && Number(p.gross_revenue) > 0
-                      ? formatUSDCompact(Number(p.gross_revenue))
-                      : "—"}
+                  <div className="text-[10px] font-medium uppercase tracking-wider opacity-80">
+                    {label}
                   </div>
+                  {hasData ? (
+                    <>
+                      <div className="tabular-nums text-[13px] font-semibold leading-tight">
+                        {formatUSDCompact(Number(p!.gross_revenue))}
+                      </div>
+                      <div className="flex justify-between gap-1 text-[10px] leading-tight opacity-70">
+                        <span>R:</span>
+                        <span className="tabular-nums">
+                          {formatUSDCompact(Number(p!.recast_commission) || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1 text-[10px] leading-tight opacity-70">
+                        <span>G:</span>
+                        <span className="tabular-nums">
+                          {formatUSDCompact(Number(p!.girls_share) || 0)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[13px] font-semibold leading-tight opacity-50">
+                      —
+                    </div>
+                  )}
                 </button>
               );
             })}

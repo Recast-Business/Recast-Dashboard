@@ -391,37 +391,65 @@ function DealRow({ deal, year, periods, onEdit }: DealRowProps) {
           <div className="text-xs font-medium uppercase text-muted-foreground">
             Monthly performance — {year}
           </div>
+          {/* R5 Sweep 2 (Gustavo, T1): multi-line cell. Gross, Recast
+              commission, and creator take-home all stacked so the
+              monthly breakdown is visible at a glance. MG flag pip
+              kept in the top-right when qualified. */}
           <div className="grid grid-cols-12 gap-1 text-xs">
             {MONTHS.map((label, i) => {
               const month = i + 1;
               const p = periods[month];
               const status = p?.status ?? "unpaid";
+              const hasData =
+                p?.gross_revenue != null && Number(p.gross_revenue) > 0;
+              const takeHome = p
+                ? (Number(p.net_revenue) || 0) +
+                  (Number(p.mg_top_up) || 0) -
+                  (Number(p.recast_commission) || 0)
+                : 0;
+              const tooltip = hasData
+                ? `Gross: ${formatUSD(p!.gross_revenue, { decimals: 2 })}\nNet: ${formatUSD(p!.net_revenue, { decimals: 2 })}\nRecast: ${formatUSD(p!.recast_commission ?? 0, { decimals: 2 })}\nTake-home: ${formatUSD(takeHome, { decimals: 2 })}${p!.qualified_for_mg && p!.mg_top_up > 0 ? `\nMG top-up: ${formatUSD(p!.mg_top_up, { decimals: 2 })}` : ""}`
+                : undefined;
               return (
                 <button
                   key={month}
                   type="button"
                   onClick={() => setEditingMonth(month)}
-                  title={
-                    p?.gross_revenue != null && Number(p.gross_revenue) > 0
-                      ? formatUSD(p.gross_revenue, { decimals: 2 })
-                      : undefined
-                  }
+                  title={tooltip}
                   className={cn(
-                    "flex flex-col items-stretch gap-1 rounded-md border px-2 py-2 text-left transition hover:border-primary/50",
+                    "flex flex-col items-stretch gap-0.5 rounded-md border px-2 py-1.5 text-left transition hover:border-primary/50",
                     STATUS_STYLES[status],
                   )}
                 >
-                  <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider">
+                  <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider opacity-80">
                     <span>{label}</span>
                     {p?.qualified_for_mg && p?.mg_top_up > 0 && (
                       <span className="rounded bg-amber-200 px-1 text-[9px] text-amber-950">MG</span>
                     )}
                   </div>
-                  <div className="text-sm font-semibold tabular-nums">
-                    {p?.gross_revenue != null && Number(p.gross_revenue) > 0
-                      ? formatUSDCompact(Number(p.gross_revenue))
-                      : "—"}
-                  </div>
+                  {hasData ? (
+                    <>
+                      <div className="tabular-nums text-[13px] font-semibold leading-tight">
+                        {formatUSDCompact(Number(p!.gross_revenue))}
+                      </div>
+                      <div className="flex justify-between gap-1 text-[10px] leading-tight opacity-70">
+                        <span>R:</span>
+                        <span className="tabular-nums">
+                          {formatUSDCompact(Number(p!.recast_commission) || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-1 text-[10px] leading-tight opacity-70">
+                        <span>T:</span>
+                        <span className="tabular-nums">
+                          {formatUSDCompact(takeHome)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-[13px] font-semibold leading-tight opacity-50">
+                      —
+                    </div>
+                  )}
                 </button>
               );
             })}

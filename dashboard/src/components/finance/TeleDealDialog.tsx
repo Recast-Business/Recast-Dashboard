@@ -25,7 +25,6 @@ import {
 } from "@/hooks/useTeleDeals";
 import { useCreators } from "@/hooks/useCreators";
 import { AddCreatorDialog } from "@/components/roster/AddCreatorDialog";
-import { DatePicker } from "@/components/ui/date-picker";
 import { UserPlus } from "lucide-react";
 import type { CommissionBasis, TeleDeal } from "@/types/finance";
 
@@ -80,8 +79,9 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
     return { profilePct: null as number | null, profileIsTiered: false, tierSummary: "" };
   }, [selectedCreator]);
   const [basis, setBasis] = React.useState<CommissionBasis>("net");
-  const [hasMG, setHasMG] = React.useState(false);
-  const [mg, setMg] = React.useState<string>("");
+  // R5 Sweep 2: hasMG/mg state removed — MG lives on creator profile.
+  // Contract start/end state kept (private) just for default values on
+  // new deals; the tele_deals table requires both columns NOT NULL.
   const [start, setStart] = React.useState<string>("");
   const [end, setEnd] = React.useState<string>("");
   const [notes, setNotes] = React.useState<string>("");
@@ -93,8 +93,6 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
       setCreatorId(deal.creator_id);
       setPct(String(deal.recast_commission_pct));
       setBasis(deal.commission_basis as CommissionBasis);
-      setHasMG(deal.min_guarantee != null);
-      setMg(deal.min_guarantee != null ? String(deal.min_guarantee) : "");
       setStart(deal.contract_start);
       setEnd(deal.contract_end);
       setNotes(deal.notes ?? "");
@@ -103,8 +101,6 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
       setCreatorId(prefilledCreatorId ?? "");
       setPct("20");
       setBasis("net");
-      setHasMG(false);
-      setMg("");
       const today = new Date().toISOString().slice(0, 10);
       const sixMonthsLater = new Date();
       sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
@@ -130,21 +126,18 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
       toast.error("Pick a creator.");
       return;
     }
-    if (!start || !end) {
-      toast.error("Contract start and end dates are required.");
-      return;
-    }
-    if (new Date(end) < new Date(start)) {
-      toast.error("Contract end must be after start.");
-      return;
-    }
     const input: TeleDealInput = {
       creator_id: creatorId,
       recast_commission_pct: Number(pct) || 0,
       commission_basis: basis,
-      min_guarantee: hasMG && mg.trim() ? Number(mg) : null,
-      contract_start: start,
-      contract_end: end,
+      // R5 Sweep 2 (migration 0042): MG + contract dates moved onto
+      // the creator profile. Deal-level columns preserved here so
+      // legacy data isn't wiped silently on edit; new deals get nulls
+      // (MG) or sensible defaults (contract dates — required NOT NULL
+      // on tele_deals).
+      min_guarantee: deal?.min_guarantee ?? null,
+      contract_start: deal?.contract_start ?? start,
+      contract_end: deal?.contract_end ?? end,
       active,
       notes: notes.trim() || null,
     };
@@ -289,43 +282,43 @@ export function TeleDealDialog({ open, onOpenChange, deal, prefilledCreatorId }:
             </div>
           </div>
 
-          <div className="rounded-md border bg-muted/20 p-3 space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={hasMG}
-                onChange={(e) => setHasMG(e.target.checked)}
-              />
-              Has Min Guarantee
-            </label>
-            {hasMG && (
-              <div className="grid gap-1.5">
-                <Label htmlFor="td-mg">MG amount (USD)</Label>
-                <Input
-                  id="td-mg"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={mg}
-                  onChange={(e) => setMg(e.target.value)}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Creator qualifies for top-up when their net is ≥ 50% of MG. Top-up
-                  amount = MG − net. Recast still takes commission on (net + top-up).
-                </p>
+          {/* R5 Sweep 2 (Gustavo, T1, migration 0042): MG + contract
+              dates moved off the deal onto the creator profile. The
+              deal form no longer asks for them. Existing deal-level
+              values are preserved on save (so legacy deals don't lose
+              their MG silently). */}
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              Minimum Guarantee
+            </div>
+            {selectedCreator?.min_guarantee != null ? (
+              <div className="mt-1.5 text-[13px]">
+                <span className="font-semibold">
+                  ${Number(selectedCreator.min_guarantee).toLocaleString()}
+                </span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  / month
+                  {selectedCreator.contract_start
+                    ? ` · since ${selectedCreator.contract_start}`
+                    : ""}
+                </span>
+              </div>
+            ) : (
+              <div className="mt-1.5 text-[12px] text-muted-foreground">
+                No MG set on this creator's profile.
+                {creatorId ? (
+                  <> Edit them in <strong>Talents</strong> to add one.</>
+                ) : (
+                  <> Pick a creator first.</>
+                )}
               </div>
             )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="td-start">Contract start</Label>
-              <DatePicker id="td-start" value={start} onChange={(v) => setStart(v ?? "")} allowClear={false} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="td-end">Contract end</Label>
-              <DatePicker id="td-end" value={end} onChange={(v) => setEnd(v ?? "")} allowClear={false} minDate={start ? new Date(start) : undefined} />
-            </div>
+            <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+              The Telegram calculator reads MG directly from the talent
+              profile — one MG arrangement per creator, not per deal.
+              Update it on the Talents page when the contract changes.
+            </p>
           </div>
 
           <div className="grid gap-1.5">

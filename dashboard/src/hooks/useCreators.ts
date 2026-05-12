@@ -19,7 +19,11 @@ export function useCreators(filter: CreatorFilter = "all") {
           // math, true = legacy cliff math for grandfathered deals.
           // Round 4 B (0039): requires_tax_info + w9_url + w9_received_at
           // power the year-end tax tracker. Default false / null.
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at",
+          // R5 Sweep 2 (0042): min_guarantee + contract_start moved
+          // from tele_deals onto the creator profile. The Telegram
+          // deal form pulls MG from here now rather than asking per
+          // deal.
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
@@ -255,6 +259,12 @@ export interface CreatorProfilePatch {
   w9_url?: string | null;
   /** Round 4 B: timestamp the W9 was received. */
   w9_received_at?: string | null;
+  /** R5 Sweep 2 (migration 0042): Min Guarantee on creator level
+   *  (moved off tele_deals). Used by calcTelePeriod for the
+   *  top-up math. Null = no MG arrangement. */
+  min_guarantee?: number | null;
+  /** R5 Sweep 2 (migration 0042): contract start date for MG. */
+  contract_start?: string | null;
   /** Allow the dialog to also tweak the everyday fields. */
   name?: string;
   country?: string | null;

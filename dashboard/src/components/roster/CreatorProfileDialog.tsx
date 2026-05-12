@@ -76,6 +76,11 @@ interface CreatorMinimal {
   w9_url?: string | null;
   /** Round 4 B: timestamp the W9 was received. */
   w9_received_at?: string | null;
+  /** R5 Sweep 2 (migration 0042): Min Guarantee on creator level (was
+   *  on Telegram deal). */
+  min_guarantee?: number | null;
+  /** R5 Sweep 2 (migration 0042): contract start date for MG arrangement. */
+  contract_start?: string | null;
 }
 
 interface Props {
@@ -141,6 +146,17 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     !!creator.w9_received_at,
   );
 
+  // R5 Sweep 2 (migration 0042): MG + contract_start moved from
+  // tele_deals onto the creator profile (Gustavo, T1: "this whole
+  // section would be on the talent"). Empty string here, parsed on
+  // save — keeps users distinguished from a real 0 value.
+  const [minGuarantee, setMinGuarantee] = React.useState<string>(
+    creator.min_guarantee != null ? String(creator.min_guarantee) : "",
+  );
+  const [contractStart, setContractStart] = React.useState<string>(
+    creator.contract_start ?? "",
+  );
+
   // Round 3: agreement links — { platform_slug: url } map.
   const [agreementLinks, setAgreementLinks] = React.useState<Record<string, string>>(
     () => (creator.agreement_links && typeof creator.agreement_links === "object"
@@ -176,6 +192,10 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setRequiresTax(!!creator.requires_tax_info);
     setW9Url(creator.w9_url ?? "");
     setW9Received(!!creator.w9_received_at);
+    setMinGuarantee(
+      creator.min_guarantee != null ? String(creator.min_guarantee) : "",
+    );
+    setContractStart(creator.contract_start ?? "");
     setAgreementLinks(
       creator.agreement_links && typeof creator.agreement_links === "object"
         ? creator.agreement_links
@@ -241,9 +261,22 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       w9_received_at: w9Received
         ? (creator.w9_received_at ?? new Date().toISOString())
         : null,
+      // R5 Sweep 2 (migration 0042): MG + contract_start moved off
+      // tele_deals. Blank → null; the calc engine treats null as
+      // "no MG arrangement" and skips the top-up math.
+      min_guarantee: minGuarantee.trim() === "" ? null : Number(minGuarantee),
+      contract_start: contractStart || null,
       agreement_links: cleanLinks,
       socials,
     };
+    // Defensive validation: MG must be a non-negative number if set.
+    if (
+      patch.min_guarantee != null &&
+      (!Number.isFinite(patch.min_guarantee) || patch.min_guarantee < 0)
+    ) {
+      toast.error("Minimum Guarantee must be a non-negative number.");
+      return;
+    }
     try {
       await update.mutateAsync({ id: creator.id, patch });
       onOpenChange(false);
@@ -350,6 +383,46 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
                 </div>
               </div>
             ) : null}
+          </Section>
+
+          {/* R5 Sweep 2 (Gustavo, T1, migration 0042): MG + contract
+              start moved off Telegram deals onto the creator profile.
+              Optional — most creators don't have an MG arrangement.
+              When set, the Telegram calc engine uses this for the
+              top-up math; the Telegram deal form no longer asks for
+              MG (single source of truth here). */}
+          <Section
+            title="Minimum Guarantee (Telegram)"
+            help='If Recast guarantees this creator a monthly floor, enter the MG amount here. The Telegram calculator uses it for the qualifier + top-up math: net ≥ 50% of MG qualifies the creator, the top-up is MG minus net, and commission applies to (net + top-up). Leave blank for creators without an MG.'
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="mg-amount">
+                  MG amount (USD) <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="mg-amount"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={minGuarantee}
+                  onChange={(e) => setMinGuarantee(e.target.value)}
+                  placeholder="e.g. 7000.00"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="mg-start">
+                  Contract start <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="mg-start"
+                  type="date"
+                  value={contractStart}
+                  onChange={(e) => setContractStart(e.target.value)}
+                />
+              </div>
+            </div>
           </Section>
 
           <Section

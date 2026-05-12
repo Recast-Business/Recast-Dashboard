@@ -17,6 +17,11 @@ export interface TeleDealRow extends TeleDeal {
     commission_tiers?: Record<string, unknown> | null;
     /** R3 Q1: legacy cliff math toggle. */
     commission_uses_cliff?: boolean | null;
+    /** R5 Sweep 2 (migration 0042): MG moved off the deal onto the
+     *  creator. The Telegram calc engine reads from here first. */
+    min_guarantee?: number | null;
+    /** R5 Sweep 2 (migration 0042): contract start for MG. */
+    contract_start?: string | null;
   } | null;
 }
 
@@ -105,7 +110,7 @@ export function useTeleDeals(opts: { includeInactive?: boolean } = {}) {
     queryFn: async () => {
       let q = supabase
         .from("tele_deals")
-        .select("*, creator:creators(id, name, commission_pct_by_platform, commission_tiers, commission_uses_cliff)")
+        .select("*, creator:creators(id, name, commission_pct_by_platform, commission_tiers, commission_uses_cliff, min_guarantee, contract_start)")
         .order("created_at", { ascending: false });
       if (!opts.includeInactive) q = q.eq("active", true);
       const { data, error } = await q;

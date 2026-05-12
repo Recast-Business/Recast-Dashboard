@@ -63,9 +63,30 @@ interface Props {
   vendor: Vendor | null;       // null = creating
 }
 
+// R5 Sweep 2: handle row shape for the multi-platform handles editor.
+// Stored on save as a flat { platform: handle } map.
+interface HandleRow {
+  platform: string;
+  handle: string;
+}
+
+const HANDLE_PLATFORMS = [
+  { value: "discord", label: "Discord" },
+  { value: "telegram", label: "Telegram" },
+  { value: "instagram", label: "Instagram" },
+  { value: "twitter", label: "Twitter / X" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "other", label: "Other" },
+];
+
 export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind, vendor }: Props) {
   const add = useAddVendor();
   const update = useUpdateVendor();
+
+  // R5 Sweep 2 (Gustavo, T2): multi-platform handles. Separate from
+  // the rest of the form because of its array shape; serialized back
+  // to a socials map on save.
+  const [handles, setHandles] = React.useState<HandleRow[]>([]);
 
   const [form, setForm] = React.useState<VendorInput>({
     name: "",
@@ -111,6 +132,16 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         w9_url: vendor.w9_url ?? "",
         w9_received_at: vendor.w9_received_at ?? null,
       });
+      // R5 Sweep 2: hydrate handles from socials map (primary), with
+      // legacy username_handle as a fallback for rows pre-dating 0042.
+      const socials = vendor.socials ?? {};
+      const rows: HandleRow[] = Object.entries(socials)
+        .filter(([, v]) => typeof v === "string" && v.trim() !== "")
+        .map(([platform, handle]) => ({ platform, handle: handle as string }));
+      if (rows.length === 0 && vendor.username_handle?.trim()) {
+        rows.push({ platform: "other", handle: vendor.username_handle.trim() });
+      }
+      setHandles(rows);
     } else {
       setForm({
         name: "",
@@ -132,6 +163,7 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         w9_url: "",
         w9_received_at: null,
       });
+      setHandles([]);
     }
   }, [open, vendor, defaultDivision, defaultKind]);
 
@@ -144,6 +176,19 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       toast.error("Name is required.");
       return;
     }
+    // R5 Sweep 2: serialize handles[] back into the socials map. Empty
+    // rows are dropped silently. Duplicate platforms (e.g. two
+    // Discord rows) get the LAST handle for that platform — UI lets
+    // multiple rows exist transiently while editing, but storage is
+    // a flat map.
+    const socials: Record<string, string> = {};
+    let firstHandle: string | null = null;
+    for (const row of handles) {
+      const h = row.handle.trim();
+      if (!h) continue;
+      socials[row.platform] = h;
+      if (firstHandle == null) firstHandle = h;
+    }
     const patch: VendorInput = {
       ...form,
       name: form.name.trim(),
@@ -152,7 +197,11 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       contact_phone: form.contact_phone?.trim() || null,
       account_profile: form.account_profile?.trim() || null,
       notes: form.notes?.trim() || null,
-      username_handle: form.username_handle?.trim() || null,
+      // R5 Sweep 2: legacy username_handle gets the first handle as a
+      // backward-compat shim. Downstream surfaces (vendor row, etc)
+      // can keep reading this until they migrate to socials.
+      username_handle: firstHandle,
+      socials,
       nda_url: form.nda_url?.trim() || null,
       // Round 3A (Gustavo): kind="vendor" rows have no Division. The
       // form already hides the field for vendors, but legacy rows can
@@ -287,14 +336,17 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
             </div>
           </div>
 
-          {/* Phase M-1: handle field for IM platforms (Discord, Telegram, etc.) */}
+          {/* R5 Sweep 2 (Gustavo, T2): multi-platform handles. Replaces
+              the single Username/handle text field with a list of
+              [platform select + handle input] rows + a "+ Add" button.
+              Stored in vendors.socials jsonb (migration 0042). The
+              legacy username_handle column gets the first row's handle
+              as a backward-compat shim. */}
           <div className="grid gap-1.5">
-            <Label htmlFor="v-handle">Username / handle</Label>
-            <Input
-              id="v-handle"
-              value={form.username_handle ?? ""}
-              onChange={(e) => set("username_handle", e.target.value)}
-              placeholder="Discord, Telegram, IG handle…"
+            <Label>Platform handles</Label>
+            <VendorHandlesEditor
+              handles={handles}
+              onChange={setHandles}
             />
           </div>
 
@@ -473,5 +525,98 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// R5 Sweep 2 (Gustavo, T2): multi-platform handles editor
+// ─────────────────────────────────────────────────────────────────────
+// Renders the list of [platform select + handle input] rows for the
+// vendor profile. The empty state shows a single placeholder row;
+// the user clicks "+ Add platform" to append more.
+
+function VendorHandlesEditor({
+  handles,
+  onChange,
+}: {
+  handles: HandleRow[];
+  onChange: (next: HandleRow[]) => void;
+}) {
+  function update(i: number, patch: Partial<HandleRow>) {
+    onChange(handles.map((h, idx) => (idx === i ? { ...h, ...patch } : h)));
+  }
+  function remove(i: number) {
+    onChange(handles.filter((_, idx) => idx !== i));
+  }
+  function add() {
+    onChange([...handles, { platform: "discord", handle: "" }]);
+  }
+
+  if (handles.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed bg-muted/15 px-3 py-3 text-[12px] text-muted-foreground">
+        No platform handles yet.
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="ml-1 h-auto p-0 text-[12px]"
+          onClick={add}
+        >
+          + Add platform
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {handles.map((row, i) => (
+        <div
+          key={i}
+          className="grid grid-cols-[140px_1fr_auto] items-center gap-2"
+        >
+          <Select
+            value={row.platform}
+            onValueChange={(v) => update(i, { platform: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HANDLE_PLATFORMS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            value={row.handle}
+            onChange={(e) => update(i, { handle: e.target.value })}
+            placeholder="@username or full handle"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => remove(i)}
+            aria-label="Remove this handle row"
+          >
+            ✕
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 text-[12px]"
+        onClick={add}
+      >
+        + Add platform
+      </Button>
+    </div>
   );
 }

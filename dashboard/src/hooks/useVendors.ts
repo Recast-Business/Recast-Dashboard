@@ -67,6 +67,8 @@ export interface VendorInput {
   requires_tax_info?: boolean;
   w9_url?: string | null;
   w9_received_at?: string | null;
+  // R5 Sweep 2 (0042): multi-platform handles
+  socials?: Record<string, string>;
 }
 
 export function useAddVendor() {
