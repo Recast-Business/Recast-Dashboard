@@ -56,14 +56,18 @@ interface CreatorMinimal {
   > | null;
   /** Round 3 (0034): map of platform slug → agreement URL. */
   agreement_links?: Record<string, string> | null;
-  /** Round 3 Q1+Q7 (migration 0035): canonical tier column. Each
-   *  platform array ascends by threshold; the last entry has
-   *  threshold:null meaning "and above". Read here as the future
-   *  source of truth — commit 2 (calc rewrite) flips writes off the
-   *  legacy column onto this one. */
+  /** Round 3 Q1+Q7 + R5 Sweep 3a (migration 0043): canonical tier
+   *  column, now NESTED PER PAGE within each platform:
+   *    { platform: { page_name: [{ threshold, pct }, ...] } }
+   *  Pre-0043 rows had a flat { platform: [...] } shape and were
+   *  migrated to wrap their arrays under page_name "main". The
+   *  profile dialog (Sweep 3b) reads + writes the nested shape; the
+   *  loader is defensive about legacy flat shapes for any row that
+   *  somehow missed the migration. */
   commission_tiers?: Record<
     string,
-    Array<{ threshold: number | null; pct: number }>
+    Record<string, Array<{ threshold: number | null; pct: number }>>
+    | Array<{ threshold: number | null; pct: number }>  // legacy flat fallback
   > | null;
   /** Round 3 Q1 (migration 0035): TRUE = legacy cliff math for this
    *  creator. FALSE / undefined = progressive (default). The dialog
@@ -81,6 +85,10 @@ interface CreatorMinimal {
   min_guarantee?: number | null;
   /** R5 Sweep 2 (migration 0042): contract start date for MG arrangement. */
   contract_start?: string | null;
+  /** R5 Sweep 3a (migration 0043): NDA toggle (mirrors vendors). */
+  nda_signed?: boolean | null;
+  /** R5 Sweep 3a (migration 0043): signed NDA link. */
+  nda_url?: string | null;
 }
 
 interface Props {
@@ -213,7 +221,12 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
 
   async function onSave() {
     if (!name.trim()) return toast.error("Name is required.");
-    let canonicalTiers: Record<string, Array<{ threshold: number | null; pct: number }>>;
+    // R5 Sweep 3a: serializer now returns nested per-page shape
+    // ({ platform: { page_name: tiers[] } }) per migration 0043.
+    let canonicalTiers: Record<
+      string,
+      Record<string, Array<{ threshold: number | null; pct: number }>>
+    >;
     try {
       canonicalTiers = serializeTiers(tiersByPlatform);
     } catch (e) {
@@ -791,12 +804,27 @@ function loadTiersFromCreator(
   const legacy = c.commission_pct_by_platform ?? {};
 
   for (const platform of ["onlyfans", "telegram", "efuse"]) {
-    // Prefer canonical (new shape) when present.
     const cv = canonical?.[platform];
+
+    // R5 Sweep 3a (migration 0043): canonical column is now nested
+    // per page. Old code paths assumed a flat array. Handle both —
+    // 3b will switch the dialog to a true per-page editor; for now
+    // we keep the single-tier-list UX and read/write under page
+    // "main" only.
+    if (cv && typeof cv === "object" && !Array.isArray(cv)) {
+      // NEW nested shape: { page_name: tiers[] }
+      const pages = cv as Record<string, unknown>;
+      const mainArray = pickMainPageTiers(pages);
+      out[platform] = mainArray ? canonicalToEditor(mainArray) : [];
+      continue;
+    }
     if (Array.isArray(cv) && cv.length > 0) {
+      // LEGACY FLAT shape (pre-3a row that missed the migration).
+      // Defensive — the SQL migration should have wrapped these.
       out[platform] = canonicalToEditor(cv);
       continue;
     }
+
     // Legacy fallback. Same shapes as pre-0035: null / flat number /
     // starts-at array. Editor expects starts-at, so the legacy array
     // path is identity.
@@ -817,6 +845,20 @@ function loadTiersFromCreator(
     }
   }
   return out;
+}
+
+/** R5 Sweep 3a helper: pick the canonical "main" page's tiers from a
+ *  nested per-platform map. Falls back to the first page key if
+ *  "main" isn't present. */
+function pickMainPageTiers(pages: Record<string, unknown>): unknown[] | null {
+  const main = pages["main"];
+  if (Array.isArray(main)) return main;
+  const keys = Object.keys(pages).sort();
+  for (const k of keys) {
+    const v = pages[k];
+    if (Array.isArray(v)) return v;
+  }
+  return null;
 }
 
 /** New-shape array (threshold = ends-at, null on last) → editor's
@@ -858,16 +900,23 @@ function canonicalToEditor(canonical: unknown[]): TierEditor[] {
 }
 
 /**
- * Editor → new-shape array for commission_tiers JSONB. Empty platform
- * arrays are omitted from the output entirely so the stored blob
- * stays compact.
+ * Editor → new-shape JSONB for commission_tiers.
+ *
+ * R5 Sweep 3a (migration 0043): the on-disk shape is now nested per
+ * page within each platform — `{ platform: { page_name: tiers[] } }`.
+ * This pre-3b serializer writes everything under page "main" since
+ * the dialog UI doesn't yet expose page selection. Sweep 3b will
+ * extend the editor to capture page name per tier-list.
+ *
+ * Empty platform arrays are omitted from the output entirely so the
+ * stored blob stays compact.
  *
  * Throws on validation errors so the caller can toast.
  */
 function serializeTiers(
   byPlatform: Record<string, TierEditor[]>,
-): Record<string, Array<{ threshold: number | null; pct: number }>> {
-  const out: Record<string, Array<{ threshold: number | null; pct: number }>> = {};
+): Record<string, Record<string, Array<{ threshold: number | null; pct: number }>>> {
+  const out: Record<string, Record<string, Array<{ threshold: number | null; pct: number }>>> = {};
   for (const [platform, rows] of Object.entries(byPlatform)) {
     if (rows.length === 0) continue;
 
@@ -903,7 +952,9 @@ function serializeTiers(
         i + 1 < parsed.length ? parsed[i + 1].threshold : null;
       canonical.push({ threshold: nextThreshold, pct: parsed[i].pct });
     }
-    out[platform] = canonical;
+    // R5 Sweep 3a: wrap under page "main". Sweep 3b will let users
+    // name pages and write multiple keys here.
+    out[platform] = { main: canonical };
   }
   return out;
 }

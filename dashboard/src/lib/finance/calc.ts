@@ -146,21 +146,85 @@ function sortTiersAscending(tiers: CommissionTier[]): CommissionTier[] {
   });
 }
 
+/**
+ * R5 Sweep 3a: parse a raw JSON value into a CommissionTier[]. Used
+ * by tiersFromProfile to read both the new per-page shape and the
+ * legacy flat shape. Returns null if the input isn't an array or
+ * contains no valid tier objects.
+ */
+function readTierArray(raw: unknown): CommissionTier[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: CommissionTier[] = [];
+  for (const t of raw) {
+    if (
+      typeof t !== "object" ||
+      t === null ||
+      typeof (t as { pct?: unknown }).pct !== "number"
+    ) {
+      continue;
+    }
+    const rawT = (t as { threshold?: unknown }).threshold;
+    const threshold =
+      rawT === null
+        ? null
+        : typeof rawT === "number"
+          ? rawT
+          : null;
+    out.push({ threshold, pct: (t as { pct: number }).pct });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * R5 Sweep 3a: pick which page key to read from a per-platform pages
+ * map.
+ *
+ *   • If `preferred` is supplied and exists → return it.
+ *   • Else, prefer "main" (the migration-default page name).
+ *   • Else, return the first key in the map (alphabetical for
+ *     deterministic behaviour).
+ *   • Returns null when the map is empty.
+ */
+function pickPage(
+  pages: Record<string, unknown>,
+  preferred?: string,
+): string | null {
+  if (preferred && Object.prototype.hasOwnProperty.call(pages, preferred)) {
+    return preferred;
+  }
+  if (Object.prototype.hasOwnProperty.call(pages, "main")) return "main";
+  const keys = Object.keys(pages).sort();
+  return keys.length > 0 ? keys[0] : null;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // tiersFromProfile — single read path
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * Read a creator's tier table for one platform. Tries the canonical
- * column (commission_tiers, new shape) first; if empty, falls back to
- * the legacy column (commission_pct_by_platform) and translates its
- * shape on the fly.
+ * Read a creator's tier table for one platform + (optional) page.
  *
- * The legacy column stores threshold as "tier STARTS at" (and uses a
- * flat number for single-rate creators); we translate to the new
- * "tier ENDS at" shape so downstream math works on one shape only.
+ * Read priority:
+ *   1. canonical column commission_tiers, NEW NESTED shape
+ *      (R5 Sweep 3a, migration 0043):
+ *         { platform: { page_name: tiers[] } }
+ *      • With page parameter: returns that specific page's tiers.
+ *      • Without page parameter: picks page "main" if present, else
+ *        the first available page. This keeps pre-3a callers (OF /
+ *        Tele / Overlay) working without changes — migration 0043
+ *        wrapped legacy flat arrays under page_name "main".
  *
- * Returns null when neither column has data for this platform.
+ *   2. canonical column commission_tiers, LEGACY FLAT shape
+ *      (pre-3a but post-Sweep R3.E):
+ *         { platform: tiers[] }
+ *      Backward-compat read path for rows that haven't been
+ *      migrated yet (defensive; the SQL migration should have
+ *      restructured these already).
+ *
+ *   3. legacy column commission_pct_by_platform (pre-R3 cliff data).
+ *      Translates "starts at" → "ends at" on the fly.
+ *
+ * Returns null when no tiers can be resolved.
  */
 export function tiersFromProfile(
   creator:
@@ -171,37 +235,39 @@ export function tiersFromProfile(
     | null
     | undefined,
   platform: "onlyfans" | "telegram" | "efuse",
+  page?: string,
 ): CommissionTier[] | null {
   if (!creator) return null;
 
-  // 1. New canonical column.
+  // 1. Canonical column commission_tiers.
   const canonical = creator.commission_tiers;
   if (canonical && typeof canonical === "object") {
-    const v = (canonical as Record<string, unknown>)[platform];
-    if (Array.isArray(v) && v.length > 0) {
-      const out: CommissionTier[] = [];
-      for (const t of v) {
-        if (
-          typeof t !== "object" ||
-          t === null ||
-          typeof (t as { pct?: unknown }).pct !== "number"
-        ) {
-          continue;
-        }
-        const rawT = (t as { threshold?: unknown }).threshold;
-        const threshold =
-          rawT === null
-            ? null
-            : typeof rawT === "number"
-              ? rawT
-              : null;
-        out.push({ threshold, pct: (t as { pct: number }).pct });
+    const platformEntry = (canonical as Record<string, unknown>)[platform];
+
+    // 1a. NEW nested shape: { page_name: tiers[] }
+    if (
+      platformEntry &&
+      typeof platformEntry === "object" &&
+      !Array.isArray(platformEntry)
+    ) {
+      const pages = platformEntry as Record<string, unknown>;
+      const pageKey = pickPage(pages, page);
+      if (pageKey != null) {
+        const out = readTierArray(pages[pageKey]);
+        if (out && out.length > 0) return out;
       }
-      if (out.length > 0) return out;
+    }
+
+    // 1b. LEGACY flat shape (pre-migration 0043 row): array directly
+    //     under the platform key. Defensive — the migration should
+    //     have wrapped these.
+    if (Array.isArray(platformEntry)) {
+      const out = readTierArray(platformEntry);
+      if (out && out.length > 0) return out;
     }
   }
 
-  // 2. Legacy fallback — translate "starts at" → "ends at".
+  // 2. Legacy fallback — commission_pct_by_platform.
   const legacy = creator.commission_pct_by_platform;
   if (!legacy || typeof legacy !== "object") return null;
   const v = (legacy as Record<string, unknown>)[platform];

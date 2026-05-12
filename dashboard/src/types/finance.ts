@@ -56,11 +56,60 @@ export interface CommissionTier {
   pct: number;
 }
 
-/** Map of platform → tier list. Empty object means "use legacy single-rate commission_pct_by_platform". */
-export type CommissionTiers = Partial<Record<TalentPlatform, CommissionTier[]>>;
+/**
+ * R5 Sweep 3a (Gustavo, T3): commission tiers are now per-page within
+ * each platform. Shape: { platform: { page_name: tiers[] } }
+ *
+ * Example:
+ *   {
+ *     onlyfans: {
+ *       "Charlotte VIP": [{ threshold: 100000, pct: 25 }, { threshold: null, pct: 20 }],
+ *       "Charlotte Free": [{ threshold: null, pct: 30 }]
+ *     },
+ *     telegram: {
+ *       "main": [{ threshold: null, pct: 25 }]
+ *     }
+ *   }
+ *
+ * Legacy creators (pre-0043) had a flat `{ platform: tiers[] }` shape.
+ * Migration 0043 wraps the legacy arrays under page_name "main", so
+ * downstream code can rely on the nested shape from that point on.
+ *
+ * The legacy alias `CommissionTiersLegacy` is preserved for
+ * backward-compat reading during the 3b/3c transition window.
+ */
+export type CommissionTiersByPage = Partial<
+  Record<TalentPlatform, Record<string, CommissionTier[]>>
+>;
+export type CommissionTiers = CommissionTiersByPage;
 
-/** Map of platform → agreement URL (Google Drive / Dropbox / etc). */
+/** Deprecated: pre-0043 flat shape. Read-only fallback during the
+ *  Sweep 3 transition. */
+export type CommissionTiersLegacy = Partial<
+  Record<TalentPlatform, CommissionTier[]>
+>;
+
+/** Deprecated (R5 Sweep 3a): replaced by the creator_agreements table.
+ *  Read-only fallback during the transition window. */
 export type AgreementLinks = Partial<Record<TalentPlatform, string>>;
+
+/**
+ * R5 Sweep 3a: one row in the creator_agreements table — supports
+ * multiple agreements (amendments) per (creator, platform, page).
+ */
+export interface CreatorAgreement {
+  id: string;
+  creator_id: string;
+  platform: TalentPlatform;
+  page_name: string;
+  label: string;
+  url: string;
+  signed_at: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * Compute Recast's commission for a given platform + gross revenue using

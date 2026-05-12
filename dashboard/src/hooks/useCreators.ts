@@ -19,11 +19,11 @@ export function useCreators(filter: CreatorFilter = "all") {
           // math, true = legacy cliff math for grandfathered deals.
           // Round 4 B (0039): requires_tax_info + w9_url + w9_received_at
           // power the year-end tax tracker. Default false / null.
-          // R5 Sweep 2 (0042): min_guarantee + contract_start moved
-          // from tele_deals onto the creator profile. The Telegram
-          // deal form pulls MG from here now rather than asking per
-          // deal.
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start",
+          // R5 Sweep 3a (0043): nda_signed + nda_url added. The
+          // agreement_links column stays in the select as a read-only
+          // fallback during the 3a→3b transition; 3b reads from the
+          // new creator_agreements table directly.
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start, nda_signed, nda_url",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
@@ -241,13 +241,14 @@ export interface CreatorProfilePatch {
    *  "no agreement on file yet" — the talent profile UI shows them as
    *  empty input rows with no Open button. */
   agreement_links?: Record<string, string>;
-  /** Round 3 Q1+Q7 (migration 0035): canonical tier shape. Each
-   *  platform's array ascends by threshold; the last entry has
-   *  threshold:null meaning "and above". Progressive math by default;
-   *  cliff when commission_uses_cliff is true. */
+  /** Round 3 Q1+Q7 (migration 0035) + R5 Sweep 3a (migration 0043):
+   *  canonical tier shape is now NESTED PER PAGE within each platform:
+   *    { platform: { page_name: [{ threshold, pct }, ...] } }
+   *  Pre-3a writes used the flat shape { platform: [...] } and were
+   *  migrated to wrap legacy arrays under page_name "main". */
   commission_tiers?: Record<
     string,
-    Array<{ threshold: number | null; pct: number }>
+    Record<string, Array<{ threshold: number | null; pct: number }>>
   >;
   /** Round 3 Q1 (migration 0035): TRUE = legacy cliff math for this
    *  creator (whole month at the highest reached tier's pct). FALSE
@@ -265,6 +266,10 @@ export interface CreatorProfilePatch {
   min_guarantee?: number | null;
   /** R5 Sweep 2 (migration 0042): contract start date for MG. */
   contract_start?: string | null;
+  /** R5 Sweep 3a (migration 0043): NDA toggle (mirrors vendors). */
+  nda_signed?: boolean;
+  /** R5 Sweep 3a (migration 0043): signed NDA link. */
+  nda_url?: string | null;
   /** Allow the dialog to also tweak the everyday fields. */
   name?: string;
   country?: string | null;
