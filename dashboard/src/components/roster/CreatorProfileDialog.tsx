@@ -16,6 +16,18 @@ import {
   useUpdateCreatorProfile,
   type CreatorProfilePatch,
 } from "@/hooks/useCreators";
+import {
+  useCreatorAgreements,
+  useReplaceCreatorAgreements,
+  type CreatorAgreementDraft,
+} from "@/hooks/useCreatorAgreements";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /**
  * Full editable profile per creator (Phase J).
@@ -103,16 +115,10 @@ const PLATFORMS: { key: string; label: string }[] = [
   { key: "efuse", label: "Overlay" }, // display-only rename
 ];
 
-/** Round 3: list of agreement-link slots shown in the profile dialog.
- *  Open-ended slugs — keys not on this list are preserved as-is on save
- *  so future platforms can be added without code changes. */
-const AGREEMENT_PLATFORMS: { key: string; label: string }[] = [
-  { key: "onlyfans", label: "OnlyFans agreement" },
-  { key: "telegram", label: "Telegram agreement" },
-  { key: "overlay", label: "Ad Overlay agreement" },
-  { key: "deal", label: "Brand-deal master" },
-  { key: "other", label: "Other / generic" },
-];
+// R5 Sweep 3b: AGREEMENT_PLATFORMS removed. The flat 5-slot
+// agreement_links list got replaced by the creator_agreements table
+// and its multi-row editor (see AgreementsEditor below) — the new
+// flow handles unlimited platforms + amendments per page.
 
 export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
   const update = useUpdateCreatorProfile();
@@ -131,10 +137,13 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
   const [paymentPref, setPaymentPref] = React.useState(creator.payment_method_pref ?? "");
   const [taxId, setTaxId] = React.useState(creator.tax_id ?? "");
 
-  // Commission per platform — empty array means "no deal on this platform"
-  const [tiersByPlatform, setTiersByPlatform] = React.useState<Record<string, TierEditor[]>>(
-    () => loadTiersFromCreator(creator),
-  );
+  // R5 Sweep 3b: commission editor state is now nested per platform
+  // per PAGE. Shape: { platform: { page_name: TierEditor[] } }.
+  // "main" is the default page key (matches the 0043 migration
+  // backfill). Empty inner record = no deal on this platform.
+  const [tiersByPage, setTiersByPage] = React.useState<
+    Record<string, Record<string, TierEditor[]>>
+  >(() => loadTiersFromCreator(creator));
 
   // R3 Q1 (migration 0035): per-creator legacy cliff math toggle.
   // Default false = progressive (R3 decision B); flip on for
@@ -154,6 +163,12 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     !!creator.w9_received_at,
   );
 
+  // R5 Sweep 3b (migration 0043): NDA toggle + URL, mirrors what
+  // vendors have. Optional per creator — flip on when an NDA is in
+  // place; the URL is the Drive/Dropbox pointer.
+  const [ndaSigned, setNdaSigned] = React.useState<boolean>(!!creator.nda_signed);
+  const [ndaUrl, setNdaUrl] = React.useState<string>(creator.nda_url ?? "");
+
   // R5 Sweep 2 (migration 0042): MG + contract_start moved from
   // tele_deals onto the creator profile (Gustavo, T1: "this whole
   // section would be on the talent"). Empty string here, parsed on
@@ -165,12 +180,37 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     creator.contract_start ?? "",
   );
 
-  // Round 3: agreement links — { platform_slug: url } map.
-  const [agreementLinks, setAgreementLinks] = React.useState<Record<string, string>>(
-    () => (creator.agreement_links && typeof creator.agreement_links === "object"
-      ? creator.agreement_links
-      : {}),
-  );
+  // R5 Sweep 3b (migration 0043): agreements are now their own table.
+  // Fetch existing rows for this creator and hold local drafts for
+  // edit. On Save, we delete + bulk-insert via the replace mutation.
+  const { data: existingAgreements } = useCreatorAgreements(creator.id);
+  const replaceAgreements = useReplaceCreatorAgreements();
+  const [agreementDrafts, setAgreementDrafts] = React.useState<CreatorAgreementDraft[]>([]);
+
+  // Seed drafts from the server-fetched agreements once they arrive.
+  // Re-seeds when the dialog re-opens for a different creator. We
+  // deliberately don't re-seed mid-edit if existingAgreements
+  // reference changes — that would clobber user edits in flight.
+  const seedKeyRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    if (!existingAgreements) return;
+    const seedKey = `${creator.id}::${existingAgreements.length}`;
+    if (seedKeyRef.current === seedKey) return;
+    seedKeyRef.current = seedKey;
+    setAgreementDrafts(
+      existingAgreements.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        page_name: a.page_name,
+        label: a.label,
+        url: a.url,
+        signed_at: a.signed_at,
+        notes: a.notes,
+        sort_order: a.sort_order,
+      })),
+    );
+  }, [open, creator.id, existingAgreements]);
 
   // Multi-platform usernames (kept on socials JSON — already exists)
   const initialSocials = creator.socials ?? {};
@@ -195,20 +235,20 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setAddress(creator.address ?? "");
     setPaymentPref(creator.payment_method_pref ?? "");
     setTaxId(creator.tax_id ?? "");
-    setTiersByPlatform(loadTiersFromCreator(creator));
+    setTiersByPage(loadTiersFromCreator(creator));
     setUsesCliff(!!creator.commission_uses_cliff);
     setRequiresTax(!!creator.requires_tax_info);
     setW9Url(creator.w9_url ?? "");
     setW9Received(!!creator.w9_received_at);
+    setNdaSigned(!!creator.nda_signed);
+    setNdaUrl(creator.nda_url ?? "");
     setMinGuarantee(
       creator.min_guarantee != null ? String(creator.min_guarantee) : "",
     );
     setContractStart(creator.contract_start ?? "");
-    setAgreementLinks(
-      creator.agreement_links && typeof creator.agreement_links === "object"
-        ? creator.agreement_links
-        : {},
-    );
+    // R5 Sweep 3b: agreement state is now seeded by the
+    // useCreatorAgreements query effect above. No more agreement_links
+    // map state to reset here.
     const s = creator.socials ?? {};
     setTwitchHandle(s.twitch ?? "");
     setKickHandle(s.kick ?? "");
@@ -228,7 +268,7 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       Record<string, Array<{ threshold: number | null; pct: number }>>
     >;
     try {
-      canonicalTiers = serializeTiers(tiersByPlatform);
+      canonicalTiers = serializeTiers(tiersByPage);
     } catch (e) {
       toast.error((e as Error).message);
       return;
@@ -246,11 +286,10 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     // Round 3: serialise agreement links — strip empty values so the
     // stored jsonb only carries real URLs. Keys are preserved verbatim
     // (open-ended slugs).
-    const cleanLinks: Record<string, string> = {};
-    for (const [slug, url] of Object.entries(agreementLinks)) {
-      const trimmed = (url ?? "").trim();
-      if (trimmed) cleanLinks[slug] = trimmed;
-    }
+    // R5 Sweep 3b: agreements are written to their own table (post-Sweep
+    // 3a migration 0043). The legacy agreement_links JSON column is no
+    // longer written here — only the new creator_agreements rows via
+    // useReplaceCreatorAgreements.
 
     const patch: CreatorProfilePatch = {
       name: name.trim(),
@@ -279,7 +318,12 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       // "no MG arrangement" and skips the top-up math.
       min_guarantee: minGuarantee.trim() === "" ? null : Number(minGuarantee),
       contract_start: contractStart || null,
-      agreement_links: cleanLinks,
+      // R5 Sweep 3b: agreement_links no longer written from the
+      // dialog — replaced by the creator_agreements table writes
+      // below. Legacy column is read-only fallback during the
+      // transition.
+      nda_signed: ndaSigned,
+      nda_url: ndaUrl.trim() || null,
       socials,
     };
     // Defensive validation: MG must be a non-negative number if set.
@@ -291,10 +335,18 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       return;
     }
     try {
+      // 1. Save the creator profile fields (everything except agreements).
       await update.mutateAsync({ id: creator.id, patch });
+      // 2. Replace the agreement set with the current drafts. The hook
+      //    handles delete-then-bulk-insert atomically enough for our
+      //    use case; if it fails, the creator save still landed.
+      await replaceAgreements.mutateAsync({
+        creator_id: creator.id,
+        drafts: agreementDrafts,
+      });
       onOpenChange(false);
     } catch {
-      // toast already fired
+      // toast already fired by the mutation onError
     }
   }
 
@@ -340,7 +392,14 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
                 multiline
                 colSpan={2}
               />
-              <Field label="Tax ID (optional)" value={taxId} onChange={setTaxId} />
+              {/* R5 Sweep 3b (Gustavo, T3): "I'll just take away the
+                  sex ID thing" — the standalone Tax ID text input is
+                  hidden. The W9 link section below covers the same
+                  ground (and is what 1099 prep actually needs). The
+                  underlying creators.tax_id column stays present
+                  (deprecated) so any historical values aren't
+                  destroyed; a cleanup migration drops it after
+                  Gustavo confirms the W9 flow. */}
             </div>
           </Section>
 
@@ -396,6 +455,40 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
                 </div>
               </div>
             ) : null}
+          </Section>
+
+          {/* R5 Sweep 3b (Gustavo, T1, migration 0043): NDA on
+              creators (mirrors vendor NDA). Toggle on when an NDA is
+              in place; URL is the Drive/Dropbox link. */}
+          <Section
+            title="NDA"
+            help="If this creator has signed an NDA, toggle on and paste the link to the document."
+          >
+            <div className="rounded-md border bg-muted/30 px-3 py-2.5 space-y-2">
+              <label className="flex items-center gap-2 text-[12.5px] font-medium">
+                <input
+                  type="checkbox"
+                  checked={ndaSigned}
+                  onChange={(e) => setNdaSigned(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--electric)]"
+                />
+                NDA signed
+              </label>
+              {ndaSigned ? (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="nda-url" className="text-[11px] text-muted-foreground">
+                    NDA link (optional)
+                  </Label>
+                  <Input
+                    id="nda-url"
+                    type="url"
+                    value={ndaUrl}
+                    onChange={(e) => setNdaUrl(e.target.value)}
+                    placeholder="https://drive.google.com/…"
+                  />
+                </div>
+              ) : null}
+            </div>
           </Section>
 
           {/* R5 Sweep 2 (Gustavo, T1, migration 0042): MG + contract
@@ -475,14 +568,20 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
               </label>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {/* R5 Sweep 3b: per-page commission editor.
+                Each platform can have multiple named pages (e.g.
+                "Charlotte VIP", "Charlotte Free" on OF). Most
+                creators only have one page per platform ("main");
+                OF is where multi-page actually matters per
+                Gustavo's call (T3). */}
+            <div className="space-y-4">
               {PLATFORMS.map((p) => (
-                <CommissionEditor
+                <PerPlatformPagesEditor
                   key={p.key}
-                  label={p.label}
-                  tiers={tiersByPlatform[p.key] ?? []}
-                  onChange={(next) =>
-                    setTiersByPlatform((cur) => ({ ...cur, [p.key]: next }))
+                  platformLabel={p.label}
+                  pages={tiersByPage[p.key] ?? {}}
+                  onChange={(nextPages) =>
+                    setTiersByPage((cur) => ({ ...cur, [p.key]: nextPages }))
                   }
                 />
               ))}
@@ -495,39 +594,18 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
               hunt through Google Drive every time he generates an
               invoice. Empty rows are just collapsed into the stored
               jsonb on save. */}
+          {/* R5 Sweep 3b (Gustavo, T3): multi-agreement editor. Each
+              row = one signed agreement (or amendment). Supports
+              multiple agreements per (platform, page). Backed by the
+              creator_agreements table from migration 0043. */}
           <Section
             title="Agreements"
-            help="Paste the Google Drive / Dropbox link for each signed agreement so it's one click away. Empty rows are ignored on save."
+            help="One row per signed agreement. Amendments stack as additional rows on the same platform/page. Empty URLs are ignored on save."
           >
-            <div className="space-y-2">
-              {AGREEMENT_PLATFORMS.map((p) => {
-                const url = agreementLinks[p.key] ?? "";
-                return (
-                  <div key={p.key} className="grid grid-cols-[140px_1fr_auto] items-center gap-2">
-                    <Label className="text-xs text-muted-foreground">{p.label}</Label>
-                    <Input
-                      type="url"
-                      placeholder="https://drive.google.com/…"
-                      value={url}
-                      onChange={(e) =>
-                        setAgreementLinks((cur) => ({ ...cur, [p.key]: e.target.value }))
-                      }
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9"
-                      disabled={!url.trim()}
-                      onClick={() => window.open(url.trim(), "_blank", "noopener,noreferrer")}
-                      title={url.trim() ? "Open agreement in a new tab" : "Paste a URL first"}
-                    >
-                      <ExternalLink className="mr-1 h-3 w-3" /> Open
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
+            <AgreementsEditor
+              drafts={agreementDrafts}
+              onChange={setAgreementDrafts}
+            />
           </Section>
 
           <Section title="Platform usernames" help="Add multiple OF pages or other handles as needed.">
@@ -615,6 +693,173 @@ function Field({
           autoFocus={autoFocus}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Per-platform pages editor (R5 Sweep 3b) ────────────────────────
+//
+// One block per platform. Inside each platform, a list of named pages
+// — each page has its own commission tier list. "+ Add page" lets the
+// user split a platform into multiple distinct pages (Charlotte VIP
+// vs Charlotte Free on OnlyFans).
+//
+// Page names default to "main" for the canonical single-page case.
+
+function PerPlatformPagesEditor({
+  platformLabel,
+  pages,
+  onChange,
+}: {
+  platformLabel: string;
+  pages: Record<string, TierEditor[]>;
+  onChange: (next: Record<string, TierEditor[]>) => void;
+}) {
+  const pageEntries = Object.entries(pages);
+  const hasPages = pageEntries.length > 0;
+
+  function setPageTiers(name: string, next: TierEditor[]) {
+    onChange({ ...pages, [name]: next });
+  }
+  function renamePage(oldName: string, newName: string) {
+    if (oldName === newName) return;
+    const trimmed = newName.trim() || "main";
+    if (trimmed === oldName) return;
+    if (pages[trimmed]) {
+      // Refuse to overwrite an existing page silently — caller can
+      // surface a toast if they want.
+      toast.error(
+        `Page "${trimmed}" already exists for ${platformLabel}. Pick a different name.`,
+      );
+      return;
+    }
+    const next: Record<string, TierEditor[]> = {};
+    for (const [k, v] of Object.entries(pages)) {
+      next[k === oldName ? trimmed : k] = v;
+    }
+    onChange(next);
+  }
+  function removePage(name: string) {
+    const next = { ...pages };
+    delete next[name];
+    onChange(next);
+  }
+  function addPage() {
+    // Pick a name that doesn't collide. "main" if free, else "page 2",
+    // "page 3" …
+    if (!pages["main"]) {
+      onChange({ ...pages, main: [{ threshold: "0", pct: "" }] });
+      return;
+    }
+    let n = 2;
+    while (pages[`page ${n}`]) n++;
+    onChange({ ...pages, [`page ${n}`]: [{ threshold: "0", pct: "" }] });
+  }
+
+  return (
+    <div className="rounded-md border bg-muted/10 p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-semibold">{platformLabel}</Label>
+        {hasPages ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[11px]"
+            onClick={addPage}
+          >
+            <Plus className="mr-1 h-3 w-3" /> Add page
+          </Button>
+        ) : null}
+      </div>
+
+      {!hasPages ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={addPage}
+        >
+          <Plus className="mr-1 h-3 w-3" /> Set commission for {platformLabel}
+        </Button>
+      ) : (
+        <div className="space-y-3">
+          {pageEntries.map(([pageName, tiers]) => (
+            <PageCommissionBlock
+              key={pageName}
+              pageName={pageName}
+              tiers={tiers}
+              onRename={(next) => renamePage(pageName, next)}
+              onTiersChange={(next) => setPageTiers(pageName, next)}
+              onRemove={() => removePage(pageName)}
+              isOnlyPage={pageEntries.length === 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PageCommissionBlock({
+  pageName,
+  tiers,
+  onRename,
+  onTiersChange,
+  onRemove,
+  isOnlyPage,
+}: {
+  pageName: string;
+  tiers: TierEditor[];
+  onRename: (next: string) => void;
+  onTiersChange: (next: TierEditor[]) => void;
+  onRemove: () => void;
+  isOnlyPage: boolean;
+}) {
+  // Local-mirror of the page name so users can type a multi-character
+  // name without state-resetting on every keystroke. Committed on
+  // blur via onRename — silent dedupe handled by the parent.
+  const [draftName, setDraftName] = React.useState(pageName);
+  React.useEffect(() => {
+    setDraftName(pageName);
+  }, [pageName]);
+
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <Label className="text-[11px] text-muted-foreground">Page</Label>
+        <Input
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onBlur={() => onRename(draftName)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          placeholder="main"
+          className="h-7 max-w-[200px] text-[12px]"
+        />
+        {!isOnlyPage ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-7 text-[11px] text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+            title="Remove this page"
+          >
+            Remove page
+          </Button>
+        ) : null}
+      </div>
+      <CommissionEditor
+        label="Tiers"
+        tiers={tiers}
+        onChange={onTiersChange}
+      />
     </div>
   );
 }
@@ -793,72 +1038,64 @@ function CommissionEditor({
  * safety net during the cutover window (some rows might predate the
  * 0035 backfill).
  */
+/**
+ * R5 Sweep 3b: load the FULL nested commission_tiers shape into the
+ * editor's `{ platform: { page_name: TierEditor[] } }` structure.
+ * Pre-3a legacy flat shape gets wrapped under page "main" so the
+ * editor sees a consistent nested form.
+ *
+ * Pre-Sweep-3 commission_pct_by_platform (cliff-shape) data is
+ * loaded as flat fallback under page "main" too.
+ */
 function loadTiersFromCreator(
   c: {
     commission_tiers?: Record<string, unknown> | null;
     commission_pct_by_platform?: Record<string, unknown> | null;
   },
-): Record<string, TierEditor[]> {
-  const out: Record<string, TierEditor[]> = {};
+): Record<string, Record<string, TierEditor[]>> {
+  const out: Record<string, Record<string, TierEditor[]>> = {};
   const canonical = c.commission_tiers ?? {};
   const legacy = c.commission_pct_by_platform ?? {};
 
   for (const platform of ["onlyfans", "telegram", "efuse"]) {
+    out[platform] = {};
     const cv = canonical?.[platform];
 
-    // R5 Sweep 3a (migration 0043): canonical column is now nested
-    // per page. Old code paths assumed a flat array. Handle both —
-    // 3b will switch the dialog to a true per-page editor; for now
-    // we keep the single-tier-list UX and read/write under page
-    // "main" only.
     if (cv && typeof cv === "object" && !Array.isArray(cv)) {
       // NEW nested shape: { page_name: tiers[] }
       const pages = cv as Record<string, unknown>;
-      const mainArray = pickMainPageTiers(pages);
-      out[platform] = mainArray ? canonicalToEditor(mainArray) : [];
-      continue;
+      for (const [pageName, tiers] of Object.entries(pages)) {
+        if (Array.isArray(tiers) && tiers.length > 0) {
+          out[platform][pageName] = canonicalToEditor(tiers);
+        }
+      }
+      // If at least one page was populated, we're done with this
+      // platform — don't fall through to legacy.
+      if (Object.keys(out[platform]).length > 0) continue;
     }
     if (Array.isArray(cv) && cv.length > 0) {
-      // LEGACY FLAT shape (pre-3a row that missed the migration).
-      // Defensive — the SQL migration should have wrapped these.
-      out[platform] = canonicalToEditor(cv);
+      // LEGACY FLAT shape (pre-0043 row). Wrap under "main".
+      out[platform].main = canonicalToEditor(cv);
       continue;
     }
 
-    // Legacy fallback. Same shapes as pre-0035: null / flat number /
-    // starts-at array. Editor expects starts-at, so the legacy array
-    // path is identity.
+    // Pre-Sweep-3 fallback: commission_pct_by_platform (cliff/flat).
     const lv = legacy?.[platform];
     if (lv == null) {
-      out[platform] = [];
+      continue;
     } else if (typeof lv === "number") {
-      out[platform] = [{ threshold: "0", pct: String(lv) }];
+      out[platform].main = [{ threshold: "0", pct: String(lv) }];
     } else if (Array.isArray(lv)) {
-      out[platform] = lv
+      const rows = lv
         .filter((t: unknown): t is { threshold: number; pct: number } => {
           const x = t as Record<string, unknown>;
           return typeof x?.threshold === "number" && typeof x?.pct === "number";
         })
         .map((t) => ({ threshold: String(t.threshold), pct: String(t.pct) }));
-    } else {
-      out[platform] = [];
+      if (rows.length > 0) out[platform].main = rows;
     }
   }
   return out;
-}
-
-/** R5 Sweep 3a helper: pick the canonical "main" page's tiers from a
- *  nested per-platform map. Falls back to the first page key if
- *  "main" isn't present. */
-function pickMainPageTiers(pages: Record<string, unknown>): unknown[] | null {
-  const main = pages["main"];
-  if (Array.isArray(main)) return main;
-  const keys = Object.keys(pages).sort();
-  for (const k of keys) {
-    const v = pages[k];
-    if (Array.isArray(v)) return v;
-  }
-  return null;
 }
 
 /** New-shape array (threshold = ends-at, null on last) → editor's
@@ -900,61 +1137,200 @@ function canonicalToEditor(canonical: unknown[]): TierEditor[] {
 }
 
 /**
- * Editor → new-shape JSONB for commission_tiers.
+ * R5 Sweep 3b: Editor → nested per-page JSONB for commission_tiers.
  *
- * R5 Sweep 3a (migration 0043): the on-disk shape is now nested per
- * page within each platform — `{ platform: { page_name: tiers[] } }`.
- * This pre-3b serializer writes everything under page "main" since
- * the dialog UI doesn't yet expose page selection. Sweep 3b will
- * extend the editor to capture page name per tier-list.
+ * Input shape: `{ platform: { page_name: TierEditor[] } }`
+ * Output shape: `{ platform: { page_name: tiers[] } }` (canonical
+ * "ends-at" thresholds, last entry has threshold:null).
  *
- * Empty platform arrays are omitted from the output entirely so the
- * stored blob stays compact.
- *
- * Throws on validation errors so the caller can toast.
+ * Empty pages are dropped silently. Empty platforms (no pages with
+ * tiers) are omitted entirely. Throws on validation errors.
  */
 function serializeTiers(
-  byPlatform: Record<string, TierEditor[]>,
+  byPlatform: Record<string, Record<string, TierEditor[]>>,
 ): Record<string, Record<string, Array<{ threshold: number | null; pct: number }>>> {
   const out: Record<string, Record<string, Array<{ threshold: number | null; pct: number }>>> = {};
-  for (const [platform, rows] of Object.entries(byPlatform)) {
-    if (rows.length === 0) continue;
+  for (const [platform, pages] of Object.entries(byPlatform)) {
+    const platformOut: Record<string, Array<{ threshold: number | null; pct: number }>> = {};
+    for (const [pageName, rows] of Object.entries(pages)) {
+      if (!rows || rows.length === 0) continue;
+      const pageLabel = pageName.trim() || "main";
 
-    const parsed = rows.map((r, i) => {
-      const threshold = Number(r.threshold);
-      const pct = Number(r.pct);
-      if (!Number.isFinite(threshold) || threshold < 0) {
-        throw new Error(`${platform}: tier ${i + 1} threshold must be a non-negative number`);
-      }
-      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-        throw new Error(`${platform}: tier ${i + 1} percentage must be 0–100`);
-      }
-      return { threshold, pct };
-    });
+      const parsed = rows.map((r, i) => {
+        const threshold = Number(r.threshold);
+        const pct = Number(r.pct);
+        if (!Number.isFinite(threshold) || threshold < 0) {
+          throw new Error(`${platform} · ${pageLabel}: tier ${i + 1} threshold must be a non-negative number`);
+        }
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+          throw new Error(`${platform} · ${pageLabel}: tier ${i + 1} percentage must be 0–100`);
+        }
+        return { threshold, pct };
+      });
 
-    // Sort ascending by start threshold so the on-disk shape is canonical.
-    parsed.sort((a, b) => a.threshold - b.threshold);
+      // Sort ascending by start threshold so the on-disk shape is canonical.
+      parsed.sort((a, b) => a.threshold - b.threshold);
 
-    // Reject duplicate thresholds.
-    for (let i = 1; i < parsed.length; i++) {
-      if (parsed[i].threshold === parsed[i - 1].threshold) {
-        throw new Error(
-          `${platform}: two tiers with the same threshold ($${parsed[i].threshold})`,
-        );
+      // Reject duplicate thresholds within a page.
+      for (let i = 1; i < parsed.length; i++) {
+        if (parsed[i].threshold === parsed[i - 1].threshold) {
+          throw new Error(
+            `${platform} · ${pageLabel}: two tiers with the same threshold ($${parsed[i].threshold})`,
+          );
+        }
       }
+
+      // Translate starts-at → ends-at: row i's stored threshold = NEXT
+      // row's start (or null for the last). pct stays with its row.
+      const canonical: Array<{ threshold: number | null; pct: number }> = [];
+      for (let i = 0; i < parsed.length; i++) {
+        const nextThreshold =
+          i + 1 < parsed.length ? parsed[i + 1].threshold : null;
+        canonical.push({ threshold: nextThreshold, pct: parsed[i].pct });
+      }
+      platformOut[pageLabel] = canonical;
     }
-
-    // Translate starts-at → ends-at: row i's stored threshold = NEXT
-    // row's start (or null for the last). pct stays with its row.
-    const canonical: Array<{ threshold: number | null; pct: number }> = [];
-    for (let i = 0; i < parsed.length; i++) {
-      const nextThreshold =
-        i + 1 < parsed.length ? parsed[i + 1].threshold : null;
-      canonical.push({ threshold: nextThreshold, pct: parsed[i].pct });
+    if (Object.keys(platformOut).length > 0) {
+      out[platform] = platformOut;
     }
-    // R5 Sweep 3a: wrap under page "main". Sweep 3b will let users
-    // name pages and write multiple keys here.
-    out[platform] = { main: canonical };
   }
   return out;
+}
+
+// ─── R5 Sweep 3b: Agreements editor ─────────────────────────────────
+//
+// One row per agreement (or amendment). Each row has platform, page,
+// label, URL, and the Open ↗ button. Empty URL rows are dropped on
+// save. Supports multiple agreements per (platform, page) — that's
+// the amendments use case from T3.
+
+const AGREEMENT_PLATFORM_OPTIONS = [
+  { value: "onlyfans", label: "OnlyFans" },
+  { value: "telegram", label: "Telegram" },
+  { value: "efuse", label: "Ad Overlay" },
+  { value: "deal", label: "Brand deal" },
+  { value: "other", label: "Other" },
+] as const;
+
+function AgreementsEditor({
+  drafts,
+  onChange,
+}: {
+  drafts: CreatorAgreementDraft[];
+  onChange: (next: CreatorAgreementDraft[]) => void;
+}) {
+  function update(i: number, patch: Partial<CreatorAgreementDraft>) {
+    onChange(drafts.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+  function remove(i: number) {
+    onChange(drafts.filter((_, idx) => idx !== i));
+  }
+  function add() {
+    onChange([
+      ...drafts,
+      {
+        platform: "onlyfans",
+        page_name: "main",
+        label: "Agreement",
+        url: "",
+        sort_order: drafts.length,
+      },
+    ]);
+  }
+
+  if (drafts.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed bg-muted/15 px-3 py-3 text-[12px] text-muted-foreground">
+        No agreements on file yet.
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="ml-1 h-auto p-0 text-[12px]"
+          onClick={add}
+        >
+          + Add agreement
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {drafts.map((row, i) => (
+        <div
+          key={row.id ?? `new-${i}`}
+          className="grid grid-cols-[140px_120px_140px_1fr_auto_auto] items-center gap-2"
+        >
+          <Select
+            value={row.platform}
+            onValueChange={(v) =>
+              update(i, { platform: v as CreatorAgreementDraft["platform"] })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AGREEMENT_PLATFORM_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            value={row.page_name}
+            onChange={(e) => update(i, { page_name: e.target.value })}
+            placeholder="main"
+            title="Page name within this platform (e.g. 'Charlotte VIP'). Use 'main' for single-page setups."
+          />
+          <Input
+            value={row.label}
+            onChange={(e) => update(i, { label: e.target.value })}
+            placeholder="Main agreement"
+          />
+          <Input
+            type="url"
+            value={row.url}
+            onChange={(e) => update(i, { url: e.target.value })}
+            placeholder="https://drive.google.com/…"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9"
+            disabled={!row.url.trim()}
+            onClick={() =>
+              window.open(row.url.trim(), "_blank", "noopener,noreferrer")
+            }
+            title={row.url.trim() ? "Open agreement in a new tab" : "Paste a URL first"}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 text-muted-foreground hover:text-destructive"
+            onClick={() => remove(i)}
+            title="Remove this agreement row"
+            aria-label="Remove agreement"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 text-[12px]"
+        onClick={add}
+      >
+        <Plus className="mr-1 h-3 w-3" /> Add agreement
+      </Button>
+    </div>
+  );
 }
