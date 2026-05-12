@@ -70,6 +70,12 @@ interface CreatorMinimal {
    *  surfaces this as a "Legacy cliff math" toggle for grandfathered
    *  contracts. */
   commission_uses_cliff?: boolean | null;
+  /** Round 4 B (migration 0039): tag this creator for 1099 tracking. */
+  requires_tax_info?: boolean | null;
+  /** Round 4 B: signed W9 link (Drive/Dropbox), valid forever. */
+  w9_url?: string | null;
+  /** Round 4 B: timestamp the W9 was received. */
+  w9_received_at?: string | null;
 }
 
 interface Props {
@@ -124,6 +130,17 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     () => !!creator.commission_uses_cliff,
   );
 
+  // R4 B (migration 0039): per-creator tax-tracker opt-in. When TRUE
+  // the creator surfaces on /tax and is held to the W9 completeness
+  // rule on /talents. Sub-state: W9 link + received-at.
+  const [requiresTax, setRequiresTax] = React.useState<boolean>(
+    () => !!creator.requires_tax_info,
+  );
+  const [w9Url, setW9Url] = React.useState<string>(creator.w9_url ?? "");
+  const [w9Received, setW9Received] = React.useState<boolean>(
+    !!creator.w9_received_at,
+  );
+
   // Round 3: agreement links — { platform_slug: url } map.
   const [agreementLinks, setAgreementLinks] = React.useState<Record<string, string>>(
     () => (creator.agreement_links && typeof creator.agreement_links === "object"
@@ -156,6 +173,9 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
     setTaxId(creator.tax_id ?? "");
     setTiersByPlatform(loadTiersFromCreator(creator));
     setUsesCliff(!!creator.commission_uses_cliff);
+    setRequiresTax(!!creator.requires_tax_info);
+    setW9Url(creator.w9_url ?? "");
+    setW9Received(!!creator.w9_received_at);
     setAgreementLinks(
       creator.agreement_links && typeof creator.agreement_links === "object"
         ? creator.agreement_links
@@ -215,6 +235,12 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
       // (read-only fallback until migration 0036 drops it).
       commission_tiers: canonicalTiers,
       commission_uses_cliff: usesCliff,
+      // R4 B (migration 0039): tax tracker opt-in + W9.
+      requires_tax_info: requiresTax,
+      w9_url: w9Url.trim() || null,
+      w9_received_at: w9Received
+        ? (creator.w9_received_at ?? new Date().toISOString())
+        : null,
       agreement_links: cleanLinks,
       socials,
     };
@@ -270,6 +296,60 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
               />
               <Field label="Tax ID (optional)" value={taxId} onChange={setTaxId} />
             </div>
+          </Section>
+
+          {/* R4 B: tax-tracker opt-in. Off by default — only flip on
+              for creators that need a 1099. When on, this creator
+              surfaces on /tax and the W9 fields below become
+              actionable. */}
+          <Section
+            title="Tax info / 1099"
+            help={
+              requiresTax
+                ? "This creator is tracked on /tax. Use the year-end tax page to log per-year 1099 status + amount reported. Below is the W9 (person-level, valid forever)."
+                : "Toggle on for US contractors that need a 1099 issued. They'll then surface on /tax for year-end tracking. Default is off — most creators don't need this."
+            }
+          >
+            <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+              <label className="flex items-center gap-2 text-[12.5px] font-medium">
+                <input
+                  type="checkbox"
+                  checked={requiresTax}
+                  onChange={(e) => setRequiresTax(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--electric)]"
+                />
+                Requires tax info / 1099
+              </label>
+            </div>
+            {requiresTax ? (
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="md:col-span-2 grid gap-1.5">
+                  <label className="text-[11px] text-muted-foreground">
+                    W9 link (Drive/Dropbox)
+                  </label>
+                  <Input
+                    type="url"
+                    value={w9Url}
+                    onChange={(e) => setW9Url(e.target.value)}
+                    placeholder="https://drive.google.com/…"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label className="text-[11px] text-muted-foreground">
+                    W9 status
+                  </label>
+                  <label className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 text-[12.5px]">
+                    <input
+                      type="checkbox"
+                      checked={w9Received}
+                      onChange={(e) => setW9Received(e.target.checked)}
+                      className="h-4 w-4 accent-[var(--electric)]"
+                    />
+                    Received
+                  </label>
+                </div>
+              </div>
+            ) : null}
           </Section>
 
           <Section

@@ -18,6 +18,7 @@ import { ActivityPage } from "@/pages/Activity";
 import { VendorsPage } from "@/pages/Vendors";
 import { VendorDetailPage } from "@/pages/VendorDetail";
 import { HousePage } from "@/pages/House";
+import { TaxTrackerPage } from "@/pages/TaxTracker";
 import { RoleRedirect } from "@/auth/RoleRedirect";
 
 export const router = createBrowserRouter([
@@ -163,6 +164,17 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "partner", "finance"]}>
             <HousePage />
+          </ProtectedRoute>
+        ),
+      },
+      // R4.B: Year-end tax tracker (1099 prep). Admin + finance
+      // only — touches sensitive person-level tax data (W9 / 1099
+      // links) so partners and operators don't see the route.
+      {
+        path: "tax",
+        element: (
+          <ProtectedRoute allow={["admin", "finance"]}>
+            <TaxTrackerPage />
           </ProtectedRoute>
         ),
       },

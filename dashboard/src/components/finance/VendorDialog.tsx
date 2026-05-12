@@ -84,6 +84,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
     service_provided: "",
     recurring_monthly: false,
     recurring_amount: null,
+    requires_tax_info: false,
+    w9_url: "",
+    w9_received_at: null,
   });
 
   React.useEffect(() => {
@@ -106,6 +109,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         service_provided: vendor.service_provided ?? "",
         recurring_monthly: vendor.recurring_monthly ?? false,
         recurring_amount: vendor.recurring_amount ?? null,
+        requires_tax_info: vendor.requires_tax_info ?? false,
+        w9_url: vendor.w9_url ?? "",
+        w9_received_at: vendor.w9_received_at ?? null,
       });
     } else {
       setForm({
@@ -125,6 +131,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         service_provided: "",
         recurring_monthly: false,
         recurring_amount: null,
+        requires_tax_info: false,
+        w9_url: "",
+        w9_received_at: null,
       });
     }
   }, [open, vendor, defaultDivision, defaultKind]);
@@ -374,6 +383,69 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 Click any placeholder to log the real payment.
               </p>
             </div>
+          </div>
+
+          {/* Round 4 B: tax tracker opt-in + W9 fields. Off by default;
+              flip on for vendors that need a 1099 issued at year-end. */}
+          <div className="rounded-md border bg-muted/15 p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.requires_tax_info ?? false}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  set("requires_tax_info", on);
+                  if (!on) {
+                    set("w9_url", "");
+                    set("w9_received_at", null);
+                  }
+                }}
+              />
+              Requires tax info / 1099
+            </label>
+            {form.requires_tax_info ? (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 grid gap-1.5">
+                  <Label
+                    htmlFor="v-w9-url"
+                    className="text-[11px] text-muted-foreground"
+                  >
+                    W9 link (valid forever)
+                  </Label>
+                  <Input
+                    id="v-w9-url"
+                    type="url"
+                    value={form.w9_url ?? ""}
+                    onChange={(e) => set("w9_url", e.target.value)}
+                    placeholder="https://drive.google.com/…"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-[11px] text-muted-foreground">
+                    W9 status
+                  </Label>
+                  <label className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!form.w9_received_at}
+                      onChange={(e) =>
+                        set(
+                          "w9_received_at",
+                          e.target.checked ? new Date().toISOString() : null,
+                        )
+                      }
+                    />
+                    Received
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                When on, this vendor surfaces on the /tax page for
+                year-end 1099 tracking. Defaults off — only flip for
+                US contractors that hit the 1099 threshold.
+              </p>
+            )}
           </div>
 
           <div className="grid gap-1.5">

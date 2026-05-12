@@ -130,9 +130,40 @@ export interface Vendor {
   /** Round 4 (0037): default monthly payment amount; populates the
    *  placeholder cell + pre-fills the payment dialog on click. */
   recurring_amount: number | null;
+  /** Round 4 B (0039): tag this vendor for 1099 tracking. When TRUE
+   *  it surfaces on /tax. */
+  requires_tax_info: boolean;
+  /** Round 4 B (0039): one W9 per vendor, valid forever (replace
+   *  the URL to update). */
+  w9_url: string | null;
+  /** Round 4 B (0039): timestamp the W9 was received. Independent
+   *  of w9_url so the "received" signal can be set without the
+   *  link being on file yet. */
+  w9_received_at: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Tax records (Round 4 B) — one row per tracked subject per year
+// ─────────────────────────────────────────────────────────────────────
+
+export type TaxSubjectKind = "creator" | "vendor";
+
+export interface TaxRecord {
+  id: string;
+  subject_kind: TaxSubjectKind;
+  subject_id: string;
+  year: number;
+  /** Manually entered at year end; system doesn't auto-calculate. */
+  amount_reported: number | null;
+  /** Drive/Dropbox link to the issued 1099 for this year. */
+  ten99_url: string | null;
+  ten99_sent_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BankingDetails {

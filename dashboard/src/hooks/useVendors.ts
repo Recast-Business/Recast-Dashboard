@@ -64,6 +64,10 @@ export interface VendorInput {
   // Round 4 (0037): opt-in recurring monthly bill
   recurring_monthly?: boolean;
   recurring_amount?: number | null;
+  // Round 4 B (0039): tax tracker opt-in + W9
+  requires_tax_info?: boolean;
+  w9_url?: string | null;
+  w9_received_at?: string | null;
 }
 
 export function useAddVendor() {

@@ -17,8 +17,9 @@ export function useCreators(filter: CreatorFilter = "all") {
           // Round 3 (0035 — Q1+Q7 cliff toggle + tier migration):
           // commission_uses_cliff bool. False (default) = progressive
           // math, true = legacy cliff math for grandfathered deals.
-          // The calc engine reads this per-creator and switches mode.
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff",
+          // Round 4 B (0039): requires_tax_info + w9_url + w9_received_at
+          // power the year-end tax tracker. Default false / null.
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
@@ -248,6 +249,12 @@ export interface CreatorProfilePatch {
    *  creator (whole month at the highest reached tier's pct). FALSE
    *  = progressive (each tier bills its own slice). */
   commission_uses_cliff?: boolean;
+  /** Round 4 B (migration 0039): tag this creator for 1099 tracking. */
+  requires_tax_info?: boolean;
+  /** Round 4 B: signed W9 link (Drive/Dropbox), valid forever. */
+  w9_url?: string | null;
+  /** Round 4 B: timestamp the W9 was received. */
+  w9_received_at?: string | null;
   /** Allow the dialog to also tweak the everyday fields. */
   name?: string;
   country?: string | null;

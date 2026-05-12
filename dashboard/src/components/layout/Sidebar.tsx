@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Receipt,
   Search,
   Star,
   Store,
@@ -86,6 +87,9 @@ const SECTIONS: NavSection[] = [
       { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
       { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "finance"] },
       { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
+      // R4.B: Year-end tax tracker — admin + finance only because
+      // it surfaces W9 / 1099 / amount-reported data.
+      { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "finance"] },
     ],
   },
   {
