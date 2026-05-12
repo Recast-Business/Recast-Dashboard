@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -366,11 +367,16 @@ export function TalentLedgerPage() {
                       key={row.id}
                       className="group border-b border-rule transition-colors duration-base ease-out hover:bg-white/[0.04]"
                     >
-                      {/* Sticky-left talent column */}
+                      {/* Sticky-left talent column. R4.C: name links
+                          to the per-creator P&L detail at /talents/:id. */}
                       <td className="sticky left-0 z-10 bg-[#0d0d0d] px-4 py-2.5">
-                        <div className="text-[13px] font-medium text-white">
+                        <Link
+                          to={`/talents/${row.id}`}
+                          className="block text-[13px] font-medium text-white transition-colors duration-base ease-out hover:text-electric hover:underline"
+                          title={`Open ${row.name}'s P&L`}
+                        >
                           {row.name}
-                        </div>
+                        </Link>
                         <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-steel">
                           <IdCard className="h-3 w-3" strokeWidth={1.5} />
                           {row.category ?? "—"}

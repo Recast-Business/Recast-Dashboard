@@ -9,6 +9,7 @@ import { CalculatorPage } from "@/pages/Calculator";
 import { CampaignsPage } from "@/pages/Campaigns";
 import { RosterPage } from "@/pages/Roster";
 import { TalentLedgerPage } from "@/pages/TalentLedger";
+import { TalentDetailPage } from "@/pages/TalentDetail";
 import { LeadsPage } from "@/pages/Leads";
 import { PotentialPage } from "@/pages/Potential";
 import { CreatorProfilePage } from "@/pages/CreatorProfile";
@@ -88,6 +89,17 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "finance"]}>
             <TalentLedgerPage />
+          </ProtectedRoute>
+        ),
+      },
+      // R4.C: per-creator P&L detail. Same role gating as the list
+      // (admin + finance) — the page surfaces full commission +
+      // platform revenue history.
+      {
+        path: "talents/:id",
+        element: (
+          <ProtectedRoute allow={["admin", "finance"]}>
+            <TalentDetailPage />
           </ProtectedRoute>
         ),
       },
