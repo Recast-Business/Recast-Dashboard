@@ -9,22 +9,19 @@
 -- ============================================================
 -- 1. Extend the activity_kind enum
 -- ============================================================
--- Postgres enums are append-only via ALTER TYPE ... ADD VALUE. Wrap
--- in a do block so re-running the migration doesn't error if the
--- value already exists (pg ≥ 12 supports IF NOT EXISTS on enum
--- additions natively; this works on older too).
+-- Postgres enums are append-only via ALTER TYPE ... ADD VALUE.
+-- Important: this statement CANNOT run inside a transaction block, so
+-- we use the IF NOT EXISTS form directly (pg ≥ 9.6) rather than
+-- wrapping in a DO block (which is itself a transaction context and
+-- would fail with "ALTER TYPE ... ADD VALUE cannot run inside a
+-- transaction block"). The IF NOT EXISTS gives idempotent re-run
+-- behaviour without the DO wrapper.
+--
+-- When pasting this migration into the Supabase SQL Editor, run this
+-- ALTER TYPE statement on its own (or first), then the trigger block
+-- below as a separate Run — Supabase autocommits each Run separately.
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_type t
-      join pg_enum e on e.enumtypid = t.oid
-     where t.typname = 'activity_kind'
-       and e.enumlabel = 'commission_mode_changed'
-  ) then
-    alter type activity_kind add value 'commission_mode_changed';
-  end if;
-end $$;
+alter type activity_kind add value if not exists 'commission_mode_changed';
 
 
 -- ============================================================

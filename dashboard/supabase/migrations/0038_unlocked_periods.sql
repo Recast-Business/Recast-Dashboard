@@ -78,28 +78,18 @@ create policy unlocked_periods_write
 -- ============================================================
 -- Activity log: every unlock/re-lock action
 -- ============================================================
--- Add a new activity kind so /activity surfaces who unlocked what
+-- Add new activity kinds so /activity surfaces who unlocked what
 -- and when. Audit trail for the financial mode equivalent.
+--
+-- IMPORTANT: these ALTER TYPE statements CANNOT run inside a
+-- transaction block. The Supabase SQL Editor autocommits each Run
+-- separately, so paste each `alter type` statement and Run it on
+-- its own, then paste the rest of the migration as a separate Run.
+-- The DO block version of this used to fail with "ALTER TYPE ...
+-- ADD VALUE cannot run inside a transaction block".
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_type t
-      join pg_enum e on e.enumtypid = t.oid
-     where t.typname = 'activity_kind'
-       and e.enumlabel = 'period_unlocked'
-  ) then
-    alter type activity_kind add value 'period_unlocked';
-  end if;
-  if not exists (
-    select 1 from pg_type t
-      join pg_enum e on e.enumtypid = t.oid
-     where t.typname = 'activity_kind'
-       and e.enumlabel = 'period_relocked'
-  ) then
-    alter type activity_kind add value 'period_relocked';
-  end if;
-end $$;
+alter type activity_kind add value if not exists 'period_unlocked';
+alter type activity_kind add value if not exists 'period_relocked';
 
 create or replace function log_period_unlocked() returns trigger
 language plpgsql security definer set search_path = public as $$
