@@ -89,7 +89,10 @@ const WORKSPACE_SECTION: NavSection = {
   header: "Workspace",
   items: [
     { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
-    { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
+    // R5 follow-up: label renamed from "Finance" to "Invoice" per
+    // Gustavo. The /finance route is unchanged — the page itself is
+    // the talent-invoice grid, so the new label reads more honestly.
+    { to: "/finance", label: "Invoice", icon: DollarSign, allow: ["admin", "partner", "finance"] },
     // R5 Sweep 8: Calculator excluded from partner. Partners don't
     // price deals; the tool was visual noise in their nav. Admin /
     // finance / operator still see it.

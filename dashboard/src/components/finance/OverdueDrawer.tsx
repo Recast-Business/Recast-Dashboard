@@ -155,41 +155,15 @@ function useOverdueRows() {
         });
       }
 
-      // House rent
-      const rent = await supabase
-        .from("house_rent_payments")
-        .select("amount, period_year, period_month, paid_at, resident:house_residents(name)")
-        .eq("status", "overdue");
-      for (const r of (rent.data ?? []) as any[]) {
-        out.push({
-          source: "house_rent",
-          name: r.resident?.name ?? "Resident",
-          amount: Number(r.amount) || 0,
-          period_year: r.period_year,
-          period_month: r.period_month,
-          paid_at: r.paid_at,
-          invoice_url: null,
-          days_overdue: daysOverdue(r.period_year, r.period_month),
-        });
-      }
-
-      // House utilities
-      const util = await supabase
-        .from("house_utility_payments")
-        .select("amount, period_year, period_month, paid_at, utility:house_utilities(utility_name)")
-        .eq("status", "overdue");
-      for (const r of (util.data ?? []) as any[]) {
-        out.push({
-          source: "house_utility",
-          name: r.utility?.utility_name ?? "Utility",
-          amount: Number(r.amount) || 0,
-          period_year: r.period_year,
-          period_month: r.period_month,
-          paid_at: r.paid_at,
-          invoice_url: null,
-          days_overdue: daysOverdue(r.period_year, r.period_month),
-        });
-      }
+      // R5 follow-up (Gustavo): Frazier's House rent + utilities used
+      // to feed the overdue banner via house_rent_payments and
+      // house_utility_payments queries here. Removed — the banner is
+      // a Recast-business-overdue signal; household residents owing
+      // rent + utility bills owed by the house aren't related to
+      // Recast invoicing and just inflated the count. Both sources
+      // still drive the /house page directly; the only change is they
+      // no longer surface here. Keeping the union members on
+      // OverdueRow.source for backwards-compat with any cached rows.
 
       // Vendor invoices — ad-hoc bills past their custom due_date
       const invoices = await supabase

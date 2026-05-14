@@ -27,11 +27,12 @@ export function FinancePage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-h2">Finance</h1>
+          <h1 className="text-h2">Invoice</h1>
           <p className="text-sm text-muted-foreground">
-            Talent invoices and contractor payments. Year-by-year grid
-            with full audit trail on banking access. Household and
-            vendor ledgers live in their own sidebar sections.
+            Talent invoices Recast issues + contractor payment grid.
+            Year-by-year view with full audit trail on banking access.
+            Vendors and Frazier&apos;s House live in their own sidebar
+            sections.
           </p>
         </div>
         <YearSelector value={year} onChange={setYear} />
