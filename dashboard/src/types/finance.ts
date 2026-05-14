@@ -198,9 +198,43 @@ export interface Vendor {
    *  of w9_url so the "received" signal can be set without the
    *  link being on file yet. */
   w9_received_at: string | null;
+  /** R5 Sweep 4 (0045): vendor profile parity with creators —
+   *  separate legal vs. business name, mailing address. (nda_url
+   *  already lived on the type from Phase M-1; the column is also
+   *  added in 0045 in case it was missing.) All nullable; the dialog
+   *  gates the editor UI to kind='vendor'. */
+  legal_name: string | null;
+  business_name: string | null;
+  address: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
+}
+
+/**
+ * R5 Sweep 4: one row in the vendor_agreements table. Mirrors
+ * CreatorAgreement but with `category` instead of `page_name` since
+ * vendors don't have OF-style multi-page setups. Multiple rows per
+ * (vendor, category) supported — amendments stack alongside originals.
+ */
+export type VendorAgreementCategory =
+  | "msa"
+  | "sow"
+  | "nda"
+  | "dpa"
+  | "other";
+
+export interface VendorAgreement {
+  id: string;
+  vendor_id: string;
+  category: VendorAgreementCategory;
+  label: string;
+  url: string;
+  signed_at: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────

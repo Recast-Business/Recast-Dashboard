@@ -69,6 +69,10 @@ export interface VendorInput {
   w9_received_at?: string | null;
   // R5 Sweep 2 (0042): multi-platform handles
   socials?: Record<string, string>;
+  // R5 Sweep 4 (0045): vendor profile parity
+  legal_name?: string | null;
+  business_name?: string | null;
+  address?: string | null;
 }
 
 export function useAddVendor() {

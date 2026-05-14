@@ -22,6 +22,7 @@ import { useVendor, useDeleteVendor } from "@/hooks/useVendors";
 import { useVendorPayments } from "@/hooks/useVendorPayments";
 import { useVendorInvoices } from "@/hooks/useVendorInvoices";
 import { useReceiptsForObligor } from "@/hooks/usePaymentReceipts";
+import { useVendorAgreements } from "@/hooks/useVendorAgreements";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { VendorInvoiceDialog } from "@/components/finance/VendorInvoiceDialog";
@@ -98,6 +99,10 @@ export function VendorDetailPage() {
   const { data: vendor, isLoading: vendorLoading, error: vendorError } = useVendor(id);
   const { data: payments } = useVendorPayments(id ?? null, year);
   const { data: invoices } = useVendorInvoices(id ?? null);
+  // R5 Sweep 4: vendor_agreements list for the side-panel card. Gated
+  // to kind='vendor' in render — the hook is fine to call for any
+  // kind, returns empty for kinds with no agreements.
+  const { data: agreements } = useVendorAgreements(id ?? null);
   const { data: receipts } = useReceiptsForObligor(
     id && vendor ? { source: "vendor", vendor_id: id } : null,
     !!vendor,
@@ -446,6 +451,78 @@ export function VendorDetailPage() {
               ) : null}
             </dl>
           </Card>
+
+          {/* R5 Sweep 4: Legal & billing card — kind='vendor' only, and
+              only when at least one of the new fields is populated.
+              Skipping the card entirely for empty rows avoids visual
+              noise on older vendors that pre-date the parity fields. */}
+          {vendor.kind === "vendor" &&
+          (vendor.legal_name || vendor.business_name || vendor.address) ? (
+            <Card className="p-tile-md">
+              <EyebrowLabel withRule>Legal &amp; billing</EyebrowLabel>
+              <dl className="mt-4 space-y-3 text-[13px]">
+                {vendor.legal_name ? (
+                  <MetaRow icon={Pencil} label="Legal name" value={vendor.legal_name} />
+                ) : null}
+                {vendor.business_name ? (
+                  <MetaRow icon={Pencil} label="Business" value={vendor.business_name} />
+                ) : null}
+                {vendor.address ? (
+                  <MetaRow icon={Mail} label="Address" value={vendor.address} />
+                ) : null}
+              </dl>
+            </Card>
+          ) : null}
+
+          {/* R5 Sweep 4: Signed agreements list — kind='vendor' only.
+              Renders the new vendor_agreements rows; each row links
+              out to its stored URL with category + label labelling.
+              Empty state shows a soft "No agreements yet" prompt. */}
+          {vendor.kind === "vendor" ? (
+            <Card className="p-tile-md">
+              <EyebrowLabel withRule>Signed agreements</EyebrowLabel>
+              {(agreements?.length ?? 0) === 0 ? (
+                <p className="mt-3 text-[12px] text-steel">
+                  No agreements on file. Add them from the Edit dialog.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {(agreements ?? []).map((a) => (
+                    <li key={a.id} className="rounded-md border border-rule bg-background/40 px-3 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-steel">
+                            {a.category}
+                          </div>
+                          <div className="truncate text-[13px] font-medium text-white">
+                            {a.label}
+                          </div>
+                          {a.signed_at ? (
+                            <div className="mt-0.5 text-[11px] text-steel">
+                              Signed {formatDate(a.signed_at)}
+                            </div>
+                          ) : null}
+                        </div>
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 text-steel hover:text-electric"
+                          title="Open agreement"
+                          aria-label={`Open ${a.label}`}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </a>
+                      </div>
+                      {a.notes ? (
+                        <p className="mt-1 text-[11px] text-steel">{a.notes}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          ) : null}
 
           {/* Recent receipts */}
           <Card className="overflow-hidden p-0">

@@ -9,6 +9,7 @@ import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { EyebrowLabel, InvoiceCell, MoneyCell } from "@/components/recast";
 import { useDeleteVendor, useUpdateVendor, useVendors } from "@/hooks/useVendors";
 import { useVendorPaymentsByVendors } from "@/hooks/useVendorPayments";
+import { useAllVendorAgreements } from "@/hooks/useVendorAgreements";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -41,6 +42,16 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export function VendorsPage() {
   const year = new Date().getFullYear();
   const { data: vendors, isLoading: vendorsLoading } = useVendors({ kind: "vendor" });
+  // R5 Sweep 4: agreement-count per vendor for the inline name badge.
+  // One query for the whole page — small dataset.
+  const { data: rawAgreements } = useAllVendorAgreements();
+  const agreementCountByVendor = React.useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of rawAgreements ?? []) {
+      m.set(a.vendor_id, (m.get(a.vendor_id) ?? 0) + 1);
+    }
+    return m;
+  }, [rawAgreements]);
 
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
@@ -303,8 +314,23 @@ export function VendorsPage() {
                             to={`/vendors/${v.id}`}
                             className="group/link min-w-0 flex-1 text-left transition-colors duration-base ease-out hover:text-electric"
                           >
-                            <div className="flex items-center gap-1 truncate text-[13px] font-medium text-white group-hover/link:text-electric">
+                            <div className="flex items-center gap-1.5 truncate text-[13px] font-medium text-white group-hover/link:text-electric">
                               {v.name}
+                              {/* R5 Sweep 4: agreements badge — kind='vendor'
+                                  rows only, count > 0 only. Subtle steel
+                                  pill, no link interaction (whole row
+                                  already links to /vendors/:id). */}
+                              {(() => {
+                                const n = agreementCountByVendor.get(v.id) ?? 0;
+                                return n > 0 ? (
+                                  <span
+                                    title={`${n} signed agreement${n === 1 ? "" : "s"} on file`}
+                                    className="tabular shrink-0 rounded-sm bg-paid-tint px-1.5 py-0.5 text-[10px] font-semibold leading-none text-paid"
+                                  >
+                                    {n}
+                                  </span>
+                                ) : null;
+                              })()}
                               <ChevronRight className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover/link:opacity-100" strokeWidth={1.5} />
                             </div>
                             <div className="text-[11px] text-steel">

@@ -23,9 +23,15 @@ import {
   useUpdateVendor,
   type VendorInput,
 } from "@/hooks/useVendors";
+import {
+  useVendorAgreements,
+  useReplaceVendorAgreements,
+  type VendorAgreementDraft,
+} from "@/hooks/useVendorAgreements";
 import type {
   Division,
   Vendor,
+  VendorAgreementCategory,
   VendorKind,
   PaymentMethod,
 } from "@/types/finance";
@@ -79,14 +85,37 @@ const HANDLE_PLATFORMS = [
   { value: "other", label: "Other" },
 ];
 
+// R5 Sweep 4: agreement categories for kind='vendor'. Vendors don't
+// have OF-style pages, so this is the secondary grouping field.
+const AGREEMENT_CATEGORY_OPTIONS: { value: VendorAgreementCategory; label: string }[] = [
+  { value: "msa", label: "MSA (Master Services Agreement)" },
+  { value: "sow", label: "SOW (Statement of Work)" },
+  { value: "nda", label: "NDA" },
+  { value: "dpa", label: "DPA (Data Processing Agreement)" },
+  { value: "other", label: "Other" },
+];
+
 export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind, vendor }: Props) {
   const add = useAddVendor();
   const update = useUpdateVendor();
+  // R5 Sweep 4: agreements editor is gated to kind='vendor' but the
+  // hook is always called (conditional hook = lint rule violation).
+  // useVendorAgreements respects enabled=!!vendorId, so for new rows
+  // (no id yet) the query no-ops.
+  const replaceAgreements = useReplaceVendorAgreements();
+  const { data: vendorAgreements } = useVendorAgreements(vendor?.id ?? null);
 
   // R5 Sweep 2 (Gustavo, T2): multi-platform handles. Separate from
   // the rest of the form because of its array shape; serialized back
   // to a socials map on save.
   const [handles, setHandles] = React.useState<HandleRow[]>([]);
+
+  // R5 Sweep 4: vendor_agreements drafts. Edits batch up here and get
+  // sent through useReplaceVendorAgreements on save (delete-all +
+  // bulk-insert, same pattern as creator_agreements).
+  const [agreementDrafts, setAgreementDrafts] = React.useState<
+    VendorAgreementDraft[]
+  >([]);
 
   const [form, setForm] = React.useState<VendorInput>({
     name: "",
@@ -107,6 +136,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
     requires_tax_info: false,
     w9_url: "",
     w9_received_at: null,
+    legal_name: "",
+    business_name: "",
+    address: "",
   });
 
   React.useEffect(() => {
@@ -131,6 +163,9 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         requires_tax_info: vendor.requires_tax_info ?? false,
         w9_url: vendor.w9_url ?? "",
         w9_received_at: vendor.w9_received_at ?? null,
+        legal_name: vendor.legal_name ?? "",
+        business_name: vendor.business_name ?? "",
+        address: vendor.address ?? "",
       });
       // R5 Sweep 2: hydrate handles from socials map (primary), with
       // legacy username_handle as a fallback for rows pre-dating 0042.
@@ -162,10 +197,35 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
         requires_tax_info: false,
         w9_url: "",
         w9_received_at: null,
+        legal_name: "",
+        business_name: "",
+        address: "",
       });
       setHandles([]);
     }
   }, [open, vendor, defaultDivision, defaultKind]);
+
+  // R5 Sweep 4: hydrate agreement drafts when the per-vendor query
+  // resolves. New rows start empty; existing rows pull in whatever's
+  // on file.
+  React.useEffect(() => {
+    if (!open) return;
+    if (!vendor) {
+      setAgreementDrafts([]);
+      return;
+    }
+    setAgreementDrafts(
+      (vendorAgreements ?? []).map((a) => ({
+        id: a.id,
+        category: a.category,
+        label: a.label,
+        url: a.url,
+        signed_at: a.signed_at,
+        notes: a.notes,
+        sort_order: a.sort_order,
+      })),
+    );
+  }, [open, vendor, vendorAgreements]);
 
   function set<K extends keyof VendorInput>(k: K, v: VendorInput[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -203,6 +263,10 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       username_handle: firstHandle,
       socials,
       nda_url: form.nda_url?.trim() || null,
+      // R5 Sweep 4 (Gustavo, Stretch): vendor profile parity fields.
+      legal_name: form.legal_name?.trim() || null,
+      business_name: form.business_name?.trim() || null,
+      address: form.address?.trim() || null,
       // Round 3A (Gustavo): kind="vendor" rows have no Division. The
       // form already hides the field for vendors, but legacy rows can
       // still carry stale division values. Force-null on save so the
@@ -210,12 +274,26 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
       division: defaultKind === "vendor" ? null : form.division,
     };
     try {
+      let savedVendorId: string;
       if (vendor) {
         await update.mutateAsync({ id: vendor.id, patch });
+        savedVendorId = vendor.id;
         toast.success(`${patch.name} updated`);
       } else {
-        await add.mutateAsync(patch);
+        const created = await add.mutateAsync(patch);
+        savedVendorId = (created as Vendor).id;
         toast.success(`${patch.name} added`);
+      }
+      // R5 Sweep 4: persist agreements after the vendor row is saved.
+      // Only for kind='vendor' — other kinds don't expose the editor.
+      // Best-effort atomicity: if this throws after the vendor save
+      // succeeded, the row stays without its agreements and the user
+      // can re-open to retry. The mutation already toasts the error.
+      if (defaultKind === "vendor") {
+        await replaceAgreements.mutateAsync({
+          vendor_id: savedVendorId,
+          drafts: agreementDrafts,
+        });
       }
       onOpenChange(false);
     } catch (e) {
@@ -335,6 +413,52 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
               />
             </div>
           </div>
+
+          {/* R5 Sweep 4: vendor profile parity — legal name / business
+              name / address. Gated to kind='vendor' (per Gustavo's
+              scope choice). Other kinds may surface these later. */}
+          {defaultKind === "vendor" && (
+            <div className="rounded-md border bg-muted/15 p-3 space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                Legal &amp; billing
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="v-legal-name" className="text-[11px] text-muted-foreground">
+                    Legal name
+                  </Label>
+                  <Input
+                    id="v-legal-name"
+                    value={form.legal_name ?? ""}
+                    onChange={(e) => set("legal_name", e.target.value)}
+                    placeholder="e.g. Jane Doe"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="v-business-name" className="text-[11px] text-muted-foreground">
+                    Business name
+                  </Label>
+                  <Input
+                    id="v-business-name"
+                    value={form.business_name ?? ""}
+                    onChange={(e) => set("business_name", e.target.value)}
+                    placeholder="e.g. Acme Studios LLC"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="v-address" className="text-[11px] text-muted-foreground">
+                  Mailing address
+                </Label>
+                <Input
+                  id="v-address"
+                  value={form.address ?? ""}
+                  onChange={(e) => set("address", e.target.value)}
+                  placeholder="Street, City, State / Country"
+                />
+              </div>
+            </div>
+          )}
 
           {/* R5 Sweep 2 (Gustavo, T2): multi-platform handles. Replaces
               the single Username/handle text field with a list of
@@ -494,6 +618,23 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
             )}
           </div>
 
+          {/* R5 Sweep 4: agreements editor — gated to kind='vendor'.
+              Mirrors the creator AgreementsEditor (Sweep 3b) but uses
+              `category` instead of (platform, page). Save flow batches
+              these through useReplaceVendorAgreements after the vendor
+              row is persisted. */}
+          {defaultKind === "vendor" && (
+            <div className="rounded-md border bg-muted/15 p-3 space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                Signed agreements
+              </div>
+              <VendorAgreementsEditor
+                drafts={agreementDrafts}
+                onChange={setAgreementDrafts}
+              />
+            </div>
+          )}
+
           <div className="grid gap-1.5">
             <Label htmlFor="v-notes">Notes</Label>
             <textarea
@@ -616,6 +757,145 @@ function VendorHandlesEditor({
         onClick={add}
       >
         + Add platform
+      </Button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// R5 Sweep 4: vendor agreements editor
+// ─────────────────────────────────────────────────────────────────────
+// Same UX feel as the creator AgreementsEditor (Sweep 3b) but with
+// `category` instead of (platform, page). Drafts batch up in parent
+// state and get sent through useReplaceVendorAgreements on save.
+
+function VendorAgreementsEditor({
+  drafts,
+  onChange,
+}: {
+  drafts: VendorAgreementDraft[];
+  onChange: (next: VendorAgreementDraft[]) => void;
+}) {
+  function update(i: number, patch: Partial<VendorAgreementDraft>) {
+    onChange(drafts.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+  function remove(i: number) {
+    onChange(drafts.filter((_, idx) => idx !== i));
+  }
+  function add() {
+    onChange([
+      ...drafts,
+      {
+        category: "msa",
+        label: "Agreement",
+        url: "",
+        signed_at: null,
+        notes: null,
+        sort_order: drafts.length,
+      },
+    ]);
+  }
+
+  if (drafts.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed bg-background/40 px-3 py-3 text-[12px] text-muted-foreground">
+        No agreements on file.
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="ml-1 h-auto p-0 text-[12px]"
+          onClick={add}
+        >
+          + Add agreement
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {drafts.map((row, i) => (
+        <div
+          key={row.id ?? `new-${i}`}
+          className="rounded-md border bg-background/40 p-3 space-y-2"
+        >
+          <div className="grid grid-cols-[180px_1fr_auto] items-center gap-2">
+            <Select
+              value={row.category}
+              onValueChange={(v) =>
+                update(i, { category: v as VendorAgreementCategory })
+              }
+            >
+              <SelectTrigger className="h-8 text-[12px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AGREEMENT_CATEGORY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              value={row.label}
+              onChange={(e) => update(i, { label: e.target.value })}
+              placeholder="Agreement label (e.g. v1, Amendment)"
+              className="h-8 text-[12px]"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => remove(i)}
+              aria-label="Remove this agreement"
+            >
+              ✕
+            </Button>
+          </div>
+          <Input
+            value={row.url}
+            onChange={(e) => update(i, { url: e.target.value })}
+            placeholder="https://drive.google.com/… (required)"
+            type="url"
+            className="h-8 text-[12px]"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              value={
+                row.signed_at
+                  ? new Date(row.signed_at).toISOString().slice(0, 10)
+                  : ""
+              }
+              onChange={(e) =>
+                update(i, {
+                  signed_at: e.target.value
+                    ? new Date(e.target.value).toISOString()
+                    : null,
+                })
+              }
+              className="h-8 text-[12px]"
+            />
+            <Input
+              value={row.notes ?? ""}
+              onChange={(e) => update(i, { notes: e.target.value || null })}
+              placeholder="Notes (optional)"
+              className="h-8 text-[12px]"
+            />
+          </div>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 text-[12px]"
+        onClick={add}
+      >
+        + Add agreement
       </Button>
     </div>
   );
