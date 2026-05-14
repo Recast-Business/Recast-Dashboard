@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Plus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Megaphone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,11 @@ import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { ExportPDFButton } from "@/components/ui/export-pdf-button";
+import {
+  PipelineHeader,
+  PipelineKpiStrip,
+  type PipelineKpiTile,
+} from "@/components/layout/PipelineSection";
 import type { CSVColumn } from "@/lib/export/csv";
 import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -31,42 +36,89 @@ export function CampaignsPage() {
   const [statusFilter, setStatusFilter] = React.useState<CampaignStatusV2 | "all">("all");
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
+  // R5 follow-up: fetch ALL campaigns (no status filter) so the KPI
+  // tiles can reflect the full set regardless of which filter is
+  // active. The filtered list below is what the body table renders.
+  const { data: allCampaigns } = useCampaigns({});
   const { data, isLoading, error } = useCampaigns({
     status: statusFilter === "all" ? undefined : statusFilter,
     search,
   });
 
+  const kpis = React.useMemo<PipelineKpiTile[]>(() => {
+    const rows = allCampaigns ?? [];
+    const byStatus = (s: CampaignStatusV2) => rows.filter((c) => c.status === s).length;
+    const overdue = byStatus("overdue");
+    const awaiting = byStatus("awaiting_payment");
+    const active = byStatus("active");
+    return [
+      {
+        label: "Total campaigns",
+        value: String(rows.length),
+        sub: rows.length === 0 ? "—" : `${active} active`,
+        icon: Megaphone,
+      },
+      {
+        label: "Active",
+        value: String(active),
+        sub: rows.length === 0 ? "—" : `${Math.round((active / Math.max(rows.length, 1)) * 100)}% of roster`,
+        icon: CheckCircle2,
+        tone: active > 0 ? "paid" : "default",
+      },
+      {
+        label: "Awaiting payment",
+        value: String(awaiting),
+        sub: awaiting === 0 ? "All settled" : "Chase these",
+        icon: Clock,
+        tone: awaiting > 0 ? "partial" : "default",
+      },
+      {
+        label: "Overdue",
+        value: String(overdue),
+        sub: overdue === 0 ? "Clean" : "Action required",
+        icon: AlertTriangle,
+        tone: overdue > 0 ? "overdue" : "default",
+      },
+    ];
+  }, [allCampaigns]);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-h2">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">
-            eFuse / brand campaigns. Per-creator deals (CPM, flat, hybrid) with
-            monthly performance tracking.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <YearSelector value={year} onChange={setYear} />
-          <ExportCSVButton
-            filename={`campaigns-${year}.csv`}
-            rows={data ?? []}
-            columns={CAMPAIGN_CSV_COLUMNS}
-          />
-          <ExportPDFButton
-            filename={`campaigns-${year}.pdf`}
-            title={`Campaigns — ${year}`}
-            rows={data ?? []}
-            columns={CAMPAIGN_CSV_COLUMNS}
-            orientation="landscape"
-          />
-          {canEdit && (
-            <Button onClick={() => setDialogOpen(true)} size="sm">
-              <Plus className="mr-1 h-4 w-4" /> New campaign
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PipelineHeader
+        breadcrumb="Pipeline · Campaigns"
+        eyebrow={`Brand deals · ${year}`}
+        title="Campaigns"
+        description={
+          <>
+            eFuse / brand campaigns. Per-creator deals (CPM, flat, hybrid)
+            with monthly performance tracking.
+          </>
+        }
+        actions={
+          <>
+            <YearSelector value={year} onChange={setYear} />
+            <ExportCSVButton
+              filename={`campaigns-${year}.csv`}
+              rows={data ?? []}
+              columns={CAMPAIGN_CSV_COLUMNS}
+            />
+            <ExportPDFButton
+              filename={`campaigns-${year}.pdf`}
+              title={`Campaigns — ${year}`}
+              rows={data ?? []}
+              columns={CAMPAIGN_CSV_COLUMNS}
+              orientation="landscape"
+            />
+            {canEdit && (
+              <Button onClick={() => setDialogOpen(true)} size="sm">
+                <Plus className="mr-1 h-4 w-4" /> New campaign
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      <PipelineKpiStrip tiles={kpis} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -76,21 +128,24 @@ export function CampaignsPage() {
           className="max-w-sm"
         />
         <div className="flex items-center gap-1">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setStatusFilter(f.value)}
-              className={cn(
-                "rounded-md border px-2 py-1 text-xs transition",
-                statusFilter === f.value
-                  ? "bg-foreground text-background"
-                  : "hover:bg-muted",
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
+          {STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.value;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setStatusFilter(f.value)}
+                className={cn(
+                  "h-8 rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors duration-base ease-out",
+                  active
+                    ? "border-electric/40 bg-electric/10 text-electric"
+                    : "border-rule bg-card text-steel hover:bg-white/[0.04] hover:text-white",
+                )}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

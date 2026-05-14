@@ -85,9 +85,11 @@ export function RosterPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top eyebrow strip — canonical page anchor (matches Vendors / House). */}
+      {/* Top eyebrow strip — canonical page anchor. Roster is in the
+          Pipeline section per Sweep 8's sidebar IA (operational lens
+          on signed creators; Talent Ledger is the finance lens). */}
       <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
-        Workspace · Roster
+        Pipeline · Roster
       </div>
       <div>
         <EyebrowLabel withRule>Signed creators</EyebrowLabel>

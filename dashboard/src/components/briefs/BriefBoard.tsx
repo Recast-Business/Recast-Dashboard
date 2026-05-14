@@ -1,7 +1,17 @@
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, MoreVertical, Pencil, Plus, Rocket, Trash2 } from "lucide-react";
-import { EyebrowLabel } from "@/components/recast";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Rocket,
+  Trash2,
+  TrendingUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +39,11 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatUSD } from "@/lib/utils";
+import {
+  PipelineHeader,
+  PipelineKpiStrip,
+  type PipelineKpiTile,
+} from "@/components/layout/PipelineSection";
 import {
   useBriefs,
   useCreateBrief,
@@ -65,20 +80,68 @@ export function BriefBoard() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [highlight, data]);
 
+  // KPI rollups for the strip. Pipeline value sums every non-lost
+  // brief's budget; promoted = briefs that already have a linked
+  // campaign; active = anything not lost and not yet promoted.
+  const kpis = React.useMemo<PipelineKpiTile[]>(() => {
+    const rows = data ?? [];
+    const nonLost = rows.filter((b) => b.stage !== "lost");
+    const promoted = rows.filter((b) => b.linked_campaign_id);
+    const active = nonLost.filter((b) => !b.linked_campaign_id);
+    const lost = rows.filter((b) => b.stage === "lost");
+    const pipelineValue = nonLost.reduce(
+      (sum, b) => sum + (Number(b.budget) || 0),
+      0,
+    );
+    const conversionRate =
+      rows.length > 0 ? Math.round((promoted.length / rows.length) * 100) : 0;
+    return [
+      {
+        label: "Total briefs",
+        value: String(rows.length),
+        sub: rows.length === 0 ? "—" : `${active.length} active`,
+        icon: FileText,
+      },
+      {
+        label: "Pipeline value",
+        value: formatUSD(pipelineValue, { decimals: 0 }),
+        sub: nonLost.length === 0 ? "—" : `${nonLost.length} non-lost briefs`,
+        icon: TrendingUp,
+        tone: "paid",
+      },
+      {
+        label: "Promoted",
+        value: String(promoted.length),
+        sub: rows.length === 0 ? "—" : `${conversionRate}% conversion`,
+        icon: CheckCircle2,
+        tone: promoted.length > 0 ? "paid" : "default",
+      },
+      {
+        label: "Lost",
+        value: String(lost.length),
+        sub: rows.length === 0 ? "—" : `${rows.length - lost.length} live`,
+        icon: AlertTriangle,
+        tone: lost.length > 0 ? "overdue" : "default",
+      },
+    ];
+  }, [data]);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <EyebrowLabel withRule>Pipeline · Brief Builder</EyebrowLabel>
-          <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
-            Brief Builder
-          </h1>
-          <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
-            Open the three-dot menu on a brief and pick "Promote to campaign" once the deal is locked in.
-          </p>
-        </div>
-        {canEdit && <BriefDialog />}
-      </div>
+    <div className="space-y-6">
+      <PipelineHeader
+        breadcrumb="Pipeline · Brief Builder"
+        eyebrow="Outbound deal pipeline"
+        title="Brief Builder"
+        description={
+          <>
+            Open the three-dot menu on a brief and pick &quot;Promote to
+            campaign&quot; once the deal is locked in.
+          </>
+        }
+        actions={canEdit ? <BriefDialog /> : undefined}
+      />
+
+      {!isLoading ? <PipelineKpiStrip tiles={kpis} /> : null}
 
       {isLoading ? (
         <div className="grid grid-cols-5 gap-3">
@@ -142,10 +205,10 @@ function StageColumn({
   onDelete: (b: BriefRow) => void;
 }) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-3">
-      <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-lg border bg-card p-3">
+      <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
         <span>{label}</span>
-        <span>{briefs.length}</span>
+        <span className="tabular text-white/[0.62]">{briefs.length}</span>
       </div>
       <div className="space-y-2">
         {briefs.map((b) => (
