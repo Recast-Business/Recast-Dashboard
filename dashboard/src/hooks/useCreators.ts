@@ -23,7 +23,7 @@ export function useCreators(filter: CreatorFilter = "all") {
           // commission_tiers shape + new creator_agreements table.
           // R5 Sweep 3d (0044): agreement_links column dropped — agreements
           // moved fully onto the creator_agreements table.
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start, nda_signed, nda_url, created_at, updated_at",
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start, nda_signed, nda_url, created_at",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
