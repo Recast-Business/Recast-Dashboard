@@ -1,5 +1,17 @@
 import * as React from "react";
-import { FileText, Loader2, RefreshCw, Trash2, UserCheck, X, Zap } from "lucide-react";
+import {
+  Activity,
+  CalendarClock,
+  FileText,
+  Loader2,
+  MessageCircle,
+  RefreshCw,
+  Trash2,
+  UserCheck,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,8 +34,13 @@ import {
   useBulkSetOutreachStatus,
 } from "@/hooks/useCreators";
 import { useAuth } from "@/auth/AuthProvider";
-import { EyebrowLabel } from "@/components/recast";
+import {
+  PipelineHeader,
+  PipelineKpiStrip,
+  type PipelineKpiTile,
+} from "@/components/layout/PipelineSection";
 import { useConfirm } from "@/hooks/useConfirm";
+import { cn } from "@/lib/utils";
 
 const OUTREACH_STATUSES = [
   "Not Contacted",
@@ -53,6 +70,112 @@ export function LeadsPage() {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [pendingStatus, setPendingStatus] = React.useState<string>("");
   const [briefOpen, setBriefOpen] = React.useState(false);
+  // R5 follow-up: outreach status filter for the chip row. "all" =
+  // no filter, OUTREACH_NEEDED = a virtual bucket meaning the lead has
+  // no outreach_status set yet OR is explicitly "Not Contacted".
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+
+  // ────────────────────────────────────────────────────────────
+  // R5 follow-up — KPI rollups + outreach-status bucketing.
+  // ────────────────────────────────────────────────────────────
+  // Buckets used by the chip row + the awaiting-outreach KPI tile.
+  // "responded" pulls anything where a human has had a back-and-forth
+  // (the next-best signal we'd otherwise have to read row-by-row).
+  const AWAITING_STATUSES = new Set(["Not Contacted"]);
+  const RESPONDED_STATUSES = new Set(["Responded", "Interested", "In Progress"]);
+
+  const rows = data ?? [];
+  const counts = React.useMemo(() => {
+    const m = new Map<string, number>();
+    m.set("all", rows.length);
+    let awaiting = 0;
+    for (const c of rows) {
+      const s = c.outreach_status ?? "Not Contacted";
+      m.set(s, (m.get(s) ?? 0) + 1);
+      if (!c.outreach_status || AWAITING_STATUSES.has(c.outreach_status)) {
+        awaiting++;
+      }
+    }
+    m.set("__awaiting__", awaiting);
+    return m;
+  }, [rows]);
+
+  const newThisWeek = React.useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return rows.filter((c) => {
+      if (!c.created_at) return false;
+      return new Date(c.created_at).getTime() >= cutoff;
+    }).length;
+  }, [rows]);
+
+  const avgCCV = React.useMemo(() => {
+    const ccvs = rows
+      .map((c) => Math.max(c.twitch_30d_ccv ?? 0, c.kick_30d_ccv ?? 0))
+      .filter((n) => n > 0);
+    if (ccvs.length === 0) return 0;
+    return Math.round(ccvs.reduce((s, n) => s + n, 0) / ccvs.length);
+  }, [rows]);
+
+  const responded = React.useMemo(
+    () => rows.filter((c) => RESPONDED_STATUSES.has(c.outreach_status ?? "")).length,
+    [rows],
+  );
+
+  const kpis: PipelineKpiTile[] = [
+    {
+      label: "Total leads",
+      value: String(rows.length),
+      sub: rows.length === 0 ? "—" : `${newThisWeek} new this week`,
+      icon: Users,
+    },
+    {
+      label: "Awaiting outreach",
+      value: String(counts.get("__awaiting__") ?? 0),
+      sub: (counts.get("__awaiting__") ?? 0) === 0 ? "All contacted" : "Action: outreach",
+      icon: CalendarClock,
+      tone: (counts.get("__awaiting__") ?? 0) > 0 ? "partial" : "default",
+    },
+    {
+      label: "Responded",
+      value: String(responded),
+      sub: rows.length === 0 ? "—" : `${Math.round((responded / Math.max(rows.length, 1)) * 100)}% response rate`,
+      icon: MessageCircle,
+      tone: responded > 0 ? "paid" : "default",
+    },
+    {
+      label: "Avg CCV",
+      value: avgCCV === 0 ? "—" : avgCCV.toLocaleString(),
+      sub: avgCCV === 0 ? "No CCV data" : "30-day average",
+      icon: Activity,
+    },
+  ];
+
+  // Status chips render the canonical statuses + an "Awaiting" virtual
+  // bucket. Statuses with zero rows are hidden to keep the chip row
+  // tight on small lead lists.
+  const STATUS_CHIPS: { value: string; label: string; count: number }[] = [
+    { value: "all", label: "All", count: counts.get("all") ?? 0 },
+    {
+      value: "__awaiting__",
+      label: "Awaiting",
+      count: counts.get("__awaiting__") ?? 0,
+    },
+    ...OUTREACH_STATUSES.map((s) => ({
+      value: s,
+      label: s,
+      count: counts.get(s) ?? 0,
+    })).filter((c) => c.value === "Not Contacted" || c.count > 0),
+  ];
+
+  const filteredRows = React.useMemo(() => {
+    if (statusFilter === "all") return rows;
+    if (statusFilter === "__awaiting__") {
+      return rows.filter(
+        (c) => !c.outreach_status || AWAITING_STATUSES.has(c.outreach_status),
+      );
+    }
+    return rows.filter((c) => c.outreach_status === statusFilter);
+  }, [rows, statusFilter]);
 
   const selectedCreators = React.useMemo(
     () => (data ?? []).filter((c) => selected.has(c.id)),
@@ -152,19 +275,47 @@ export function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top eyebrow strip — canonical page anchor. */}
-      <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
-        Pipeline · Leads
-      </div>
-      <div>
-        <EyebrowLabel withRule>Outreach + unsigned</EyebrowLabel>
-        <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
-          Leads
-        </h1>
-        <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
-          Scouted and contacted creators who aren&apos;t signed to Recast yet.
-          Promote to the Roster when a deal is agreed.
-        </p>
+      <PipelineHeader
+        breadcrumb="Pipeline · Leads"
+        eyebrow="Outreach + unsigned"
+        title="Leads"
+        description={
+          <>
+            Scouted and contacted creators who aren&apos;t signed to Recast
+            yet. Promote to the Roster when a deal is agreed.
+          </>
+        }
+      />
+
+      <PipelineKpiStrip tiles={kpis} />
+
+      {/* R5 follow-up — outreach status chip row. Acts as both a
+          breakdown view and a single-select filter. "All" + "Awaiting"
+          are always visible; canonical statuses appear once they have
+          a row, with the Not Contacted bucket pinned even at zero so
+          the filter can be reset from any other state. */}
+      <div className="flex flex-wrap items-center gap-1">
+        {STATUS_CHIPS.map((c) => {
+          const active = statusFilter === c.value;
+          return (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setStatusFilter(c.value)}
+              className={cn(
+                "h-8 rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors duration-base ease-out",
+                active
+                  ? "border-electric/40 bg-electric/10 text-electric"
+                  : "border-rule bg-card text-steel hover:bg-white/[0.04] hover:text-white",
+              )}
+            >
+              {c.label}
+              <span className="tabular ml-1.5 text-[10px] text-steel/80">
+                {c.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {isAdmin && selected.size > 0 && (
@@ -239,11 +390,15 @@ export function LeadsPage() {
       />
 
       <CreatorTable
-        rows={(data ?? []) as CreatorRow[]}
+        rows={filteredRows as CreatorRow[]}
         isLoading={isLoading}
         error={(error as Error) ?? null}
-        emptyTitle="No leads yet"
-        emptyHint="Run a Scout session or import a list to populate this page."
+        emptyTitle={statusFilter === "all" ? "No leads yet" : "No matches for this filter"}
+        emptyHint={
+          statusFilter === "all"
+            ? "Run a Scout session or import a list to populate this page."
+            : 'Pick "All" from the chip row to see every lead again.'
+        }
         toolbarExtras={
           canEdit ? (
             <div className="flex items-center gap-2">

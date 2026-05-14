@@ -57,6 +57,10 @@ export interface CreatorRow {
   ccv_fetched_at: string | null;
   starred?: boolean;
   outreach_status?: string | null;
+  /** R5 follow-up: surfaced for "new this week" KPI tiles + the
+   *  "days since signup" derived display on Leads. */
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export type SortField = "name" | "country" | "tier" | "category" | "status" | "ccv";
