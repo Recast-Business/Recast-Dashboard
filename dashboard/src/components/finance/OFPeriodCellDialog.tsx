@@ -51,9 +51,13 @@ export function OFPeriodCellDialog({
   // R3 Q1+Q7 (migration 0035): tiers resolved from the new canonical
   // column (commission_tiers) with legacy fallback; mode honours the
   // per-creator commission_uses_cliff flag.
+  // R5 Sweep 3c: pass deal.page_name so multi-page OF creators resolve
+  // the correct per-page tier set. pickPage() inside tiersFromProfile
+  // falls back to "main" then alphabetical-first if the deal's page
+  // has no commission row, so single-page creators keep working.
   const tiers = React.useMemo(
-    () => tiersFromProfile(deal.creator, "onlyfans"),
-    [deal.creator],
+    () => tiersFromProfile(deal.creator, "onlyfans", deal.page_name),
+    [deal.creator, deal.page_name],
   );
   const commissionMode = deal.creator?.commission_uses_cliff
     ? "cliff"

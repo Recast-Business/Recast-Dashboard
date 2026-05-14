@@ -415,6 +415,92 @@ describe("tiersFromProfile — canonical column wins", () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// R5 Sweep 3c — per-page lookup. Migration 0043 wraps platform tiers
+// under a page_name key so creators can have different commission
+// structures per OF page. Callers pass the page name; pickPage()
+// falls back to "main" then alphabetical-first when the deal's page
+// has no row of its own.
+// ─────────────────────────────────────────────────────────────────────
+
+describe("tiersFromProfile — per-page nested shape", () => {
+  it("returns the requested page's tiers", () => {
+    const creator = {
+      commission_tiers: {
+        onlyfans: {
+          main: [{ threshold: null, pct: 40 }],
+          vip: [{ threshold: null, pct: 30 }],
+        },
+      },
+    };
+    expect(tiersFromProfile(creator, "onlyfans", "vip")).toEqual([
+      { threshold: null, pct: 30 },
+    ]);
+    expect(tiersFromProfile(creator, "onlyfans", "main")).toEqual([
+      { threshold: null, pct: 40 },
+    ]);
+  });
+
+  it("falls back to 'main' when no page is specified", () => {
+    const creator = {
+      commission_tiers: {
+        onlyfans: {
+          main: [{ threshold: null, pct: 40 }],
+          vip: [{ threshold: null, pct: 30 }],
+        },
+      },
+    };
+    expect(tiersFromProfile(creator, "onlyfans")).toEqual([
+      { threshold: null, pct: 40 },
+    ]);
+  });
+
+  it("falls back to 'main' when the requested page does not exist", () => {
+    // OF deal might be on a page that hasn't had its commission row
+    // configured yet — fall back to "main" rather than returning null.
+    const creator = {
+      commission_tiers: {
+        onlyfans: {
+          main: [{ threshold: null, pct: 40 }],
+        },
+      },
+    };
+    expect(tiersFromProfile(creator, "onlyfans", "unconfigured-page")).toEqual([
+      { threshold: null, pct: 40 },
+    ]);
+  });
+
+  it("falls back to alphabetical-first page when no 'main' page exists", () => {
+    const creator = {
+      commission_tiers: {
+        onlyfans: {
+          zeta: [{ threshold: null, pct: 50 }],
+          alpha: [{ threshold: null, pct: 30 }],
+        },
+      },
+    };
+    expect(tiersFromProfile(creator, "onlyfans")).toEqual([
+      { threshold: null, pct: 30 },
+    ]);
+  });
+
+  it("still reads legacy flat shape when nested shape is absent", () => {
+    // Pre-0043 creators have flat platform → tiers[]. pickPage() should
+    // recognise this and return it as-is regardless of the page arg.
+    const creator = {
+      commission_tiers: {
+        onlyfans: [{ threshold: null, pct: 35 }],
+      },
+    };
+    expect(tiersFromProfile(creator, "onlyfans", "main")).toEqual([
+      { threshold: null, pct: 35 },
+    ]);
+    expect(tiersFromProfile(creator, "onlyfans", "vip")).toEqual([
+      { threshold: null, pct: 35 },
+    ]);
+  });
+});
+
 describe("tiersFromProfile — legacy fallback", () => {
   it("translates a flat number to a single null-threshold tier", () => {
     const creator = {
