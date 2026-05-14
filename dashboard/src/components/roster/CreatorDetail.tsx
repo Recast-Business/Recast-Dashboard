@@ -58,11 +58,14 @@ interface CreatorFull {
   twitch_30d_ccv: number | null;
   kick_30d_ccv: number | null;
   socials: Record<string, string>;
+  // Note: post-migration 0020, payment_status lives on campaign_payments
+  // (per-period), not on campaign_creators. The dialog just shows total
+  // earnings for the creator-on-campaign — period-level payment status
+  // lives on the campaigns + finance pages.
   campaigns: {
     id: string;
     cached_earnings: number;
     cached_commission: number;
-    payment_status: string;
     campaign: { id: string; name: string; brand: string | null };
   }[];
 }
@@ -80,7 +83,7 @@ function useCreatorFull(id: string | null) {
            outreach_status, starred,
            twitch_handle, kick_handle, twitch_30d_ccv, kick_30d_ccv, socials,
            campaigns:campaign_creators(
-             id, cached_earnings, cached_commission, payment_status,
+             id, cached_earnings, cached_commission,
              campaign:campaigns(id, name, brand)
            )`,
         )
@@ -264,9 +267,6 @@ export function CreatorDetailBody({ creatorId, role, showFullLink = true }: Deta
                 {role !== "partner" && (
                   <div className="flex items-center gap-3 text-[11px] tabular-nums">
                     <span>{formatUSD(Number(cc.cached_earnings ?? 0))}</span>
-                    <span className="text-muted-foreground">
-                      {cc.payment_status}
-                    </span>
                   </div>
                 )}
               </Link>
