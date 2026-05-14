@@ -20,6 +20,7 @@ import { VendorsPage } from "@/pages/Vendors";
 import { VendorDetailPage } from "@/pages/VendorDetail";
 import { HousePage } from "@/pages/House";
 import { TaxTrackerPage } from "@/pages/TaxTracker";
+import { PaymentsPage } from "@/pages/Payments";
 import { RoleRedirect } from "@/auth/RoleRedirect";
 
 export const router = createBrowserRouter([
@@ -187,6 +188,18 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "finance"]}>
             <TaxTrackerPage />
+          </ProtectedRoute>
+        ),
+      },
+      // R5 Sweep 5: Unified payments log. Admin + finance only —
+      // surfaces every payment_receipts row this year across vendors,
+      // campaigns, talent, and house. Partners are excluded because
+      // talent earnings receipts contain commission detail.
+      {
+        path: "payments",
+        element: (
+          <ProtectedRoute allow={["admin", "finance"]}>
+            <PaymentsPage />
           </ProtectedRoute>
         ),
       },

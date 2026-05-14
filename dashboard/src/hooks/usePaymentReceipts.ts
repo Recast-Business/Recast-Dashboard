@@ -207,3 +207,93 @@ export function useReceiptsForObligor(ref: ObligorRef | null, enabled = true) {
     },
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// R5 Sweep 5 — global /payments page
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Polymorphic obligor join row — only the field matching the receipt's
+ * `source` is populated. Resolved client-side to a single display name
+ * + a link target.
+ */
+export interface ReceiptWithJoins extends PaymentReceipt {
+  allocations: PaymentAllocation[];
+  vendor: { id: string; name: string } | null;
+  creator: { id: string; name: string } | null;
+  resident: { id: string; name: string } | null;
+  utility: { id: string; utility_name: string } | null;
+  of_deal: { id: string; page_name: string; creator: { id: string; name: string } | null } | null;
+  campaign_creator: {
+    id: string;
+    campaign: { id: string; name: string; brand: string | null } | null;
+    creator: { id: string; name: string } | null;
+  } | null;
+}
+
+/**
+ * All payment receipts in the year, newest first, joined to every
+ * obligor table so the page can render a unified table without N+1
+ * lookups. Optional source filter narrows server-side; search runs
+ * client-side because it spans joined names.
+ */
+export function useAllPaymentReceipts(args: {
+  year: number;
+  sources?: PaymentSource[]; // empty / undefined = all
+}) {
+  return useQuery({
+    queryKey: ["payment-receipts", "all", args.year, args.sources ?? "*"],
+    queryFn: async (): Promise<ReceiptWithJoins[]> => {
+      const start = `${args.year}-01-01`;
+      const end = `${args.year}-12-31`;
+      let q = supabase
+        .from("payment_receipts")
+        .select(
+          `*,
+           allocations:payment_allocations(*),
+           vendor:vendors(id, name),
+           creator:creators(id, name),
+           resident:house_residents(id, name),
+           utility:house_utilities(id, utility_name),
+           of_deal:of_deals(id, page_name, creator:creators(id, name)),
+           campaign_creator:campaign_creators(
+             id,
+             campaign:campaigns(id, name, brand),
+             creator:creators(id, name)
+           )`,
+        )
+        .gte("received_at", start)
+        .lte("received_at", end)
+        .order("received_at", { ascending: false });
+      if (args.sources && args.sources.length > 0) {
+        q = q.in("source", args.sources);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      // Supabase nested-select returns to-one joins as arrays even when
+      // the FK is many-to-one. Normalise so the page can read .vendor
+      // directly. Same trick we use in useCreatorPerformance for the
+      // campaign join.
+      return (data ?? []).map((r: Record<string, unknown>) => ({
+        ...r,
+        vendor: Array.isArray(r.vendor) ? r.vendor[0] ?? null : r.vendor ?? null,
+        creator: Array.isArray(r.creator) ? r.creator[0] ?? null : r.creator ?? null,
+        resident: Array.isArray(r.resident) ? r.resident[0] ?? null : r.resident ?? null,
+        utility: Array.isArray(r.utility) ? r.utility[0] ?? null : r.utility ?? null,
+        of_deal: (() => {
+          const od = Array.isArray(r.of_deal) ? r.of_deal[0] : r.of_deal;
+          if (!od) return null;
+          const c = Array.isArray(od.creator) ? od.creator[0] : od.creator;
+          return { ...od, creator: c ?? null };
+        })(),
+        campaign_creator: (() => {
+          const cc = Array.isArray(r.campaign_creator) ? r.campaign_creator[0] : r.campaign_creator;
+          if (!cc) return null;
+          const camp = Array.isArray(cc.campaign) ? cc.campaign[0] : cc.campaign;
+          const cr = Array.isArray(cc.creator) ? cc.creator[0] : cc.creator;
+          return { ...cc, campaign: camp ?? null, creator: cr ?? null };
+        })(),
+      })) as ReceiptWithJoins[];
+    },
+  });
+}

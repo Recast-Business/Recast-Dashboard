@@ -15,6 +15,7 @@ import {
   UserCheck,
   UserSearch,
   Users,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { canAccess } from "@/auth/useRole";
@@ -87,6 +88,11 @@ const SECTIONS: NavSection[] = [
       { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
       { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "finance"] },
       { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
+      // R5 Sweep 5: unified payments log. Admin + finance only —
+      // surfaces every payment receipt across vendors / campaigns /
+      // talents / house in one filterable view. Read-only for
+      // partner since some receipts contain talent earnings.
+      { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "finance"] },
       // R4.B: Year-end tax tracker — admin + finance only because
       // it surfaces W9 / 1099 / amount-reported data.
       { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "finance"] },
