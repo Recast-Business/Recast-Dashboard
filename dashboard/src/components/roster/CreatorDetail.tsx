@@ -63,7 +63,7 @@ interface CreatorFull {
     cached_earnings: number;
     cached_commission: number;
     payment_status: string;
-    campaign: { id: string; name: string; brand: { name: string } | null };
+    campaign: { id: string; name: string; brand: string | null };
   }[];
 }
 
@@ -81,7 +81,7 @@ function useCreatorFull(id: string | null) {
            twitch_handle, kick_handle, twitch_30d_ccv, kick_30d_ccv, socials,
            campaigns:campaign_creators(
              id, cached_earnings, cached_commission, payment_status,
-             campaign:campaigns(id, name, brand:brands(name))
+             campaign:campaigns(id, name, brand)
            )`,
         )
         .eq("id", id)
@@ -255,9 +255,9 @@ export function CreatorDetailBody({ creatorId, role, showFullLink = true }: Deta
                   <div className="truncate font-medium">
                     {cc.campaign?.name ?? "(deleted campaign)"}
                   </div>
-                  {cc.campaign?.brand?.name && (
+                  {cc.campaign?.brand && (
                     <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {cc.campaign.brand.name}
+                      {cc.campaign.brand}
                     </div>
                   )}
                 </div>
