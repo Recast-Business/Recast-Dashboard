@@ -74,7 +74,7 @@ export function BriefBoard() {
             Brief Builder
           </h1>
           <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
-            Move a card to Exclusive to auto-create a campaign record.
+            Open the three-dot menu on a brief and pick "Promote to campaign" once the deal is locked in.
           </p>
         </div>
         {canEdit && <BriefDialog />}
