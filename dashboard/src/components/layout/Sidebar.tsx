@@ -27,18 +27,22 @@ import { Avatar } from "@/components/recast";
 import { useNavCounts } from "@/hooks/useNavCounts";
 
 /**
- * Phase L → Round 3 (multiple iterations) sidebar IA.
+ * Phase L → Round 3 → R5 Sweep 8 sidebar IA.
  *
  * Two sections — Workspace bundles the "money + entities" surface
  * area; Pipeline bundles the "acquisition + deployment" funnel.
- * Roster + Talents are two lenses on the same signed-creator data:
+ * Roster + Talent Ledger are two lenses on the same signed-creator
+ * data:
  *
  *   • /roster  (PIPELINE)   — operational lens: handles, CCV,
  *                             sign/unsign, country, tier. All roles
  *                             (admin / partner / finance / operator).
  *                             Scout's tool, also surfaced to partners
  *                             like Harry for general directory use.
- *   • /talents (WORKSPACE)  — CRM/financial lens: legal name, address,
+ *   • /talents (WORKSPACE)  — CRM/financial lens labelled "Talent
+ *                             Ledger" in the sidebar (Sweep 8 rename
+ *                             — disambiguates from the operational
+ *                             Roster lens): legal name, address,
  *                             commission tiers, agreement URLs,
  *                             completeness audit. Admin + finance
  *                             ONLY (Gustavo's invoice-prep workflow);
@@ -47,9 +51,19 @@ import { useNavCounts } from "@/hooks/useNavCounts";
  *
  * Sections:
  *   1. WORKSPACE  — Overview / Finance / Calculator / Vendors /
- *                   Talents / Frazier's House
+ *                   Talent Ledger / Frazier's House / Payments / Tax
  *   2. PIPELINE   — Brief Builder / Leads / Potential / Scout /
  *                   Roster / Campaigns
+ *
+ * R5 Sweep 8 — per-role IA refinements:
+ *   • Section ORDER becomes per-role. Pipeline-heavy roles (partner,
+ *     operator) see Pipeline above Workspace; money-heavy roles
+ *     (admin, finance) keep Workspace on top.
+ *   • Calculator hidden from partner — they don't price deals; the
+ *     tool was noise in their nav. Admin / finance / operator still
+ *     see it.
+ *   • User-chip role line drops the meaningless "· Ops" suffix —
+ *     just shows the capitalised role name.
  *
  * Footer:
  *   • User chip — avatar + email + role pill, chevron-down (TODO: menu)
@@ -71,59 +85,82 @@ interface NavSection {
   items: NavItem[];
 }
 
-const SECTIONS: NavSection[] = [
-  {
-    header: "Workspace",
-    items: [
-      { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
-      { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
-      { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "partner", "finance", "operator"] },
-      // Round 3 follow-up: Vendors / Talents / Frazier's House
-      // collapsed into Workspace per Gustavo. The standalone
-      // LEDGERS section is gone — these three sit beneath the
-      // workflow tools so the sidebar stays a single shallow list
-      // instead of three thin sections. Role gating is unchanged
-      // (Talents still admin + finance only; Vendors + House
-      // exclude operator).
-      { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
-      { to: "/talents", label: "Talents", icon: Users, allow: ["admin", "finance"] },
-      { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
-      // R5 Sweep 5: unified payments log. Admin + finance only —
-      // surfaces every payment receipt across vendors / campaigns /
-      // talents / house in one filterable view. Read-only for
-      // partner since some receipts contain talent earnings.
-      { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "finance"] },
-      // R4.B: Year-end tax tracker — admin + finance only because
-      // it surfaces W9 / 1099 / amount-reported data.
-      { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "finance"] },
-    ],
-  },
-  {
-    header: "Pipeline",
-    items: [
-      { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner", "operator"] },
-      { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"], badge: "leads" },
-      { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"], badge: "potential" },
-      { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
-      // Round 3 follow-up (Gustavo + Harry split): Roster is the
-      // OPERATIONAL lens on signed creators — handles, CCV,
-      // sign/unsign, tier. All roles see it. Talents (Workspace)
-      // is the CRM/financial lens — legal name, address,
-      // commission tiers, agreements — restricted to admin +
-      // finance.
-      { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
-      // Round 3 follow-up: Campaigns sits at the END of Pipeline as
-      // the natural endpoint of the funnel (brief → leads →
-      // potential → scout → roster → live brand deal). All four
-      // roles see it; brand-deal accounting is everyone's business.
-      { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
-    ],
-  },
-];
+const WORKSPACE_SECTION: NavSection = {
+  header: "Workspace",
+  items: [
+    { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
+    { to: "/finance", label: "Finance", icon: DollarSign, allow: ["admin", "partner", "finance"] },
+    // R5 Sweep 8: Calculator excluded from partner. Partners don't
+    // price deals; the tool was visual noise in their nav. Admin /
+    // finance / operator still see it.
+    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "finance", "operator"] },
+    // Round 3 follow-up: Vendors / Talents / Frazier's House
+    // collapsed into Workspace per Gustavo. The standalone
+    // LEDGERS section is gone — these three sit beneath the
+    // workflow tools so the sidebar stays a single shallow list
+    // instead of three thin sections. Role gating is unchanged
+    // (Talent Ledger still admin + finance only; Vendors + House
+    // exclude operator).
+    { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
+    // R5 Sweep 8: "Talents" → "Talent Ledger" rename. Disambiguates
+    // from the operational Roster lens (Pipeline section) and
+    // mirrors the page's internal title (TalentLedger.tsx).
+    { to: "/talents", label: "Talent Ledger", icon: Users, allow: ["admin", "finance"] },
+    { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
+    // R5 Sweep 5: unified payments log. Admin + finance only —
+    // surfaces every payment receipt across vendors / campaigns /
+    // talents / house in one filterable view. Read-only for
+    // partner since some receipts contain talent earnings.
+    { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "finance"] },
+    // R4.B: Year-end tax tracker — admin + finance only because
+    // it surfaces W9 / 1099 / amount-reported data.
+    { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "finance"] },
+  ],
+};
+
+const PIPELINE_SECTION: NavSection = {
+  header: "Pipeline",
+  items: [
+    { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner", "operator"] },
+    { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"], badge: "leads" },
+    { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"], badge: "potential" },
+    { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
+    // Round 3 follow-up (Gustavo + Harry split): Roster is the
+    // OPERATIONAL lens on signed creators — handles, CCV,
+    // sign/unsign, tier. All roles see it. Talent Ledger (Workspace)
+    // is the CRM/financial lens — legal name, address,
+    // commission tiers, agreements — restricted to admin +
+    // finance.
+    { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
+    // Round 3 follow-up: Campaigns sits at the END of Pipeline as
+    // the natural endpoint of the funnel (brief → leads →
+    // potential → scout → roster → live brand deal). All four
+    // roles see it; brand-deal accounting is everyone's business.
+    { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
+  ],
+};
+
+/**
+ * R5 Sweep 8: section order is now per-role. Money-heavy roles
+ * (admin, finance) keep Workspace on top — they live in $ tools and
+ * scan the funnel as a secondary lens. Pipeline-heavy roles (partner,
+ * operator) flip it: their daily landing surface is briefs / leads /
+ * scout / roster, with the money + business state below. Saves a
+ * scroll on the most-used nav for each persona.
+ */
+function sectionsForRole(role: UserRole | null): NavSection[] {
+  if (role === "partner" || role === "operator") {
+    return [PIPELINE_SECTION, WORKSPACE_SECTION];
+  }
+  return [WORKSPACE_SECTION, PIPELINE_SECTION];
+}
 
 export function Sidebar() {
   const { role, user, signOut } = useAuth();
   const { data: counts } = useNavCounts();
+  // R5 Sweep 8: pipeline-heavy roles see Pipeline first; money-heavy
+  // roles keep Workspace on top.
+  const sections = sectionsForRole(role);
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-background">
@@ -155,7 +192,7 @@ export function Sidebar() {
           - Badge: 10px tabular / bg rgba(255,255,255,0.06) /
             color steel / padding 1px 6px / rounded-full */}
       <nav className="flex-1 overflow-y-auto px-3.5 pb-3.5">
-        {SECTIONS.map((section, i) => {
+        {sections.map((section, i) => {
           const visible = section.items.filter((item) => canAccess(role, item.allow));
           if (visible.length === 0) return null;
           // Headed sections use the canonical 20px gap (mt-5) so the
@@ -232,7 +269,7 @@ export function Sidebar() {
               {user?.email ?? "—"}
             </div>
             <div className="text-[10px] leading-snug text-steel">
-              {role ? `${role[0].toUpperCase()}${role.slice(1)} · Ops` : "Workspace"}
+              {role ? `${role[0].toUpperCase()}${role.slice(1)}` : "Workspace"}
             </div>
           </div>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-steel" />
