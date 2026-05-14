@@ -105,17 +105,23 @@ export function useCreatorPerformance(
       // ──────────────────────────────────────────────────────────
       // 2. Telegram — period rows keyed directly on creator_id.
       // ──────────────────────────────────────────────────────────
+      // tele_period_performance has no stored creator_take_home column;
+      // it's derived as (net_revenue + mg_top_up) - recast_commission to
+      // match TeleIncomeSection.tsx:336. Selecting a non-existent column
+      // here returned 400 and stuck the page in the perpetual skeleton
+      // state.
       let telePeriods: Array<{
         period_year: number;
         period_month: number;
         gross_revenue: number;
+        net_revenue: number;
+        mg_top_up: number;
         recast_commission: number;
-        creator_take_home: number;
       }> = [];
       {
         let q = supabase
           .from("tele_period_performance")
-          .select("period_year, period_month, gross_revenue, recast_commission, creator_take_home")
+          .select("period_year, period_month, gross_revenue, net_revenue, mg_top_up, recast_commission")
           .eq("creator_id", id);
         if (year !== null) q = q.eq("period_year", year);
         const { data, error } = await q;
@@ -213,9 +219,12 @@ export function useCreatorPerformance(
         periodCount: telePeriods.length,
       };
       for (const p of telePeriods) {
+        const net = Number(p.net_revenue) || 0;
+        const mg = Number(p.mg_top_up) || 0;
+        const rc = Number(p.recast_commission) || 0;
         telegram.gross += Number(p.gross_revenue) || 0;
-        telegram.recastCommission += Number(p.recast_commission) || 0;
-        telegram.creatorTakeHome += Number(p.creator_take_home) || 0;
+        telegram.recastCommission += rc;
+        telegram.creatorTakeHome += net + mg - rc;
       }
 
       const overlay: PlatformSummary = {
