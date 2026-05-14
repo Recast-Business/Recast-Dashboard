@@ -1,5 +1,16 @@
 import * as React from "react";
-import { IdCard, Pencil, Trash2, UserMinus } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileSignature,
+  IdCard,
+  Pencil,
+  Star,
+  Trash2,
+  TrendingUp,
+  Users,
+  UserMinus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,19 +32,131 @@ import {
   useSetCreatorSigned,
   useUpdateContractTerms,
 } from "@/hooks/useCreators";
+import { useRosterEarningsYTD } from "@/hooks/useRosterEarningsYTD";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useAuth } from "@/auth/AuthProvider";
-import { EyebrowLabel } from "@/components/recast";
+import {
+  PipelineHeader,
+  PipelineKpiStrip,
+  type PipelineKpiTile,
+} from "@/components/layout/PipelineSection";
+import { cn, formatUSD } from "@/lib/utils";
 
 export function RosterPage() {
   const { role } = useAuth();
   const canEdit = role === "admin";
+  const currentYear = new Date().getFullYear();
   const { data, isLoading, error } = useCreators("signed");
+  // R5 follow-up: batched YTD gross per creator, one Map<id, $> for
+  // O(1) lookup inside the YTD column cell.
+  const { data: earningsYTD } = useRosterEarningsYTD(currentYear);
   const [editTarget, setEditTarget] = React.useState<CreatorRow | null>(null);
   const [profileTarget, setProfileTarget] = React.useState<CreatorRow | null>(null);
+  const [tierFilter, setTierFilter] = React.useState<string>("all");
   const setSigned = useSetCreatorSigned();
   const del = useBulkDeleteCreators();
   const confirm = useConfirm();
+
+  // ────────────────────────────────────────────────────────────
+  // R5 follow-up — KPI rollups + tier chip data + filtered rows.
+  // ────────────────────────────────────────────────────────────
+  const rows = data ?? [];
+
+  const tierCounts = React.useMemo(() => {
+    const m = new Map<string, number>();
+    m.set("all", rows.length);
+    for (const c of rows) {
+      const t = c.tier?.trim() || "—";
+      m.set(t, (m.get(t) ?? 0) + 1);
+    }
+    return m;
+  }, [rows]);
+
+  const missingContract = React.useMemo(
+    () => rows.filter((c) => !c.contract_terms || !c.contract_terms.trim()).length,
+    [rows],
+  );
+
+  const ytdTotal = React.useMemo(() => {
+    if (!earningsYTD) return 0;
+    let sum = 0;
+    for (const c of rows) sum += earningsYTD.get(c.id) ?? 0;
+    return sum;
+  }, [rows, earningsYTD]);
+
+  const earningCount = React.useMemo(() => {
+    if (!earningsYTD) return 0;
+    return rows.filter((c) => (earningsYTD.get(c.id) ?? 0) > 0).length;
+  }, [rows, earningsYTD]);
+
+  const kpis: PipelineKpiTile[] = [
+    {
+      label: "Total signed",
+      value: String(rows.length),
+      sub: rows.length === 0 ? "—" : `${earningCount} earning YTD`,
+      icon: Users,
+    },
+    {
+      label: "YTD gross billed",
+      value: formatUSD(ytdTotal, { decimals: 0 }),
+      sub:
+        earningCount === 0
+          ? "No revenue logged"
+          : `Avg ${formatUSD(ytdTotal / Math.max(earningCount, 1), { decimals: 0 })}/creator`,
+      icon: TrendingUp,
+      tone: ytdTotal > 0 ? "paid" : "default",
+    },
+    {
+      label: "Missing contract",
+      value: String(missingContract),
+      sub:
+        missingContract === 0
+          ? "All on file"
+          : `${missingContract} need terms`,
+      icon: AlertTriangle,
+      tone: missingContract > 0 ? "partial" : "default",
+    },
+    {
+      label: "Top tier",
+      value: (() => {
+        let best: { label: string; count: number } | null = null;
+        for (const [label, count] of tierCounts) {
+          if (label === "all" || label === "—") continue;
+          if (!best || count > best.count) best = { label, count };
+        }
+        return best ? best.label : "—";
+      })(),
+      sub: (() => {
+        let best: { label: string; count: number } | null = null;
+        for (const [label, count] of tierCounts) {
+          if (label === "all" || label === "—") continue;
+          if (!best || count > best.count) best = { label, count };
+        }
+        return best ? `${best.count} creators` : "No tier data";
+      })(),
+      icon: Star,
+    },
+  ];
+
+  // Tier chip row. Always show All; otherwise only show tier values
+  // that actually have rows so we don't render dead chips.
+  const tierChips = [
+    { value: "all", label: "All", count: rows.length },
+    ...Array.from(tierCounts.entries())
+      .filter(([label]) => label !== "all")
+      .sort((a, b) => b[1] - a[1])
+      .map(([label, count]) => ({
+        value: label,
+        label: label === "—" ? "No tier" : label,
+        count,
+      })),
+  ];
+
+  const filteredRows = React.useMemo(() => {
+    if (tierFilter === "all") return rows;
+    if (tierFilter === "—") return rows.filter((c) => !c.tier?.trim());
+    return rows.filter((c) => c.tier === tierFilter);
+  }, [rows, tierFilter]);
 
   // Phase M-7: when a creator is added via AddCreatorDialog we capture
   // the new id, and as soon as the creators query refetches with that
@@ -85,29 +208,67 @@ export function RosterPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top eyebrow strip — canonical page anchor. Roster is in the
-          Pipeline section per Sweep 8's sidebar IA (operational lens
-          on signed creators; Talent Ledger is the finance lens). */}
-      <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
-        Pipeline · Roster
-      </div>
-      <div>
-        <EyebrowLabel withRule>Signed creators</EyebrowLabel>
-        <h1 className="mt-2 font-display text-[38px] font-extrabold leading-none tracking-[-0.022em]">
-          Roster
-        </h1>
-        <p className="mt-2.5 max-w-[60ch] text-[13.5px] font-normal leading-[1.55] text-steel">
-          Creators signed to Recast. These appear in Campaigns and Briefs by
-          default. Click any name to open the full creator profile.
-        </p>
+      <PipelineHeader
+        breadcrumb="Pipeline · Roster"
+        eyebrow="Signed creators"
+        title="Roster"
+        description={
+          <>
+            Creators signed to Recast. These appear in Campaigns and Briefs
+            by default. Click any name to open the full creator profile.
+          </>
+        }
+      />
+
+      <PipelineKpiStrip tiles={kpis} />
+
+      {/* R5 follow-up — tier filter chip row. Renders the canonical
+          "All" chip plus every tier currently in the data, sorted by
+          population. Single-select; "—" maps to the no-tier bucket. */}
+      <div className="flex flex-wrap items-center gap-1">
+        {tierChips.map((c) => {
+          const active = tierFilter === c.value;
+          return (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setTierFilter(c.value)}
+              className={cn(
+                "h-8 rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors duration-base ease-out",
+                active
+                  ? "border-electric/40 bg-electric/10 text-electric"
+                  : "border-rule bg-card text-steel hover:bg-white/[0.04] hover:text-white",
+              )}
+            >
+              {c.label}
+              <span className="tabular ml-1.5 text-[10px] text-steel/80">
+                {c.count}
+              </span>
+            </button>
+          );
+        })}
+        {rows.length > 0 ? (
+          <span className="ml-auto flex items-center gap-1 text-[12px] text-steel">
+            <Users className="h-3 w-3" strokeWidth={1.5} />
+            {filteredRows.length} shown
+          </span>
+        ) : null}
       </div>
 
       <CreatorTable
-        rows={(data ?? []) as CreatorRow[]}
+        rows={filteredRows as CreatorRow[]}
         isLoading={isLoading}
         error={(error as Error) ?? null}
-        emptyTitle="No signed creators yet"
-        emptyHint="Promote a creator from Leads (Sign to Roster button) to add them here."
+        emptyTitle={
+          tierFilter === "all"
+            ? "No signed creators yet"
+            : "No creators in this tier"
+        }
+        emptyHint={
+          tierFilter === "all"
+            ? "Promote a creator from Leads (Sign to Roster button) to add them here."
+            : "Switch the chip row back to All to see every signed creator."
+        }
         toolbarExtras={
           canEdit ? (
             <AddCreatorDialog signed={true} onCreated={setPendingProfileId} />
@@ -116,36 +277,68 @@ export function RosterPage() {
         hideColumns={["country", "tier", "status"]}
         showStar
         canEdit={canEdit}
-        extraColumn={{
-          header: "Contract",
-          render: (c) => (
-            <div className="flex items-center gap-2">
-              <span
-                className={
-                  c.contract_terms
-                    ? "truncate text-xs"
-                    : "text-xs text-muted-foreground"
-                }
-                title={c.contract_terms ?? undefined}
-                style={{ maxWidth: 160 }}
-              >
-                {c.contract_terms ? c.contract_terms : "—"}
-              </span>
-              {canEdit && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                  aria-label="Edit contract terms"
-                  onClick={() => setEditTarget(c)}
+        extraColumn={[
+          {
+            header: `YTD ${currentYear}`,
+            render: (c) => {
+              const ytd = earningsYTD?.get(c.id) ?? 0;
+              return (
+                <span
+                  className={cn(
+                    "tabular text-xs",
+                    ytd > 0 ? "text-paid font-semibold" : "text-muted-foreground",
+                  )}
+                  title={ytd > 0 ? "Gross billed this year" : "No revenue logged this year"}
                 >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-          ),
-        }}
+                  {ytd > 0 ? formatUSD(ytd, { decimals: 0 }) : "—"}
+                </span>
+              );
+            },
+          },
+          {
+            header: "Contract",
+            render: (c) => (
+              <div className="flex items-center gap-2">
+                {c.contract_terms ? (
+                  <CheckCircle2
+                    className="h-3 w-3 shrink-0 text-paid"
+                    strokeWidth={2}
+                    aria-label="Contract on file"
+                  />
+                ) : (
+                  <FileSignature
+                    className="h-3 w-3 shrink-0 text-partial"
+                    strokeWidth={1.5}
+                    aria-label="Contract missing"
+                  />
+                )}
+                <span
+                  className={
+                    c.contract_terms
+                      ? "truncate text-xs"
+                      : "text-xs text-muted-foreground"
+                  }
+                  title={c.contract_terms ?? undefined}
+                  style={{ maxWidth: 160 }}
+                >
+                  {c.contract_terms ? c.contract_terms : "—"}
+                </span>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    aria-label="Edit contract terms"
+                    onClick={() => setEditTarget(c)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            ),
+          },
+        ]}
         rowAction={
           canEdit
             ? (c) => (

@@ -1,11 +1,14 @@
 import * as React from "react";
 import {
+  Activity,
   CircleDot,
+  Database,
   ExternalLink,
   Layers,
   Loader2,
   Play,
   RefreshCw,
+  Sparkles,
   Square,
   Trash2,
   UserPlus,
@@ -13,6 +16,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { EyebrowLabel } from "@/components/recast";
+import {
+  PipelineKpiStrip,
+  type PipelineKpiTile,
+} from "@/components/layout/PipelineSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,6 +162,55 @@ export function ScoutPage() {
   const [results, setResults] = React.useState<ScoutResult[]>([]);
   const [running, setRunning] = React.useState(false);
   const [lastRunAt, setLastRunAt] = React.useState<Date | null>(null);
+
+  // ────────────────────────────────────────────────────────────
+  // R5 follow-up — KPI rollups on the current results pull.
+  // Computed against `results` (the live working set), not against
+  // the persisted creators table — Scout's whole point is showing
+  // what's streaming right now relative to what we already have.
+  // ────────────────────────────────────────────────────────────
+  const kpis = React.useMemo<PipelineKpiTile[]>(() => {
+    const inRoster = results.filter((r) => r.inRoster).length;
+    const netNew = results.length - inRoster;
+    const ccvs = results.map((r) => r.ccv).filter((n) => n > 0);
+    const avgCCV =
+      ccvs.length === 0
+        ? 0
+        : Math.round(ccvs.reduce((s, n) => s + n, 0) / ccvs.length);
+    return [
+      {
+        label: "Results",
+        value: String(results.length),
+        sub: lastRunAt
+          ? `Last run ${lastRunAt.toLocaleTimeString()}`
+          : "No run yet",
+        icon: Activity,
+      },
+      {
+        label: "Avg CCV",
+        value: avgCCV === 0 ? "—" : avgCCV.toLocaleString(),
+        sub: ccvs.length === 0 ? "No CCV data" : `${ccvs.length} with CCV`,
+        icon: Users,
+      },
+      {
+        label: "Already in DB",
+        value: String(inRoster),
+        sub:
+          results.length === 0
+            ? "—"
+            : `${Math.round((inRoster / Math.max(results.length, 1)) * 100)}% known`,
+        icon: Database,
+        tone: inRoster > 0 ? "partial" : "default",
+      },
+      {
+        label: "Net new",
+        value: String(netNew),
+        sub: netNew === 0 ? "Nothing fresh" : "Worth exporting",
+        icon: Sparkles,
+        tone: netNew > 0 ? "paid" : "default",
+      },
+    ];
+  }, [results, lastRunAt]);
   const [error, setError] = React.useState<string | null>(null);
 
   // Auto-scout
@@ -722,6 +778,11 @@ export function ScoutPage() {
           </Button>
         </div>
       )}
+
+      {/* R5 follow-up — KPI strip above the results table. Only shown
+          once a scout run has produced at least one row; the empty
+          state inside the table still handles the "no run yet" copy. */}
+      {results.length > 0 ? <PipelineKpiStrip tiles={kpis} /> : null}
 
       {/* Results */}
       <div className="space-y-2">

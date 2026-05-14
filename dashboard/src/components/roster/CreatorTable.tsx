@@ -165,10 +165,22 @@ interface Props {
   emptyTitle: string;
   emptyHint?: string;
   noMatchesText?: string;
-  extraColumn?: {
-    header: string;
-    render: (row: CreatorRow) => React.ReactNode;
-  };
+  /**
+   * Extra columns rendered between the canonical columns and the
+   * rowAction slot. R5 follow-up: switched from a single column to
+   * an array so the Roster page can render contract terms + YTD
+   * earnings side-by-side. Accepts a single object too for
+   * backwards-compat with old callers.
+   */
+  extraColumn?:
+    | {
+        header: string;
+        render: (row: CreatorRow) => React.ReactNode;
+      }
+    | Array<{
+        header: string;
+        render: (row: CreatorRow) => React.ReactNode;
+      }>;
   rowAction?: (row: CreatorRow) => React.ReactNode;
   toolbarExtras?: React.ReactNode;
   hideColumns?: HideableColumn[];
@@ -640,7 +652,11 @@ export function CreatorTable({
                       Status
                     </SortableHead>
                   )}
-                  {extraColumn && <TableHead>{extraColumn.header}</TableHead>}
+                  {extraColumn
+                    ? (Array.isArray(extraColumn) ? extraColumn : [extraColumn]).map(
+                        (col, i) => <TableHead key={i}>{col.header}</TableHead>,
+                      )
+                    : null}
                   {rowAction && <TableHead />}
                 </TableRow>
               </TableHeader>
@@ -697,7 +713,13 @@ export function CreatorTable({
                     {showCountry && <TableCell>{c.country ?? "—"}</TableCell>}
                     {showTier && <TableCell>{c.tier ?? "—"}</TableCell>}
                     {showStatus && <TableCell>{c.status}</TableCell>}
-                    {extraColumn && <TableCell>{extraColumn.render(c)}</TableCell>}
+                    {extraColumn
+                      ? (Array.isArray(extraColumn) ? extraColumn : [extraColumn]).map(
+                          (col, i) => (
+                            <TableCell key={i}>{col.render(c)}</TableCell>
+                          ),
+                        )
+                      : null}
                     {rowAction && (
                       <TableCell className="text-right">{rowAction(c)}</TableCell>
                     )}
