@@ -35,11 +35,21 @@ export type CampaignStatusV2 =
 export type CommissionBasis = "gross" | "net";
 
 // ─────────────────────────────────────────────────────────────────────
-// Round 3 (Gustavo): Talent profile — agreement links + tiered commission
+// Round 3 (Gustavo): Talent profile — tiered commission + agreements
 // ─────────────────────────────────────────────────────────────────────
 
-/** Open-ended platform slug used as a key in agreement_links + commission_tiers. */
-export type TalentPlatform = "onlyfans" | "telegram" | "overlay" | "deal" | "other";
+/**
+ * Platform slug used as a key in commission_tiers and as the value in
+ * creator_agreements.platform. Matches the check constraint on
+ * creator_agreements (migration 0043) — note that the Ad Overlay
+ * platform slug is "efuse" (historical naming from the eFuse era);
+ * the dashboard renders "Overlay" / "Ad Overlay" as the display label.
+ *
+ * R5 Sweep 3d: dropped "overlay" from this union — it was a UI-only
+ * slot label from the deprecated agreement_links map and never made
+ * it into the new schema. Use "efuse" instead.
+ */
+export type TalentPlatform = "onlyfans" | "telegram" | "efuse" | "deal" | "other";
 
 /**
  * A single commission tier (per platform). Tiers ascend by threshold;
@@ -88,10 +98,6 @@ export type CommissionTiers = CommissionTiersByPage;
 export type CommissionTiersLegacy = Partial<
   Record<TalentPlatform, CommissionTier[]>
 >;
-
-/** Deprecated (R5 Sweep 3a): replaced by the creator_agreements table.
- *  Read-only fallback during the transition window. */
-export type AgreementLinks = Partial<Record<TalentPlatform, string>>;
 
 /**
  * R5 Sweep 3a: one row in the creator_agreements table — supports

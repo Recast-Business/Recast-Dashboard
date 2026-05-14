@@ -23,9 +23,11 @@ import {
 import { EyebrowLabel } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { useCreators } from "@/hooks/useCreators";
+import { useAllCreatorAgreements } from "@/hooks/useCreatorAgreements";
 import { CreatorProfileDialog } from "@/components/roster/CreatorProfileDialog";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
+import type { CreatorAgreement } from "@/types/finance";
 
 /**
  * Round 3 C.2 — TALENT LEDGER (CRM lens).
@@ -85,7 +87,6 @@ interface LedgerRow {
     string,
     number | null | CommissionTierStored[]
   > | null;
-  agreement_links: Record<string, string> | null;
   commission_tiers: Record<string, unknown> | null;
   /** Round 3 Q1+Q7 (migration 0035): legacy cliff math toggle. */
   commission_uses_cliff?: boolean | null;
@@ -94,13 +95,24 @@ interface LedgerRow {
   requires_tax_info?: boolean | null;
 }
 
-/** Slugs that surface as agreement slots in CreatorProfileDialog. */
-const AGREEMENT_SLOTS = ["onlyfans", "telegram", "overlay", "deal", "other"];
+/**
+ * R5 Sweep 3d: the legacy "5 slots" model is gone (one row per
+ * agreement, multi-agreement per platform supported). The set of
+ * platforms that count toward the per-platform commission audit is
+ * the subset of creator_agreements.platform values that actually
+ * tie to a commission lookup. "deal" and "other" are generic and
+ * don't.
+ */
+const COMMISSION_AGREEMENT_PLATFORMS = new Set(["onlyfans", "telegram", "efuse"]);
 
 export function TalentLedgerPage() {
   const { role } = useAuth();
   const canEdit = role === "admin" || role === "finance";
   const { data, isLoading, error } = useCreators("signed");
+  // R5 Sweep 3d: agreement data moved from creators.agreement_links
+  // (deprecated JSON map) to the creator_agreements table. One query
+  // for the whole roster, grouped by creator_id below.
+  const { data: rawAgreements } = useAllCreatorAgreements();
 
   const [search, setSearch] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState<string>("__all__");
@@ -119,6 +131,23 @@ export function TalentLedgerPage() {
     }
     return [...set].sort();
   }, [rows]);
+
+  // R5 Sweep 3d: group creator_agreements rows by creator_id for O(1)
+  // lookup during the audit + render. Empty array (not undefined) for
+  // creators with no agreements so call sites don't need null checks.
+  const agreementsByCreator = React.useMemo(() => {
+    const m = new Map<string, CreatorAgreement[]>();
+    for (const a of rawAgreements ?? []) {
+      const list = m.get(a.creator_id);
+      if (list) list.push(a);
+      else m.set(a.creator_id, [a]);
+    }
+    return m;
+  }, [rawAgreements]);
+  const agreementsFor = React.useCallback(
+    (id: string): CreatorAgreement[] => agreementsByCreator.get(id) ?? [],
+    [agreementsByCreator],
+  );
 
   // Completeness audit per row. The "missing" reasons are surfaced as
   // pills in the row so Gustavo can see exactly what's outstanding
@@ -140,7 +169,8 @@ export function TalentLedgerPage() {
       if (!r.email) missing.push("email");
       if (!r.address) missing.push("address");
       if (r.requires_tax_info && !r.tax_id) missing.push("tax_id");
-      const agreementPlatforms = activeAgreementPlatforms(r);
+      const ags = agreementsFor(r.id);
+      const agreementPlatforms = activeAgreementPlatforms(ags);
       if (agreementPlatforms.length === 0) {
         // No agreements yet → still need at least one commission
         // somewhere to count as set-up. This is the old "any
@@ -157,10 +187,10 @@ export function TalentLedgerPage() {
           }
         }
       }
-      if (!hasAnyAgreement(r)) missing.push("agreements");
-      return { row: r, missing };
+      if (!hasAnyAgreement(ags)) missing.push("agreements");
+      return { row: r, missing, agreements: ags };
     });
-  }, [rows]);
+  }, [rows, agreementsFor]);
 
   // KPI tile counts. "Complete" = zero missing fields. "Missing
   // commission" counts rows where commission is missing entirely OR
@@ -203,10 +233,13 @@ export function TalentLedgerPage() {
     });
   }, [audit, search, categoryFilter, showIncompleteOnly]);
 
-  // CSV: flat one-row-per-creator with the CRM essentials.
+  // CSV: flat one-row-per-creator with the CRM essentials. Agreement
+  // count is now a raw integer (one row per agreement/amendment);
+  // the old "n/5 slots" total disappeared with the deprecation of
+  // agreement_links in Sweep 3d.
   const csvRows = React.useMemo(
     () =>
-      filtered.map(({ row, missing }) => ({
+      filtered.map(({ row, missing, agreements }) => ({
         name: row.name,
         category: row.category ?? "",
         legal: row.legal_name ?? "",
@@ -217,7 +250,7 @@ export function TalentLedgerPage() {
         payment: row.payment_method_pref ?? "",
         tax_id: row.tax_id ?? "",
         commission: commissionSummary(row),
-        agreements: agreementCount(row) + "/" + AGREEMENT_SLOTS.length,
+        agreements: String(agreementCount(agreements)),
         missing: missing.join(", "),
       })),
     [filtered],
@@ -363,8 +396,7 @@ export function TalentLedgerPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(({ row, missing }) => {
-                  const agreements = agreementCount(row);
+                {filtered.map(({ row, missing, agreements }) => {
                   const commission = commissionSummary(row);
                   return (
                     <tr
@@ -454,14 +486,12 @@ export function TalentLedgerPage() {
                         </div>
                       </td>
 
-                      {/* Agreements — pill showing count + a hover list
-                          of which slots have URLs filled in. */}
+                      {/* Agreements — pill showing the raw count of
+                          signed agreements / amendments. Multi-agreement
+                          friendly: a creator with 3 OF amendments has
+                          count = 3, not 1. Hover lists their labels. */}
                       <td className="px-3 py-2.5 align-top">
-                        <AgreementPill
-                          count={agreements}
-                          total={AGREEMENT_SLOTS.length}
-                          links={row.agreement_links}
-                        />
+                        <AgreementPill agreements={agreements} />
                       </td>
 
                       {/* Payment method preference */}
@@ -556,32 +586,22 @@ function hasCommission(r: LedgerRow): boolean {
   return false;
 }
 
-/** R3 Q3: agreement slot → commission platform key. Most slots map
- *  1:1; the "overlay" agreement maps to the legacy "efuse" commission
- *  key, and generic slots ("deal", "other") don't tie to a specific
- *  commission platform so they're skipped in the per-platform audit. */
-const AGREEMENT_TO_COMMISSION_PLATFORM: Record<string, string | null> = {
-  onlyfans: "onlyfans",
-  telegram: "telegram",
-  overlay: "efuse",
-  deal: null,
-  other: null,
-};
-
-/** Which platforms does this creator earn on (per their signed
- *  agreements)? Returns commission-platform keys, not agreement
- *  slugs. */
-function activeAgreementPlatforms(r: LedgerRow): string[] {
-  const a = r.agreement_links;
-  if (!a || typeof a !== "object") return [];
-  const out: string[] = [];
-  for (const slot of AGREEMENT_SLOTS) {
-    const url = a[slot];
-    if (typeof url !== "string" || url.trim() === "") continue;
-    const platform = AGREEMENT_TO_COMMISSION_PLATFORM[slot];
-    if (platform) out.push(platform);
+/**
+ * R5 Sweep 3d: the per-platform audit now reads from creator_agreements
+ * directly. Each agreement carries its commission-platform slug
+ * verbatim (onlyfans / telegram / efuse / deal / other), so no slot
+ * mapping is needed — just filter to the commission-platform subset.
+ * Returns distinct platforms only (a creator with three OF amendments
+ * still counts as covering OnlyFans once).
+ */
+function activeAgreementPlatforms(
+  agreements: CreatorAgreement[],
+): string[] {
+  const set = new Set<string>();
+  for (const a of agreements) {
+    if (COMMISSION_AGREEMENT_PLATFORMS.has(a.platform)) set.add(a.platform);
   }
-  return out;
+  return [...set];
 }
 
 /** Does the creator have a commission entry for this specific
@@ -637,19 +657,18 @@ function commissionSummary(r: LedgerRow): string {
   return `Mixed (${flat.length} flat · ${tieredCount} tiered)`;
 }
 
-function hasAnyAgreement(r: LedgerRow): boolean {
-  return agreementCount(r) > 0;
+/**
+ * R5 Sweep 3d: raw row count from creator_agreements. Semantics
+ * differ from the old "0–5 slots filled" model: a creator with 3
+ * OnlyFans amendments has count = 3, not 1. That's deliberate — the
+ * pill is informational, the completeness tone is what flags gaps.
+ */
+function agreementCount(agreements: CreatorAgreement[]): number {
+  return agreements.length;
 }
 
-function agreementCount(r: LedgerRow): number {
-  const a = r.agreement_links;
-  if (!a || typeof a !== "object") return 0;
-  let n = 0;
-  for (const slot of AGREEMENT_SLOTS) {
-    const url = a[slot];
-    if (typeof url === "string" && url.trim() !== "") n++;
-  }
-  return n;
+function hasAnyAgreement(agreements: CreatorAgreement[]): boolean {
+  return agreements.length > 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -699,37 +718,35 @@ function MissingPill({ field }: { field: string }) {
   );
 }
 
-function AgreementPill({
-  count,
-  total,
-  links,
-}: {
-  count: number;
-  total: number;
-  links: Record<string, string> | null;
-}) {
-  const tone = count === 0 ? "overdue" : count < total ? "partial" : "paid";
+/**
+ * R5 Sweep 3d: rebuilt to read straight from creator_agreements.
+ *
+ * The pill now shows the raw agreement count (one row per signed
+ * document or amendment). Tone is binary — zero (overdue) vs. at
+ * least one (paid) — since the "n/5 slots" total died with the
+ * deprecation of the agreement_links JSON map. Hover lists each
+ * agreement as "<platform> · <label>" so Gustavo can eyeball what's
+ * on file without opening the profile. If exactly one agreement
+ * exists, the external-link icon jumps straight to it.
+ */
+function AgreementPill({ agreements }: { agreements: CreatorAgreement[] }) {
+  const count = agreements.length;
+  const tone = count === 0 ? "overdue" : "paid";
   const toneCls =
-    tone === "paid"
-      ? "bg-paid-tint text-paid"
-      : tone === "partial"
-        ? "bg-partial-tint text-partial"
-        : "bg-overdue-tint text-overdue";
+    tone === "paid" ? "bg-paid-tint text-paid" : "bg-overdue-tint text-overdue";
 
-  // Compose the hover title with which slots are filled. Helpful for
-  // glance audits without opening the profile.
-  const filledSlots = AGREEMENT_SLOTS.filter(
-    (s) => links && typeof links[s] === "string" && links[s].trim() !== "",
-  );
   const title =
-    filledSlots.length > 0
-      ? `Signed: ${filledSlots.join(", ")}`
+    count > 0
+      ? `Signed:\n${agreements
+          .map((a) =>
+            a.page_name && a.page_name !== "main"
+              ? `${a.platform} (${a.page_name}) · ${a.label}`
+              : `${a.platform} · ${a.label}`,
+          )
+          .join("\n")}`
       : "No agreements on file";
 
-  // If exactly one URL is filled, surface a quick-open link beside the
-  // pill so Gustavo can jump straight to it.
-  const singleUrl =
-    filledSlots.length === 1 && links ? links[filledSlots[0]] : null;
+  const singleUrl = count === 1 ? agreements[0].url : null;
 
   return (
     <div className="flex items-center gap-1.5" title={title}>
@@ -739,7 +756,7 @@ function AgreementPill({
           toneCls,
         )}
       >
-        {count}/{total}
+        {count}
       </span>
       {singleUrl ? (
         <a

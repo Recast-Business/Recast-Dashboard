@@ -13,17 +13,17 @@ export function useCreators(filter: CreatorFilter = "all") {
       let q = supabase
         .from("creators")
         .select(
-          // Round 3 (0034): agreement_links + commission_tiers.
+          // Round 3 (0034): commission_tiers introduced.
           // Round 3 (0035 — Q1+Q7 cliff toggle + tier migration):
           // commission_uses_cliff bool. False (default) = progressive
           // math, true = legacy cliff math for grandfathered deals.
           // Round 4 B (0039): requires_tax_info + w9_url + w9_received_at
           // power the year-end tax tracker. Default false / null.
-          // R5 Sweep 3a (0043): nda_signed + nda_url added. The
-          // agreement_links column stays in the select as a read-only
-          // fallback during the 3a→3b transition; 3b reads from the
-          // new creator_agreements table directly.
-          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, agreement_links, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start, nda_signed, nda_url",
+          // R5 Sweep 3a (0043): nda_signed + nda_url added. Per-page
+          // commission_tiers shape + new creator_agreements table.
+          // R5 Sweep 3d (0044): agreement_links column dropped — agreements
+          // moved fully onto the creator_agreements table.
+          "id, name, twitch_handle, kick_handle, tier, country, status, signed, contract_terms, signed_at, category, socials, twitch_30d_ccv, kick_30d_ccv, ccv_fetched_at, starred, outreach_status, legal_name, business_name, email, phone, address, payment_method_pref, tax_id, commission_pct_by_platform, commission_tiers, commission_uses_cliff, requires_tax_info, w9_url, w9_received_at, min_guarantee, contract_start, nda_signed, nda_url",
         )
         .order("name");
       if (filter === "signed") q = q.eq("signed", true);
@@ -236,11 +236,6 @@ export interface CreatorProfilePatch {
     string,
     number | null | Array<{ threshold: number; pct: number }>
   >;
-  /** Round 3 (Gustavo, migration 0034): clickable agreement URLs per
-   *  platform. Shape: { platform_slug: url }. Empty/missing keys mean
-   *  "no agreement on file yet" — the talent profile UI shows them as
-   *  empty input rows with no Open button. */
-  agreement_links?: Record<string, string>;
   /** Round 3 Q1+Q7 (migration 0035) + R5 Sweep 3a (migration 0043):
    *  canonical tier shape is now NESTED PER PAGE within each platform:
    *    { platform: { page_name: [{ threshold, pct }, ...] } }

@@ -36,6 +36,32 @@ export function useCreatorAgreements(creatorId: string | null | undefined) {
   });
 }
 
+/**
+ * R5 Sweep 3d — list-page variant. Fetches every creator_agreements
+ * row in one query, lets the consumer group them client-side. Used by
+ * TalentLedger's per-row agreement pill + completeness audit.
+ *
+ * One round-trip beats per-row queries (would be N+1 across the
+ * signed roster). The result is small (5 platforms × handful of
+ * creators × few amendments) so paging isn't worth the complexity.
+ */
+export function useAllCreatorAgreements() {
+  return useQuery({
+    queryKey: ["creator-agreements", "all"],
+    queryFn: async (): Promise<CreatorAgreement[]> => {
+      const { data, error } = await supabase
+        .from("creator_agreements")
+        .select("*")
+        .order("creator_id", { ascending: true })
+        .order("platform", { ascending: true })
+        .order("page_name", { ascending: true })
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as CreatorAgreement[];
+    },
+  });
+}
+
 export interface CreatorAgreementDraft {
   // Existing rows carry an id (kept on the client so we don't churn it);
   // new rows the user just added are id-less. The replace mutation

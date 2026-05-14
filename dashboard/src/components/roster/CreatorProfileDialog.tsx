@@ -66,8 +66,6 @@ interface CreatorMinimal {
     string,
     number | null | Array<{ threshold: number; pct: number }>
   > | null;
-  /** Round 3 (0034): map of platform slug → agreement URL. */
-  agreement_links?: Record<string, string> | null;
   /** Round 3 Q1+Q7 + R5 Sweep 3a (migration 0043): canonical tier
    *  column, now NESTED PER PAGE within each platform:
    *    { platform: { page_name: [{ threshold, pct }, ...] } }
