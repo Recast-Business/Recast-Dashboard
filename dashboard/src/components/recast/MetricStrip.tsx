@@ -1,30 +1,39 @@
 import * as React from "react";
-import { EyebrowLabel } from "@/components/recast";
+import { EyebrowLabel } from "./EyebrowLabel";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared page-shell primitives for the Pipeline section pages
- * (Brief Builder, Campaigns, etc.) so they match the canonical aesthetic
- * used by Workspace pages (Vendors, House, Talent Ledger, Payments).
+ * Canonical page-shell primitives.
  *
- * Two primitives:
+ * Two pieces:
  *
- *   • PipelineHeader — top eyebrow strip + EyebrowLabel + 38px h1 +
- *                      description paragraph + optional right-side
- *                      actions slot. Matches Vendors / House / Roster.
+ *   • PageHeader — top breadcrumb strip + EyebrowLabel + 38px h1 +
+ *                  description + optional right-side actions slot.
+ *                  Matches every Workspace/Pipeline section header.
  *
- *   • PipelineKpiStrip — 4-up tile row mirroring the Workspace KPI
- *                        frames (Talent Ledger's CountTile + Payments'
- *                        KpiTile pattern), but accepts string values so
- *                        counts, currencies, and rates all render
- *                        through one component.
+ *   • MetricStrip + MetricTile — 4-up tile row that accepts string
+ *                                values so counts, currencies, rates,
+ *                                and statuses render through one
+ *                                component. For money-only tiles with
+ *                                sparklines + deltaPct pills, reach
+ *                                for the older `KpiTile` in this same
+ *                                folder — that one is purpose-built
+ *                                for Finance/Overview/Tax-style $-KPIs.
  *
- * Local-to-page KpiTile implementations (TalentLedger CountTile,
- * Payments KpiTile, TalentDetail KpiTile) will eventually consolidate
- * onto this — for now this module is the source of truth for new work.
+ * History:
+ *   • Originally lived at `src/components/layout/PipelineSection.tsx`
+ *     as `PipelineHeader` / `PipelineKpiStrip` / `PipelineKpiTile`
+ *     when only the Pipeline pages used it (Sweep b147ad2).
+ *   • Promoted into `recast/` once Payments / TalentDetail /
+ *     TalentLedger / TaxTracker also adopted the same shape and
+ *     stopped rolling their own.
  */
 
-interface PipelineHeaderProps {
+// ─────────────────────────────────────────────────────────────────────
+// PageHeader
+// ─────────────────────────────────────────────────────────────────────
+
+interface PageHeaderProps {
   /** Top breadcrumb strip e.g. "Pipeline · Brief Builder". */
   breadcrumb: string;
   /** EyebrowLabel under the strip — short context phrase. */
@@ -37,16 +46,15 @@ interface PipelineHeaderProps {
   actions?: React.ReactNode;
 }
 
-export function PipelineHeader({
+export function PageHeader({
   breadcrumb,
   eyebrow,
   title,
   description,
   actions,
-}: PipelineHeaderProps) {
+}: PageHeaderProps) {
   return (
     <>
-      {/* Top eyebrow strip — canonical page anchor.  */}
       <div className="border-b pb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-steel">
         {breadcrumb}
       </div>
@@ -69,12 +77,12 @@ export function PipelineHeader({
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// KPI strip
+// MetricStrip + MetricTile
 // ─────────────────────────────────────────────────────────────────────
 
-export type PipelineKpiTone = "default" | "paid" | "partial" | "overdue";
+export type MetricTone = "default" | "paid" | "partial" | "overdue";
 
-export interface PipelineKpiTile {
+export interface MetricTile {
   label: string;
   value: string;
   sub?: string;
@@ -82,20 +90,20 @@ export interface PipelineKpiTile {
     className?: string;
     strokeWidth?: number | string;
   }>;
-  tone?: PipelineKpiTone;
+  tone?: MetricTone;
 }
 
-export function PipelineKpiStrip({ tiles }: { tiles: PipelineKpiTile[] }) {
+export function MetricStrip({ tiles }: { tiles: MetricTile[] }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       {tiles.map((t, i) => (
-        <PipelineKpiCell key={i} tile={t} />
+        <MetricCell key={i} tile={t} />
       ))}
     </div>
   );
 }
 
-function PipelineKpiCell({ tile }: { tile: PipelineKpiTile }) {
+function MetricCell({ tile }: { tile: MetricTile }) {
   const { label, value, sub, icon: Icon, tone = "default" } = tile;
   return (
     <div

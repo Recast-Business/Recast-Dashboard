@@ -17,9 +17,9 @@ import {
 import { toast } from "sonner";
 import { EyebrowLabel } from "@/components/recast";
 import {
-  PipelineKpiStrip,
-  type PipelineKpiTile,
-} from "@/components/layout/PipelineSection";
+  MetricStrip,
+  type MetricTile,
+} from "@/components/recast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,7 +169,7 @@ export function ScoutPage() {
   // the persisted creators table — Scout's whole point is showing
   // what's streaming right now relative to what we already have.
   // ────────────────────────────────────────────────────────────
-  const kpis = React.useMemo<PipelineKpiTile[]>(() => {
+  const kpis = React.useMemo<MetricTile[]>(() => {
     const inRoster = results.filter((r) => r.inRoster).length;
     const netNew = results.length - inRoster;
     const ccvs = results.map((r) => r.ccv).filter((n) => n > 0);
@@ -782,7 +782,7 @@ export function ScoutPage() {
       {/* R5 follow-up — KPI strip above the results table. Only shown
           once a scout run has produced at least one row; the empty
           state inside the table still handles the "no run yet" copy. */}
-      {results.length > 0 ? <PipelineKpiStrip tiles={kpis} /> : null}
+      {results.length > 0 ? <MetricStrip tiles={kpis} /> : null}
 
       {/* Results */}
       <div className="space-y-2">

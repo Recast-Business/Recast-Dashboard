@@ -36,10 +36,10 @@ import { useRosterEarningsYTD } from "@/hooks/useRosterEarningsYTD";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  PipelineHeader,
-  PipelineKpiStrip,
-  type PipelineKpiTile,
-} from "@/components/layout/PipelineSection";
+  PageHeader,
+  MetricStrip,
+  type MetricTile,
+} from "@/components/recast";
 import { cn, formatUSD } from "@/lib/utils";
 
 export function RosterPage() {
@@ -89,7 +89,7 @@ export function RosterPage() {
     return rows.filter((c) => (earningsYTD.get(c.id) ?? 0) > 0).length;
   }, [rows, earningsYTD]);
 
-  const kpis: PipelineKpiTile[] = [
+  const kpis: MetricTile[] = [
     {
       label: "Total signed",
       value: String(rows.length),
@@ -208,7 +208,7 @@ export function RosterPage() {
 
   return (
     <div className="space-y-6">
-      <PipelineHeader
+      <PageHeader
         breadcrumb="Pipeline · Roster"
         eyebrow="Signed creators"
         title="Roster"
@@ -220,7 +220,7 @@ export function RosterPage() {
         }
       />
 
-      <PipelineKpiStrip tiles={kpis} />
+      <MetricStrip tiles={kpis} />
 
       {/* R5 follow-up — tier filter chip row. Renders the canonical
           "All" chip plus every tier currently in the data, sorted by

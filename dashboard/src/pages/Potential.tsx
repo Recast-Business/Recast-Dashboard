@@ -4,10 +4,10 @@ import { CreatorTable, type CreatorRow } from "@/components/roster/CreatorTable"
 import { useCreators } from "@/hooks/useCreators";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  PipelineHeader,
-  PipelineKpiStrip,
-  type PipelineKpiTile,
-} from "@/components/layout/PipelineSection";
+  PageHeader,
+  MetricStrip,
+  type MetricTile,
+} from "@/components/recast";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,7 +46,7 @@ export function PotentialPage() {
     return best;
   }, [rows]);
 
-  const kpis: PipelineKpiTile[] = [
+  const kpis: MetricTile[] = [
     {
       label: "Total starred",
       value: String(rows.length),
@@ -89,7 +89,7 @@ export function PotentialPage() {
 
   return (
     <div className="space-y-6">
-      <PipelineHeader
+      <PageHeader
         breadcrumb="Pipeline · Potential"
         eyebrow="Starred · highest priority"
         title="Potential"
@@ -101,7 +101,7 @@ export function PotentialPage() {
         }
       />
 
-      <PipelineKpiStrip tiles={kpis} />
+      <MetricStrip tiles={kpis} />
 
       {/* R5 follow-up — signed/unsigned filter chip row. The starred
           pool mixes signed creators (already on Roster) with unsigned

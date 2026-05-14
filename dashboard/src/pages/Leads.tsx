@@ -35,10 +35,10 @@ import {
 } from "@/hooks/useCreators";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  PipelineHeader,
-  PipelineKpiStrip,
-  type PipelineKpiTile,
-} from "@/components/layout/PipelineSection";
+  PageHeader,
+  MetricStrip,
+  type MetricTile,
+} from "@/components/recast";
 import { useConfirm } from "@/hooks/useConfirm";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +121,7 @@ export function LeadsPage() {
     [rows],
   );
 
-  const kpis: PipelineKpiTile[] = [
+  const kpis: MetricTile[] = [
     {
       label: "Total leads",
       value: String(rows.length),
@@ -275,7 +275,7 @@ export function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <PipelineHeader
+      <PageHeader
         breadcrumb="Pipeline · Leads"
         eyebrow="Outreach + unsigned"
         title="Leads"
@@ -287,7 +287,7 @@ export function LeadsPage() {
         }
       />
 
-      <PipelineKpiStrip tiles={kpis} />
+      <MetricStrip tiles={kpis} />
 
       {/* R5 follow-up — outreach status chip row. Acts as both a
           breakdown view and a single-select filter. "All" + "Awaiting"

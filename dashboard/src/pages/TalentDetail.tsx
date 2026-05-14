@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EyebrowLabel, MoneyCell, Sparkline } from "@/components/recast";
+import { EyebrowLabel, MetricStrip, MoneyCell, Sparkline } from "@/components/recast";
 import { useCreators } from "@/hooks/useCreators";
 import { useCreatorPerformance } from "@/hooks/useCreatorPerformance";
 import { CreatorProfileDialog } from "@/components/roster/CreatorProfileDialog";
@@ -136,54 +136,52 @@ export function TalentDetailPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <KpiTile
-            label="Gross billed"
-            value={formatUSD(perf.totalGross, { decimals: 0 })}
-            sub={periodLabel(perf, mode, year)}
-            icon={TrendingUp}
-          />
-          <KpiTile
-            label="Recast commission"
-            value={formatUSD(perf.totalRecast, { decimals: 0 })}
-            sub={
-              perf.totalGross > 0
-                ? `${((perf.totalRecast / perf.totalGross) * 100).toFixed(1)}% effective`
-                : "—"
-            }
-            icon={CircleDollarSign}
-            tone="paid"
-          />
-          <KpiTile
-            label="Creator take-home"
-            value={formatUSD(perf.totalTakeHome, { decimals: 0 })}
-            sub={`Net to ${c?.name ?? "creator"}`}
-            icon={Sparkles}
-          />
-          <KpiTile
-            label="On-time invoices"
-            value={
-              perf.invoiceOnTimeRate == null
-                ? "—"
-                : `${Math.round(perf.invoiceOnTimeRate * 100)}%`
-            }
-            sub={
-              perf.invoicePaidCount === 0
-                ? "No paid invoices yet"
-                : `${perf.invoiceOnTimeCount} of ${perf.invoicePaidCount} paid before due`
-            }
-            icon={CalendarDays}
-            tone={
-              perf.invoiceOnTimeRate == null
-                ? "default"
-                : perf.invoiceOnTimeRate >= 0.85
-                  ? "paid"
-                  : perf.invoiceOnTimeRate >= 0.6
-                    ? "partial"
-                    : "overdue"
-            }
-          />
-        </div>
+        <MetricStrip
+          tiles={[
+            {
+              label: "Gross billed",
+              value: formatUSD(perf.totalGross, { decimals: 0 }),
+              sub: periodLabel(perf, mode, year),
+              icon: TrendingUp,
+            },
+            {
+              label: "Recast commission",
+              value: formatUSD(perf.totalRecast, { decimals: 0 }),
+              sub:
+                perf.totalGross > 0
+                  ? `${((perf.totalRecast / perf.totalGross) * 100).toFixed(1)}% effective`
+                  : "—",
+              icon: CircleDollarSign,
+              tone: "paid",
+            },
+            {
+              label: "Creator take-home",
+              value: formatUSD(perf.totalTakeHome, { decimals: 0 }),
+              sub: `Net to ${c?.name ?? "creator"}`,
+              icon: Sparkles,
+            },
+            {
+              label: "On-time invoices",
+              value:
+                perf.invoiceOnTimeRate == null
+                  ? "—"
+                  : `${Math.round(perf.invoiceOnTimeRate * 100)}%`,
+              sub:
+                perf.invoicePaidCount === 0
+                  ? "No paid invoices yet"
+                  : `${perf.invoiceOnTimeCount} of ${perf.invoicePaidCount} paid before due`,
+              icon: CalendarDays,
+              tone:
+                perf.invoiceOnTimeRate == null
+                  ? "default"
+                  : perf.invoiceOnTimeRate >= 0.85
+                    ? "paid"
+                    : perf.invoiceOnTimeRate >= 0.6
+                      ? "partial"
+                      : "overdue",
+            },
+          ]}
+        />
       )}
 
       {/* ── Per-platform breakdown ───────────────────────────────────── */}
@@ -410,47 +408,8 @@ function ViewSwitch({
   );
 }
 
-function KpiTile({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number | string }>;
-  tone?: "default" | "paid" | "partial" | "overdue";
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-tile-md",
-        tone === "paid" && "border-t border-t-paid",
-        tone === "partial" && "border-t border-t-partial",
-        tone === "overdue" && "border-t border-t-overdue",
-      )}
-    >
-      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-steel">
-        <Icon className="h-3 w-3" strokeWidth={1.5} />
-        {label}
-      </div>
-      <div
-        className={cn(
-          "tabular mt-2 font-display text-kpi font-extrabold leading-none tracking-[-0.022em]",
-          tone === "paid" && "text-paid",
-          tone === "partial" && "text-partial",
-          tone === "overdue" && "text-overdue",
-          tone === "default" && "text-white",
-        )}
-      >
-        {value}
-      </div>
-      <div className="mt-1 text-small text-steel">{sub}</div>
-    </div>
-  );
-}
+// R5 follow-up: local KpiTile removed — consolidated onto
+// `MetricStrip` / `MetricTile` from @/components/recast.
 
 function PlatformCard({
   label,

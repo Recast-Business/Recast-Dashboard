@@ -40,10 +40,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatUSD } from "@/lib/utils";
 import {
-  PipelineHeader,
-  PipelineKpiStrip,
-  type PipelineKpiTile,
-} from "@/components/layout/PipelineSection";
+  PageHeader,
+  MetricStrip,
+  type MetricTile,
+} from "@/components/recast";
 import {
   useBriefs,
   useCreateBrief,
@@ -83,7 +83,7 @@ export function BriefBoard() {
   // KPI rollups for the strip. Pipeline value sums every non-lost
   // brief's budget; promoted = briefs that already have a linked
   // campaign; active = anything not lost and not yet promoted.
-  const kpis = React.useMemo<PipelineKpiTile[]>(() => {
+  const kpis = React.useMemo<MetricTile[]>(() => {
     const rows = data ?? [];
     const nonLost = rows.filter((b) => b.stage !== "lost");
     const promoted = rows.filter((b) => b.linked_campaign_id);
@@ -128,7 +128,7 @@ export function BriefBoard() {
 
   return (
     <div className="space-y-6">
-      <PipelineHeader
+      <PageHeader
         breadcrumb="Pipeline · Brief Builder"
         eyebrow="Outbound deal pipeline"
         title="Brief Builder"
@@ -141,7 +141,7 @@ export function BriefBoard() {
         actions={canEdit ? <BriefDialog /> : undefined}
       />
 
-      {!isLoading ? <PipelineKpiStrip tiles={kpis} /> : null}
+      {!isLoading ? <MetricStrip tiles={kpis} /> : null}
 
       {isLoading ? (
         <div className="grid grid-cols-5 gap-3">

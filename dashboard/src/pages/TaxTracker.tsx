@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EyebrowLabel } from "@/components/recast";
+import { EyebrowLabel, MetricStrip } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { useTaxTrackerSubjects, useUpsertTaxRecord, useUpdateSubjectTax } from "@/hooks/useTaxRecords";
 import type { TaxTrackerRow } from "@/hooks/useTaxRecords";
@@ -116,46 +116,48 @@ export function TaxTrackerPage() {
       </div>
 
       {/* ── KPI strip ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <CountTile label="Tracked subjects" count={kpis.total} icon={IdCard} />
-        <CountTile
-          label="W9 received"
-          count={kpis.w9Received}
-          subtle={
-            kpis.total > 0
-              ? `${Math.round((kpis.w9Received / kpis.total) * 100)}% of tracked`
-              : undefined
-          }
-          icon={FileCheck2}
-          tone={
-            kpis.total > 0 && kpis.w9Received < kpis.total
-              ? "partial"
-              : "paid"
-          }
-        />
-        <CountTile
-          label="1099s sent"
-          count={kpis.ten99Sent}
-          subtle={`for ${year}`}
-          icon={Receipt}
-          tone={
-            kpis.total > 0 && kpis.ten99Sent < kpis.total
-              ? "partial"
-              : "paid"
-          }
-        />
-        <CountTile
-          label="Amounts entered"
-          count={kpis.withAmount}
-          subtle={`for ${year}`}
-          icon={AlertTriangle}
-          tone={
-            kpis.total > 0 && kpis.withAmount < kpis.total
-              ? "partial"
-              : "paid"
-          }
-        />
-      </div>
+      <MetricStrip
+        tiles={[
+          {
+            label: "Tracked subjects",
+            value: String(kpis.total),
+            icon: IdCard,
+          },
+          {
+            label: "W9 received",
+            value: String(kpis.w9Received),
+            sub:
+              kpis.total > 0
+                ? `${Math.round((kpis.w9Received / kpis.total) * 100)}% of tracked`
+                : undefined,
+            icon: FileCheck2,
+            tone:
+              kpis.total > 0 && kpis.w9Received < kpis.total
+                ? "partial"
+                : "paid",
+          },
+          {
+            label: "1099s sent",
+            value: String(kpis.ten99Sent),
+            sub: `for ${year}`,
+            icon: Receipt,
+            tone:
+              kpis.total > 0 && kpis.ten99Sent < kpis.total
+                ? "partial"
+                : "paid",
+          },
+          {
+            label: "Amounts entered",
+            value: String(kpis.withAmount),
+            sub: `for ${year}`,
+            icon: AlertTriangle,
+            tone:
+              kpis.total > 0 && kpis.withAmount < kpis.total
+                ? "partial"
+                : "paid",
+          },
+        ]}
+      />
 
       {/* ── Action row ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -530,51 +532,8 @@ function StatusCell({
   );
 }
 
-function CountTile({
-  label,
-  count,
-  subtle,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  count: number;
-  subtle?: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number | string }>;
-  tone?: "default" | "paid" | "partial" | "overdue";
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-tile-md",
-        tone === "paid" && "border-t border-t-paid",
-        tone === "partial" && "border-t border-t-partial",
-        tone === "overdue" && "border-t border-t-overdue",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-steel">
-          <Icon className="h-3 w-3" strokeWidth={1.5} />
-          {label}
-        </span>
-      </div>
-      <div
-        className={cn(
-          "tabular mt-2 font-display text-kpi font-extrabold leading-none tracking-[-0.022em]",
-          tone === "paid" && "text-paid",
-          tone === "partial" && "text-partial",
-          tone === "overdue" && "text-overdue",
-          tone === "default" && "text-white",
-        )}
-      >
-        {count}
-      </div>
-      {subtle ? (
-        <div className="mt-1 text-small text-steel">{subtle}</div>
-      ) : null}
-    </div>
-  );
-}
+// R5 follow-up: local CountTile removed — consolidated onto
+// `MetricStrip` / `MetricTile` from @/components/recast.
 
 function YearSelector({
   value,

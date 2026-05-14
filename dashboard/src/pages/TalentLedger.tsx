@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EyebrowLabel } from "@/components/recast";
+import { EyebrowLabel, MetricStrip } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { useCreators } from "@/hooks/useCreators";
 import { useAllCreatorAgreements } from "@/hooks/useCreatorAgreements";
@@ -273,36 +273,37 @@ export function TalentLedgerPage() {
       </div>
 
       {/* ── KPI strip (4 counts) ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <CountTile
-          label="Total signed"
-          count={kpis.total}
-          icon={Users}
-        />
-        <CountTile
-          label="Profiles complete"
-          count={kpis.complete}
-          subtle={
-            kpis.total > 0
-              ? `${Math.round((kpis.complete / kpis.total) * 100)}% of roster`
-              : undefined
-          }
-          icon={CheckCircle2}
-          tone="paid"
-        />
-        <CountTile
-          label="Missing commission"
-          count={kpis.missingCommission}
-          icon={AlertTriangle}
-          tone={kpis.missingCommission > 0 ? "partial" : "default"}
-        />
-        <CountTile
-          label="Missing agreements"
-          count={kpis.missingAgreements}
-          icon={FileSignature}
-          tone={kpis.missingAgreements > 0 ? "partial" : "default"}
-        />
-      </div>
+      <MetricStrip
+        tiles={[
+          {
+            label: "Total signed",
+            value: String(kpis.total),
+            icon: Users,
+          },
+          {
+            label: "Profiles complete",
+            value: String(kpis.complete),
+            sub:
+              kpis.total > 0
+                ? `${Math.round((kpis.complete / kpis.total) * 100)}% of roster`
+                : undefined,
+            icon: CheckCircle2,
+            tone: "paid",
+          },
+          {
+            label: "Missing commission",
+            value: String(kpis.missingCommission),
+            icon: AlertTriangle,
+            tone: kpis.missingCommission > 0 ? "partial" : "default",
+          },
+          {
+            label: "Missing agreements",
+            value: String(kpis.missingAgreements),
+            icon: FileSignature,
+            tone: kpis.missingAgreements > 0 ? "partial" : "default",
+          },
+        ]}
+      />
 
       {/* ── Filter row ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -773,51 +774,5 @@ function AgreementPill({ agreements }: { agreements: CreatorAgreement[] }) {
   );
 }
 
-function CountTile({
-  label,
-  count,
-  subtle,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  count: number;
-  subtle?: string;
-  // lucide-react exposes its icons as ForwardRefExoticComponent<LucideProps>
-  // — accept the wider lucide shape rather than narrowing it. Their
-  // `strokeWidth` is `number | string`, hence the union.
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number | string }>;
-  tone?: "default" | "paid" | "partial" | "overdue";
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-tile-md",
-        tone === "paid" && "border-t border-t-paid",
-        tone === "partial" && "border-t border-t-partial",
-        tone === "overdue" && "border-t border-t-overdue",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-steel">
-          <Icon className="h-3 w-3" strokeWidth={1.5} />
-          {label}
-        </span>
-      </div>
-      <div
-        className={cn(
-          "tabular mt-2 font-display text-kpi font-extrabold leading-none tracking-[-0.022em]",
-          tone === "paid" && "text-paid",
-          tone === "partial" && "text-partial",
-          tone === "overdue" && "text-overdue",
-          tone === "default" && "text-white",
-        )}
-      >
-        {count}
-      </div>
-      {subtle ? (
-        <div className="mt-1 text-small text-steel">{subtle}</div>
-      ) : null}
-    </div>
-  );
-}
+// R5 follow-up: local CountTile removed — consolidated onto
+// `MetricStrip` / `MetricTile` from @/components/recast.

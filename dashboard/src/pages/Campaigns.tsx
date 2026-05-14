@@ -10,10 +10,10 @@ import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import {
-  PipelineHeader,
-  PipelineKpiStrip,
-  type PipelineKpiTile,
-} from "@/components/layout/PipelineSection";
+  PageHeader,
+  MetricStrip,
+  type MetricTile,
+} from "@/components/recast";
 import type { CSVColumn } from "@/lib/export/csv";
 import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ export function CampaignsPage() {
     search,
   });
 
-  const kpis = React.useMemo<PipelineKpiTile[]>(() => {
+  const kpis = React.useMemo<MetricTile[]>(() => {
     const rows = allCampaigns ?? [];
     const byStatus = (s: CampaignStatusV2) => rows.filter((c) => c.status === s).length;
     const overdue = byStatus("overdue");
@@ -84,7 +84,7 @@ export function CampaignsPage() {
 
   return (
     <div className="space-y-6">
-      <PipelineHeader
+      <PageHeader
         breadcrumb="Pipeline · Campaigns"
         eyebrow={`Brand deals · ${year}`}
         title="Campaigns"
@@ -118,7 +118,7 @@ export function CampaignsPage() {
         }
       />
 
-      <PipelineKpiStrip tiles={kpis} />
+      <MetricStrip tiles={kpis} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Input

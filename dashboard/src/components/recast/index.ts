@@ -16,3 +16,9 @@ export { KpiTile } from "./KpiTile";
 export { InvoiceCell } from "./InvoiceCell";
 export { Avatar } from "./Avatar";
 export { Sparkline } from "./Sparkline";
+export {
+  PageHeader,
+  MetricStrip,
+  type MetricTile,
+  type MetricTone,
+} from "./MetricStrip";

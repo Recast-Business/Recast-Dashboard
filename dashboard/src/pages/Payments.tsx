@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EyebrowLabel, MoneyCell } from "@/components/recast";
+import { EyebrowLabel, MetricStrip, MoneyCell } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import {
   useAllPaymentReceipts,
@@ -206,41 +206,42 @@ export function PaymentsPage() {
       </div>
 
       {/* ── KPI strip ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiTile
-          label="Receipts logged"
-          value={String(filtered.length)}
-          sub={`${year}`}
-          icon={Receipt}
-        />
-        <KpiTile
-          label="Total moved"
-          value={formatUSD(totalAmount, { decimals: 0 })}
-          sub={
-            filtered.length > 0
-              ? `Avg ${formatUSD(totalAmount / filtered.length, { decimals: 0 })}`
-              : "—"
-          }
-          icon={Wallet}
-          tone="paid"
-        />
-        <KpiTile
-          label="Allocated"
-          value={String(
-            filtered.reduce((n, r) => n + r.allocations.length, 0),
-          )}
-          sub="period rows touched"
-          icon={ChevronRight}
-        />
-        <KpiTile
-          label="Filtered out"
-          value={String(
-            (receipts?.length ?? 0) - filtered.length,
-          )}
-          sub={search.trim() ? `Search: "${search.trim()}"` : "Source filters"}
-          icon={Search}
-        />
-      </div>
+      <MetricStrip
+        tiles={[
+          {
+            label: "Receipts logged",
+            value: String(filtered.length),
+            sub: `${year}`,
+            icon: Receipt,
+          },
+          {
+            label: "Total moved",
+            value: formatUSD(totalAmount, { decimals: 0 }),
+            sub:
+              filtered.length > 0
+                ? `Avg ${formatUSD(totalAmount / filtered.length, { decimals: 0 })}`
+                : "—",
+            icon: Wallet,
+            tone: "paid",
+          },
+          {
+            label: "Allocated",
+            value: String(
+              filtered.reduce((n, r) => n + r.allocations.length, 0),
+            ),
+            sub: "period rows touched",
+            icon: ChevronRight,
+          },
+          {
+            label: "Filtered out",
+            value: String((receipts?.length ?? 0) - filtered.length),
+            sub: search.trim()
+              ? `Search: "${search.trim()}"`
+              : "Source filters",
+            icon: Search,
+          },
+        ]}
+      />
 
       {/* ── Filter row ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -499,37 +500,8 @@ function Th({ children, right }: { children?: React.ReactNode; right?: boolean }
   );
 }
 
-function KpiTile({
-  label,
-  value,
-  sub,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number | string }>;
-  tone?: "default" | "paid";
-}) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
-        <Icon className="h-3 w-3" strokeWidth={1.5} />
-        {label}
-      </div>
-      <div
-        className={cn(
-          "tabular mt-3 font-display text-h2 font-extrabold leading-none",
-          tone === "paid" ? "text-paid" : "text-white",
-        )}
-      >
-        {value}
-      </div>
-      {sub ? <div className="mt-1 text-[11px] text-steel">{sub}</div> : null}
-    </div>
-  );
-}
+// R5 follow-up: local KpiTile removed — consolidated onto
+// `MetricStrip` / `MetricTile` from @/components/recast.
 
 function YearPicker({
   year,
