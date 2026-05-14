@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, MoreVertical, Pencil, Plus, Rocket, Trash2 } from "lucide-react";
 import { EyebrowLabel } from "@/components/recast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ import {
   useCreateBrief,
   useDeleteBrief,
   useMoveBrief,
+  usePromoteBriefToCampaign,
   useUpdateBrief,
   type BriefInput,
   type BriefRow,
@@ -184,6 +185,13 @@ function BriefCard({
   onDelete: () => void;
 }) {
   const move = useMoveBrief();
+  const promote = usePromoteBriefToCampaign();
+  // R5 follow-up: promotion is only available when the brief isn't
+  // already linked AND it has a brand on file (campaigns.brand is
+  // NOT NULL post-0020). The button is hidden in both other cases so
+  // we don't render a click that's guaranteed to toast-fail.
+  const canPromote =
+    !brief.linked_campaign_id && !!brief.brand && !!brief.brand.trim();
 
   return (
     <div
@@ -211,6 +219,14 @@ function BriefCard({
               <DropdownMenuItem onSelect={onEdit}>
                 <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
               </DropdownMenuItem>
+              {canPromote ? (
+                <DropdownMenuItem
+                  onSelect={() => promote.mutate({ brief })}
+                  disabled={promote.isPending}
+                >
+                  <Rocket className="mr-2 h-3.5 w-3.5" /> Promote to campaign
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem
                 onSelect={onDelete}
                 className="text-destructive focus:text-destructive"
