@@ -12,21 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DatePicker } from "@/components/ui/date-picker";
-import {
   useUpsertRentPayment,
   useUpsertUtilityPayment,
 } from "@/hooks/useHouse";
 import type {
   HouseRentPayment,
   HouseUtilityPayment,
-  PaymentStatusV2,
 } from "@/types/finance";
 import { formatUSD } from "@/lib/utils";
 
@@ -67,8 +58,6 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
 
   const existing = mode.existing;
   const [amount, setAmount] = React.useState("");
-  const [status, setStatus] = React.useState<PaymentStatusV2>("unpaid");
-  const [paidAt, setPaidAt] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
   React.useEffect(() => {
@@ -80,8 +69,6 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
         ? String(mode.defaultRent)
         : "",
     );
-    setStatus(existing?.status ?? "unpaid");
-    setPaidAt(existing?.paid_at ?? "");
     setNotes(existing?.notes ?? "");
   }, [open, existing, mode]);
 
@@ -98,8 +85,6 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
           period_year: year,
           period_month: month,
           amount: amountNum,
-          status,
-          paid_at: paidAt || null,
           notes: notes.trim() || null,
         });
       } else {
@@ -108,8 +93,6 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
           period_year: year,
           period_month: month,
           amount: amountNum,
-          status,
-          paid_at: paidAt || null,
           notes: notes.trim() || null,
         });
       }
@@ -155,38 +138,28 @@ export function HouseCellDialog({ open, onOpenChange, year, month, mode }: Props
         </DialogHeader>
 
         <div className="grid gap-3 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="hc-amount">Amount</Label>
-              <Input
-                id="hc-amount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="hc-amount">Amount</Label>
+            <Input
+              id="hc-amount"
+              type="number"
+              step="0.01"
+              min="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="hc-paid">Paid date</Label>
-            <DatePicker id="hc-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
+          {/* Status auto-derives from logged receipts vs. the
+              period's end-of-month deadline. Log a payment in the
+              Frazier's House log to mark this period paid; no
+              manual flip needed. */}
+          <div className="rounded-md border bg-muted/10 p-3 text-xs text-muted-foreground">
+            Status auto-derives from the payment log + this month's
+            due date. Log a payment in the Frazier's House panel to
+            mark this cell paid; once the month ends with no
+            payment, it flips to overdue.
           </div>
 
           <div className="grid gap-1.5">

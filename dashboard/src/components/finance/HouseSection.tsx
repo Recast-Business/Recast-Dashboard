@@ -19,8 +19,8 @@ import {
   useHouseUtilities,
   useHouseUtilityPayments,
   useRentGroups,
-  useUpsertRentPayment,
 } from "@/hooks/useHouse";
+import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
 import { useConfirm } from "@/hooks/useConfirm";
 import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
@@ -149,7 +149,6 @@ function BedroomsRentPanel({
   residents: HouseResident[];
   rentByGroup: Record<string, Record<number, HouseRentPayment>>;
 }) {
-  const upsert = useUpsertRentPayment();
   const del = useDeleteResident();
   const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -170,26 +169,17 @@ function BedroomsRentPanel({
     return map;
   }, [residents]);
 
-  async function quickToggleRent(
-    group: RentGroup,
-    month: number,
-    current?: HouseRentPayment,
-  ) {
-    const nextStatus: PaymentStatusV2 =
-      !current || current.status === "unpaid" ? "paid" : "unpaid";
-    try {
-      await upsert.mutateAsync({
-        rent_group_id: group.id,
-        period_year: year,
-        period_month: month,
-        amount: current?.amount ?? group.monthly_rent,
-        status: nextStatus,
-        paid_at: nextStatus === "paid" ? new Date().toISOString().slice(0, 10) : null,
-        notes: current?.notes ?? null,
-      });
-    } catch (e) {
-      toast.error(`Update failed: ${(e as Error).message}`);
-    }
+  // Helper: derive a cell's effective status from amount_paid + period
+  // EOM. Bruno: rent status is auto-derived; no manual flip. Receipts
+  // logged via the Frazier's House payment box drive the pill colors.
+  function deriveStatus(c: HouseRentPayment | undefined): PaymentStatusV2 {
+    if (!c) return "unpaid";
+    return effectiveInvoiceStatus({
+      amount: Number(c.amount) || 0,
+      amount_paid: Number(c.amount_paid) || 0,
+      period_year: c.period_year,
+      period_month: c.period_month,
+    });
   }
 
   async function onDeleteResident(r: HouseResident) {
@@ -219,9 +209,9 @@ function BedroomsRentPanel({
       for (let m = 1; m <= 12; m++) {
         totalCells++;
         const c = cells[m];
-        if (c?.status === "paid") {
+        if (deriveStatus(c) === "paid") {
           paidCount++;
-          totalRent += Number(c.amount) || 0;
+          totalRent += Number(c?.amount) || 0;
         }
       }
     }
@@ -234,7 +224,7 @@ function BedroomsRentPanel({
         <div>
           <h2 className="text-h3">Bedrooms — Rent</h2>
           <p className="text-sm text-muted-foreground">
-            Click any month cell to toggle paid · Right-click for amount/notes/date.
+            Click any month cell to set the amount owed. Status pills auto-derive from the payment log.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -280,7 +270,7 @@ function BedroomsRentPanel({
               // M-0 bug fix: YTD = paid only, so unselect subtracts.
               const ytd = Object.values(cells).reduce(
                 (sum, p) =>
-                  p.status === "paid" ? sum + (Number(p.amount) || 0) : sum,
+                  deriveStatus(p) === "paid" ? sum + (Number(p.amount) || 0) : sum,
                 0,
               );
               return (
@@ -300,24 +290,14 @@ function BedroomsRentPanel({
                   {MONTHS.map((_label, i) => {
                     const month = i + 1;
                     const cell = cells[month];
-                    const status = cell?.status ?? "unpaid";
+                    const status = deriveStatus(cell);
                     const displayAmount = cell?.amount != null ? Number(cell.amount) : g.monthly_rent;
                     return (
                       <TableCell key={month} className="p-1">
                         <button
                           type="button"
-                          onClick={(e) => {
-                            if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                              setEditingCell({ group: g, month });
-                            } else {
-                              quickToggleRent(g, month, cell);
-                            }
-                          }}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setEditingCell({ group: g, month });
-                          }}
-                          title={`${formatUSD(displayAmount, { decimals: 2 })} · ${status} · click to toggle, right-click for full edit`}
+                          onClick={() => setEditingCell({ group: g, month })}
+                          title={`${formatUSD(displayAmount, { decimals: 2 })} · ${status} · click to edit`}
                           className={cn(
                             "block w-full rounded px-1 py-1.5 text-center font-semibold tabular-nums transition hover:ring-2 hover:ring-primary/40",
                             STATUS_STYLES[status],
@@ -554,7 +534,14 @@ function UtilitiesPanel({
                   {MONTHS.map((_label, i) => {
                     const month = i + 1;
                     const cell = cells[month];
-                    const status = cell?.status ?? "unpaid";
+                    const status: PaymentStatusV2 = cell
+                      ? effectiveInvoiceStatus({
+                          amount: Number(cell.amount) || 0,
+                          amount_paid: Number(cell.amount_paid) || 0,
+                          period_year: cell.period_year,
+                          period_month: cell.period_month,
+                        })
+                      : "unpaid";
                     return (
                       <TableCell key={month} className="p-1">
                         <button

@@ -5,7 +5,6 @@ import type {
   HouseUtility,
   HouseUtilityPayment,
   HouseRentPayment,
-  PaymentStatusV2,
   RentGroup,
 } from "@/types/finance";
 
@@ -173,8 +172,6 @@ export interface UtilityPaymentInput {
   period_year: number;
   period_month: number;
   amount: number;
-  status?: PaymentStatusV2;
-  paid_at?: string | null;
   notes?: string | null;
 }
 
@@ -182,6 +179,9 @@ export function useUpsertUtilityPayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UtilityPaymentInput) => {
+      // status + paid_at intentionally omitted — effective status is
+      // derived from amount_paid + period EOM via effectiveInvoiceStatus.
+      // Same pattern as campaign_payments (commit 8f247d5).
       const { data, error } = await supabase
         .from("house_utility_payments")
         .upsert(
@@ -190,8 +190,6 @@ export function useUpsertUtilityPayment() {
             period_year: input.period_year,
             period_month: input.period_month,
             amount: input.amount,
-            status: input.status ?? "unpaid",
-            paid_at: input.paid_at ?? null,
             notes: input.notes ?? null,
           },
           { onConflict: "utility_id,period_year,period_month" },
@@ -239,8 +237,6 @@ export interface RentPaymentInput {
   period_year: number;
   period_month: number;
   amount: number;
-  status?: PaymentStatusV2;
-  paid_at?: string | null;
   notes?: string | null;
 }
 
@@ -248,6 +244,8 @@ export function useUpsertRentPayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: RentPaymentInput) => {
+      // status + paid_at intentionally omitted — effective status is
+      // derived from amount_paid + period EOM via effectiveInvoiceStatus.
       const { data, error } = await supabase
         .from("house_rent_payments")
         .upsert(
@@ -256,8 +254,6 @@ export function useUpsertRentPayment() {
             period_year: input.period_year,
             period_month: input.period_month,
             amount: input.amount,
-            status: input.status ?? "unpaid",
-            paid_at: input.paid_at ?? null,
             notes: input.notes ?? null,
           },
           { onConflict: "rent_group_id,period_year,period_month" },
