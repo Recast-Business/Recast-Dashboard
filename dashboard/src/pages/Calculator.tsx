@@ -83,11 +83,13 @@ export function CalculatorPage() {
           <TabsTrigger value="telegram" className="px-4">
             Telegram
           </TabsTrigger>
+          {/* R5 follow-up (Gus): "Ad Overlay" tab merged INTO "Deals".
+              Both surfaces were about brand-deal math + visibility, so
+              splitting them across two tabs forced unnecessary clicks.
+              Deals now shows the Campaigns pointer plus the per-
+              campaign overlay performance read-out underneath. */}
           <TabsTrigger value="deals" className="px-4">
             Deals
-          </TabsTrigger>
-          <TabsTrigger value="overlay" className="px-4">
-            Ad Overlay
           </TabsTrigger>
         </TabsList>
 
@@ -99,15 +101,11 @@ export function CalculatorPage() {
           <TeleIncomeSection year={year} talentFilterId={talentId} />
         </TabsContent>
 
-        <TabsContent value="deals">
+        <TabsContent value="deals" className="space-y-4">
           <DealsPointer />
-        </TabsContent>
-
-        <TabsContent value="overlay">
-          {/* R3E follow-up (Gustavo Q5 = option a): Overlay now
-              scopes to campaigns where the picked creator is
-              attached. With no talent picked, full division
-              roll-up like before. */}
+          {/* R3E follow-up + R5 merge: scopes to campaigns where the
+              picked creator is attached. With no talent picked, full
+              division roll-up like before. */}
           <EFuseIncomeSummary year={year} talentFilterId={talentId} />
         </TabsContent>
       </Tabs>
