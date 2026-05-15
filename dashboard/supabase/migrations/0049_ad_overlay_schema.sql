@@ -12,11 +12,13 @@
 --     per month. Stored on campaign_payments so they're recoverable
 --     instead of thrown away after compute like the old metrics.
 
--- ── 1. Migrate existing data into the type column ────────────────
+-- ── 1. Migrate existing data into the campaign_type column ───────
+--   (0020_finance_overhaul.sql renamed the column from `type` to
+--    `campaign_type`; 0008 had originally added it as `type`.)
 update campaigns
-set    type = 'Ad Overlay'
+set    campaign_type = 'Ad Overlay'
 where  is_ad_overlay = true
-  and  (type is null or type <> 'Ad Overlay');
+  and  (campaign_type is null or campaign_type <> 'Ad Overlay');
 
 -- ── 2. Drop the redundant boolean ────────────────────────────────
 alter table campaigns drop column if exists is_ad_overlay;
