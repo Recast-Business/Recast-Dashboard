@@ -9,7 +9,7 @@
 // actually used. Re-introduce a full `Database` type via the Supabase
 // codegen when we want strict end-to-end typing.
 
-export type UserRole = "admin" | "partner" | "finance" | "operator";
+export type UserRole = "admin" | "partner" | "accounting" | "operator";
 
 /** briefs.stage enum (migration 0005). */
 export type BriefStage =

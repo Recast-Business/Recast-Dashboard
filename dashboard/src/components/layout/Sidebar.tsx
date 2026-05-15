@@ -88,15 +88,15 @@ interface NavSection {
 const WORKSPACE_SECTION: NavSection = {
   header: "Workspace",
   items: [
-    { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "finance"] },
+    { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "accounting"] },
     // R5 follow-up: label renamed from "Finance" to "Invoice" per
     // Gustavo. The /finance route is unchanged — the page itself is
     // the talent-invoice grid, so the new label reads more honestly.
-    { to: "/finance", label: "Invoice", icon: DollarSign, allow: ["admin", "partner", "finance"] },
+    { to: "/finance", label: "Invoice", icon: DollarSign, allow: ["admin", "partner", "accounting"] },
     // R5 Sweep 8: Calculator excluded from partner. Partners don't
     // price deals; the tool was visual noise in their nav. Admin /
     // finance / operator still see it.
-    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "finance", "operator"] },
+    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "accounting", "operator"] },
     // Round 3 follow-up: Vendors / Talents / Frazier's House
     // collapsed into Workspace per Gustavo. The standalone
     // LEDGERS section is gone — these three sit beneath the
@@ -104,20 +104,20 @@ const WORKSPACE_SECTION: NavSection = {
     // instead of three thin sections. Role gating is unchanged
     // (Talent Ledger still admin + finance only; Vendors + House
     // exclude operator).
-    { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "finance"] },
+    { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "accounting"] },
     // R5 Sweep 8: "Talents" → "Talent Ledger" rename. Disambiguates
     // from the operational Roster lens (Pipeline section) and
     // mirrors the page's internal title (TalentLedger.tsx).
-    { to: "/talents", label: "Talent Ledger", icon: Users, allow: ["admin", "finance"] },
-    { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "finance"] },
+    { to: "/talents", label: "Talent Ledger", icon: Users, allow: ["admin", "accounting"] },
+    { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "accounting"] },
     // R5 Sweep 5: unified payments log. Admin + finance only —
     // surfaces every payment receipt across vendors / campaigns /
     // talents / house in one filterable view. Read-only for
     // partner since some receipts contain talent earnings.
-    { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "finance"] },
+    { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "accounting"] },
     // R4.B: Year-end tax tracker — admin + finance only because
     // it surfaces W9 / 1099 / amount-reported data.
-    { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "finance"] },
+    { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "accounting"] },
   ],
 };
 
@@ -134,12 +134,12 @@ const PIPELINE_SECTION: NavSection = {
     // is the CRM/financial lens — legal name, address,
     // commission tiers, agreements — restricted to admin +
     // finance.
-    { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "finance", "operator"], badge: "roster" },
+    { to: "/roster", label: "Roster", icon: UserCheck, allow: ["admin", "partner", "accounting", "operator"], badge: "roster" },
     // Round 3 follow-up: Campaigns sits at the END of Pipeline as
     // the natural endpoint of the funnel (brief → leads →
     // potential → scout → roster → live brand deal). All four
     // roles see it; brand-deal accounting is everyone's business.
-    { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "finance", "operator"] },
+    { to: "/campaigns", label: "Campaigns", icon: Megaphone, allow: ["admin", "partner", "accounting", "operator"] },
   ],
 };
 

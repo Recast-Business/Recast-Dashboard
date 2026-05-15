@@ -57,7 +57,7 @@ export function HousePaymentLogPanel({ year }: Props) {
   // R5 follow-up (roles audit): partner sees the log read-only.
   // Edit/Delete icons + EditReceiptDialog are gated by canWrite.
   const { role } = useAuth();
-  const canWrite = role === "admin" || role === "finance";
+  const canWrite = role === "admin" || role === "accounting";
 
   const { data, isLoading } = useHouseAllReceipts(year);
   const del = useDeleteReceipt();

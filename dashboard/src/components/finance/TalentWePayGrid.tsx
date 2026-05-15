@@ -52,7 +52,7 @@ export function TalentWePayGrid({ year }: Props) {
   // the "+ Add Talent" button, per-row edit/delete pencil/trash, and
   // any cell click that would open a write dialog.
   const { role } = useAuth();
-  const canWrite = role === "admin" || role === "finance";
+  const canWrite = role === "admin" || role === "accounting";
 
   const { data: vendors, isLoading: vendorsLoading } = useVendors({ kind: "talent_we_pay" });
 

@@ -282,7 +282,7 @@ export interface VaultAccessLogEntry {
   banking_id: string | null;
   user_id: string | null;
   user_email: string | null;
-  user_role: "admin" | "partner" | "finance" | null;
+  user_role: "admin" | "partner" | "accounting" | null;
   action: "view" | "create" | "update" | "delete";
   ip_address: string | null;
   user_agent: string | null;

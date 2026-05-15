@@ -107,7 +107,7 @@ const COMMISSION_AGREEMENT_PLATFORMS = new Set(["onlyfans", "telegram", "efuse"]
 
 export function TalentLedgerPage() {
   const { role } = useAuth();
-  const canEdit = role === "admin" || role === "finance";
+  const canEdit = role === "admin" || role === "accounting";
   const { data, isLoading, error } = useCreators("signed");
   // R5 Sweep 3d: agreement data moved from creators.agreement_links
   // (deprecated JSON map) to the creator_agreements table. One query

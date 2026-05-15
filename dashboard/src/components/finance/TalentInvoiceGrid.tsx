@@ -73,7 +73,7 @@ export function TalentInvoiceGrid({ year }: Props) {
   // is the actual guarantee; this just keeps partner UX clean
   // (no clickable buttons that would toast-fail).
   const { role } = useAuth();
-  const canWrite = role === "admin" || role === "finance";
+  const canWrite = role === "admin" || role === "accounting";
   // R5 follow-up (Gus): the grid's row set is now the UNION of two
   // sources, not "only creators with ≥1 invoice":
   //   1. talent_grid_tracking rows for (paying_us, year) — explicit

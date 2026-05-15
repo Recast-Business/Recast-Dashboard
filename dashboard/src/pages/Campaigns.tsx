@@ -29,7 +29,7 @@ const STATUS_FILTERS: { value: CampaignStatusV2 | "all"; label: string }[] = [
 
 export function CampaignsPage() {
   const { role } = useAuth();
-  const canEdit = role === "admin" || role === "finance";
+  const canEdit = role === "admin" || role === "accounting";
   const currentYear = new Date().getFullYear();
   const [year, setYear] = React.useState(currentYear);
   const [search, setSearch] = React.useState("");

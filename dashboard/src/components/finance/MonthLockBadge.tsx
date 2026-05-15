@@ -46,7 +46,7 @@ export function MonthLockBadge({ year, month }: Props) {
   if (isMonthRecent(year, month)) return null;
 
   const unlocked = lock.isUnlocked(year, month);
-  const canToggle = role === "admin" || role === "finance";
+  const canToggle = role === "admin" || role === "accounting";
 
   async function onClick(e: React.MouseEvent) {
     e.stopPropagation();

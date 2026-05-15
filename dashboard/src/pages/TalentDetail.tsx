@@ -47,7 +47,7 @@ export function TalentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { role } = useAuth();
-  const canEdit = role === "admin" || role === "finance";
+  const canEdit = role === "admin" || role === "accounting";
 
   // Read the creator list once for the profile object (cheap — already
   // cached on /talents for the row that linked here).

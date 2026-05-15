@@ -28,7 +28,7 @@ export const router = createBrowserRouter([
   { path: "/unauthorized", element: <UnauthorizedPage /> },
   {
     element: (
-      <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+      <ProtectedRoute allow={["admin", "partner", "accounting", "operator"]}>
         <AppShell />
       </ProtectedRoute>
     ),
@@ -37,7 +37,7 @@ export const router = createBrowserRouter([
       {
         path: "overview",
         element: (
-          <ProtectedRoute allow={["admin", "finance"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <OverviewPage />
           </ProtectedRoute>
         ),
@@ -53,7 +53,7 @@ export const router = createBrowserRouter([
           // partner in Sweep 8 — partners don't price deals, the
           // tool was visual noise in their nav). Sidebar + router
           // are now aligned.
-          <ProtectedRoute allow={["admin", "finance", "operator"]}>
+          <ProtectedRoute allow={["admin", "accounting", "operator"]}>
             <CalculatorPage />
           </ProtectedRoute>
         ),
@@ -61,7 +61,7 @@ export const router = createBrowserRouter([
       {
         path: "campaigns",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting", "operator"]}>
             <CampaignsPage />
           </ProtectedRoute>
         ),
@@ -74,7 +74,7 @@ export const router = createBrowserRouter([
           // the router blocked them — fixed mismatch. Write actions
           // (Add Talent, edit/delete invoices) are gated inside the
           // grid components so partner sees data only.
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
             <FinancePage />
           </ProtectedRoute>
         ),
@@ -82,7 +82,7 @@ export const router = createBrowserRouter([
       {
         path: "roster",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting", "operator"]}>
             <RosterPage />
           </ProtectedRoute>
         ),
@@ -98,7 +98,7 @@ export const router = createBrowserRouter([
       {
         path: "talents",
         element: (
-          <ProtectedRoute allow={["admin", "finance"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <TalentLedgerPage />
           </ProtectedRoute>
         ),
@@ -109,7 +109,7 @@ export const router = createBrowserRouter([
       {
         path: "talents/:id",
         element: (
-          <ProtectedRoute allow={["admin", "finance"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <TalentDetailPage />
           </ProtectedRoute>
         ),
@@ -133,7 +133,7 @@ export const router = createBrowserRouter([
       {
         path: "creators/:id",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting", "operator"]}>
             <CreatorProfilePage />
           </ProtectedRoute>
         ),
@@ -157,7 +157,7 @@ export const router = createBrowserRouter([
       {
         path: "activity",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
             <ActivityPage />
           </ProtectedRoute>
         ),
@@ -167,7 +167,7 @@ export const router = createBrowserRouter([
       {
         path: "vendors",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
             <VendorsPage />
           </ProtectedRoute>
         ),
@@ -175,7 +175,7 @@ export const router = createBrowserRouter([
       {
         path: "vendors/:id",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
             <VendorDetailPage />
           </ProtectedRoute>
         ),
@@ -185,7 +185,7 @@ export const router = createBrowserRouter([
       {
         path: "house",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance"]}>
+          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
             <HousePage />
           </ProtectedRoute>
         ),
@@ -196,7 +196,7 @@ export const router = createBrowserRouter([
       {
         path: "tax",
         element: (
-          <ProtectedRoute allow={["admin", "finance"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <TaxTrackerPage />
           </ProtectedRoute>
         ),
@@ -208,7 +208,7 @@ export const router = createBrowserRouter([
       {
         path: "payments",
         element: (
-          <ProtectedRoute allow={["admin", "finance"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <PaymentsPage />
           </ProtectedRoute>
         ),

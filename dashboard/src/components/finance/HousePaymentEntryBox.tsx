@@ -67,7 +67,7 @@ export function HousePaymentEntryBox({ year, residents }: Props) {
   // hidden — they have no write permission on payment_receipts.
   // RLS at the DB layer is the real guarantee.
   const { role } = useAuth();
-  const canWrite = role === "admin" || role === "finance";
+  const canWrite = role === "admin" || role === "accounting";
 
   // R5 follow-up (Gus #5 + #7): the entry box now logs a COMBINED
   // rent + utility payment via useLogHouseCombinedPayment. The old
