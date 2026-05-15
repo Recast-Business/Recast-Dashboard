@@ -76,6 +76,10 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   allow: UserRole[];
   badge?: "roster" | "leads" | "potential";
+  /** When true, operators only see this item if their profile flag
+   *  view_campaign_financials = true. Bruno=true, Harry=false. Admin
+   *  + accounting are unaffected. */
+  requireViewCampaignFinancials?: boolean;
 }
 
 interface NavSection {
@@ -95,7 +99,7 @@ const WORKSPACE_SECTION: NavSection = {
     // R5 Sweep 8: Calculator excluded from partner. Partners don't
     // price deals; the tool was visual noise in their nav. Admin /
     // finance / operator still see it.
-    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "accounting"] },
+    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "accounting", "operator"], requireViewCampaignFinancials: true },
     // Round 3 follow-up: Vendors / Talents / Frazier's House
     // collapsed into Workspace per Gustavo. The standalone
     // LEDGERS section is gone — these three sit beneath the
@@ -158,7 +162,7 @@ function sectionsForRole(role: UserRole | null): NavSection[] {
 }
 
 export function Sidebar() {
-  const { role, user, signOut } = useAuth();
+  const { role, user, signOut, viewCampaignFinancials } = useAuth();
   const { data: counts } = useNavCounts();
   // R5 Sweep 8: pipeline-heavy roles see Pipeline first; money-heavy
   // roles keep Workspace on top.
@@ -195,7 +199,16 @@ export function Sidebar() {
             color steel / padding 1px 6px / rounded-full */}
       <nav className="flex-1 overflow-y-auto px-3.5 pb-3.5">
         {sections.map((section, i) => {
-          const visible = section.items.filter((item) => canAccess(role, item.allow));
+          const visible = section.items.filter((item) => {
+            if (!canAccess(role, item.allow)) return false;
+            // Operator gate: items flagged with requireViewCampaignFinancials
+            // hide for operators whose profile flag is off (e.g. Harry).
+            // Admin + accounting unaffected.
+            if (item.requireViewCampaignFinancials && role === "operator" && !viewCampaignFinancials) {
+              return false;
+            }
+            return true;
+          });
           if (visible.length === 0) return null;
           // Headed sections use the canonical 20px gap (mt-5) so the
           // uppercase eyebrow has breathing room above. Headerless
