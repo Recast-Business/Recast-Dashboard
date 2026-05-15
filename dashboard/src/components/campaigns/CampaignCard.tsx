@@ -149,6 +149,7 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
               <CampaignCreatorRow
                 key={cc.id}
                 campaignCreator={cc}
+                campaign={campaign}
                 defaultCommissionPct={campaign.default_commission_pct}
                 year={year}
                 payments={paymentsByCC?.[cc.id] ?? {}}
@@ -186,6 +187,7 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
               open
               onOpenChange={(o) => !o && setAddingCreator(false)}
               campaignId={campaign.id}
+              isAdOverlay={campaign.campaign_type === "Ad Overlay"}
               defaultCommissionPct={campaign.default_commission_pct}
               campaignCreator={null}
             />
@@ -195,6 +197,7 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
               open
               onOpenChange={(o) => !o && setEditingCreator(null)}
               campaignId={campaign.id}
+              isAdOverlay={campaign.campaign_type === "Ad Overlay"}
               defaultCommissionPct={campaign.default_commission_pct}
               campaignCreator={editingCreator}
             />

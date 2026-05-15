@@ -35,12 +35,16 @@ interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   campaignId: string;
+  /** True when the parent campaign's type is "Ad Overlay". The dialog
+   *  then hides the deal_type select + CPM/flat inputs (those live on
+   *  the campaign for AO deals) and locks deal_type = "cpm" silently. */
+  isAdOverlay?: boolean;
   defaultCommissionPct: number;
   campaignCreator: CampaignCreatorV2 | null;   // null = adding
 }
 
 export function CampaignCreatorDialog({
-  open, onOpenChange, campaignId, defaultCommissionPct, campaignCreator,
+  open, onOpenChange, campaignId, isAdOverlay = false, defaultCommissionPct, campaignCreator,
 }: Props) {
   const add = useAddCampaignCreator();
   const update = useUpdateCampaignCreator();
@@ -89,15 +93,18 @@ export function CampaignCreatorDialog({
 
   async function onSave() {
     if (!creatorId) return toast.error("Pick a creator.");
+    // Ad Overlay deals lock deal_type to 'cpm' silently and clear the
+    // per-creator CPM / flat columns — the rate card lives on the
+    // campaign and applies uniformly to every attached creator.
     const input: CampaignCreatorInput = {
       campaign_id: campaignId,
       creator_id: creatorId,
       commission_pct: overrideOn && overridePct.trim() ? Number(overridePct) : null,
       start_date: start || null,
       end_date: end || null,
-      deal_type: dealType,
-      cpm_rate: cpmRate.trim() ? Number(cpmRate) : null,
-      flat_amount: flatAmount.trim() ? Number(flatAmount) : null,
+      deal_type: isAdOverlay ? "cpm" : dealType,
+      cpm_rate: isAdOverlay ? null : (cpmRate.trim() ? Number(cpmRate) : null),
+      flat_amount: isAdOverlay ? null : (flatAmount.trim() ? Number(flatAmount) : null),
       notes: notes.trim() || null,
     };
     try {
@@ -167,47 +174,60 @@ export function CampaignCreatorDialog({
             onCreated={(id) => setCreatorId(id)}
           />
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Deal type</Label>
-              <Select value={dealType} onValueChange={(v) => setDealType(v as DealType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cpm">CPM</SelectItem>
-                  <SelectItem value="flat_fee">Flat fee</SelectItem>
-                  <SelectItem value="hybrid">Hybrid (CPM + flat)</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Deal type, CPM, and flat amount only surface for non-Ad-
+              Overlay campaigns. For AO deals the rate card (CPM + ad
+              frequency) lives on the campaign and applies uniformly;
+              the per-creator-per-month CCV + airtime are entered on
+              the period cell, not at attach time. */}
+          {isAdOverlay ? (
+            <div className="rounded-md border bg-muted/10 p-3 text-xs text-muted-foreground">
+              Ad Overlay deals use the campaign's CPM + ad frequency for
+              every attached creator. Enter the creator's monthly CCV +
+              airtime on the period cell.
             </div>
-            {seeFinancials && showCpm && (
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="cc-cpm">CPM rate ($/1k views)</Label>
-                <Input
-                  id="cc-cpm"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={cpmRate}
-                  onChange={(e) => setCpmRate(e.target.value)}
-                />
+                <Label>Deal type</Label>
+                <Select value={dealType} onValueChange={(v) => setDealType(v as DealType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cpm">CPM</SelectItem>
+                    <SelectItem value="flat_fee">Flat fee</SelectItem>
+                    <SelectItem value="hybrid">Hybrid (CPM + flat)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            {seeFinancials && showFlat && (
-              <div className="grid gap-1.5">
-                <Label htmlFor="cc-flat">Flat amount ($)</Label>
-                <Input
-                  id="cc-flat"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={flatAmount}
-                  onChange={(e) => setFlatAmount(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
+              {seeFinancials && showCpm && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cc-cpm">CPM rate ($/1k views)</Label>
+                  <Input
+                    id="cc-cpm"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={cpmRate}
+                    onChange={(e) => setCpmRate(e.target.value)}
+                  />
+                </div>
+              )}
+              {seeFinancials && showFlat && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cc-flat">Flat amount ($)</Label>
+                  <Input
+                    id="cc-flat"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={flatAmount}
+                    onChange={(e) => setFlatAmount(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {seeFinancials ? (
             <div className="rounded-md border bg-muted/20 p-3 space-y-2">

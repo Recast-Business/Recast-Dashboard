@@ -9,7 +9,7 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import { useViewCampaignFinancials } from "@/auth/useRole";
 import { CampaignPeriodCellDialog } from "@/components/campaigns/CampaignPeriodCellDialog";
-import type { CampaignPayment, PaymentStatusV2 } from "@/types/finance";
+import type { CampaignPayment, CampaignV2, PaymentStatusV2 } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -24,6 +24,10 @@ const STATUS_STYLES: Record<PaymentStatusV2, string> = {
 
 interface Props {
   campaignCreator: CCRow;
+  /** Parent campaign — needed for the Ad Overlay branch (campaign_type,
+   *  cpm_rate, ad_frequency_per_hr live on the campaign, not the
+   *  campaign-creator). */
+  campaign: CampaignV2;
   defaultCommissionPct: number;
   year: number;
   payments: Record<number, CampaignPayment>;
@@ -31,7 +35,7 @@ interface Props {
 }
 
 export function CampaignCreatorRow({
-  campaignCreator: cc, defaultCommissionPct, year, payments, onEdit,
+  campaignCreator: cc, campaign, defaultCommissionPct, year, payments, onEdit,
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   const [editingMonth, setEditingMonth] = React.useState<number | null>(null);
@@ -186,6 +190,7 @@ export function CampaignCreatorRow({
             <CampaignPeriodCellDialog
               open
               onOpenChange={(o) => !o && setEditingMonth(null)}
+              campaign={campaign}
               campaignCreator={cc}
               defaultCommissionPct={defaultCommissionPct}
               year={year}

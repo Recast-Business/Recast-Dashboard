@@ -55,6 +55,11 @@ export interface CampaignPaymentInput {
   paid_at?: string | null;
   invoice_url?: string | null;
   notes?: string | null;
+  /** Ad Overlay deals: per-creator-per-month inputs that drove this
+   *  amount. Persisted so the period dialog can show them back next
+   *  time the cell is opened. Null on other deal types. */
+  ccv?: number | null;
+  airtime_minutes?: number | null;
 }
 
 export function useUpsertCampaignPayment() {
@@ -73,6 +78,8 @@ export function useUpsertCampaignPayment() {
             paid_at: input.paid_at ?? null,
             invoice_url: input.invoice_url ?? null,
             notes: input.notes ?? null,
+            ccv: input.ccv ?? null,
+            airtime_minutes: input.airtime_minutes ?? null,
           },
           { onConflict: "campaign_creator_id,period_year,period_month" },
         )
