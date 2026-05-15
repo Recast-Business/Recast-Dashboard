@@ -511,6 +511,12 @@ export interface CampaignPayment {
   period_year: number;
   period_month: number;
   amount: number;
+  /** Sum of receipts allocated to this row via the Payments engine.
+   *  Drives the effective status (paid / partial / unpaid / overdue). */
+  amount_paid: number;
+  /** Legacy stored hint — kept in DB for the activity log but no
+   *  longer authoritative. UI derives status from amount_paid +
+   *  period EOM via effectiveInvoiceStatus. */
   status: PaymentStatusV2;
   paid_at: string | null;
   invoice_url: string | null;

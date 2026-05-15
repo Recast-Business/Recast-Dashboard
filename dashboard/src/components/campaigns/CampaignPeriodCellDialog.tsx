@@ -12,14 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { DatePicker } from "@/components/ui/date-picker";
 import { useUpsertCampaignPayment } from "@/hooks/useCampaignPayments";
 import { useViewCampaignFinancials } from "@/auth/useRole";
 import {
@@ -32,7 +24,6 @@ import type {
   CampaignCreatorV2,
   CampaignPayment,
   CampaignV2,
-  PaymentStatusV2,
 } from "@/types/finance";
 
 const MONTH_NAMES = [
@@ -80,8 +71,6 @@ export function CampaignPeriodCellDialog({
   const [ccv, setCcv] = React.useState("");
   const [airtimeHr, setAirtimeHr] = React.useState("");
   const [airtimeMin, setAirtimeMin] = React.useState("");
-  const [status, setStatus] = React.useState<PaymentStatusV2>("unpaid");
-  const [paidAt, setPaidAt] = React.useState("");
   const [invoiceUrl, setInvoiceUrl] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
@@ -98,8 +87,6 @@ export function CampaignPeriodCellDialog({
       setAirtimeHr("");
       setAirtimeMin("");
     }
-    setStatus(existing?.status ?? "unpaid");
-    setPaidAt(existing?.paid_at ?? "");
     setInvoiceUrl(existing?.invoice_url ?? "");
     setNotes(existing?.notes ?? "");
   }, [open, existing]);
@@ -147,8 +134,6 @@ export function CampaignPeriodCellDialog({
           period_year: year,
           period_month: month,
           amount: overlayPreview.gross,
-          status,
-          paid_at: paidAt || null,
           invoice_url: invoiceUrl.trim() || null,
           notes: notes.trim() || null,
           ccv: ccvNum > 0 ? ccvNum : null,
@@ -160,8 +145,6 @@ export function CampaignPeriodCellDialog({
           period_year: year,
           period_month: month,
           amount: standardPreview.gross,
-          status,
-          paid_at: paidAt || null,
           invoice_url: invoiceUrl.trim() || null,
           notes: notes.trim() || null,
         });
@@ -284,25 +267,12 @@ export function CampaignPeriodCellDialog({
 
           {seeFinancials && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Status</Label>
-                  <Select value={status} onValueChange={(v) => setStatus(v as PaymentStatusV2)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unpaid">Unpaid</SelectItem>
-                      <SelectItem value="partial">Partial</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="overdue">Overdue</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="cp-paid">Paid date</Label>
-                  <DatePicker id="cp-paid" value={paidAt} onChange={(v) => setPaidAt(v ?? "")} />
-                </div>
+              <div className="rounded-md border bg-muted/10 p-3 text-xs text-muted-foreground">
+                Status derives automatically from logged receipts vs.
+                the month-end deadline. Log a payment from the
+                <strong className="text-foreground"> Payments </strong>
+                page to mark this cell paid; flipping a status manually
+                no longer drives Overview or the receipts log.
               </div>
 
               <div className="grid gap-1.5">

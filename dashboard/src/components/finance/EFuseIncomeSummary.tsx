@@ -103,7 +103,11 @@ export function EFuseIncomeSummary({ year, talentFilterId }: Props) {
           const amt = Number(p.amount) || 0;
           gross += amt;
           recast += amt * (pct / 100);
-          if (p.status !== "paid") outstanding += amt;
+          // Outstanding = remaining owed after allocated receipts.
+          // Source of truth: receipts engine, not the stored status
+          // hint. Matches the talent invoice grid pattern.
+          const paid = Number(p.amount_paid) || 0;
+          outstanding += Math.max(0, amt - paid);
         }
       }
       out[c.id] = { creators: ccs.length, gross, recast, outstanding };

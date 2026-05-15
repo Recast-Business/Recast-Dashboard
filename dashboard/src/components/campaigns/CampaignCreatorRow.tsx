@@ -9,6 +9,7 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import { useViewCampaignFinancials } from "@/auth/useRole";
 import { CampaignPeriodCellDialog } from "@/components/campaigns/CampaignPeriodCellDialog";
+import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
 import type { CampaignPayment, CampaignV2, PaymentStatusV2 } from "@/types/finance";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
@@ -47,7 +48,16 @@ export function CampaignCreatorRow({
     let gross = 0, paidCount = 0;
     for (const p of Object.values(payments)) {
       gross += Number(p.amount) || 0;
-      if (p.status === "paid") paidCount++;
+      // Effective status derives from amount_paid vs amount + period
+      // EOM deadline. Source of truth is the receipts allocation, not
+      // any stored status hint. Matches the talent-invoice pattern.
+      const eff = effectiveInvoiceStatus({
+        amount: Number(p.amount) || 0,
+        amount_paid: Number(p.amount_paid) || 0,
+        period_year: p.period_year,
+        period_month: p.period_month,
+      });
+      if (eff === "paid") paidCount++;
     }
     return { gross, paidCount };
   }, [payments]);
@@ -140,7 +150,16 @@ export function CampaignCreatorRow({
             {MONTHS.map((label, i) => {
               const month = i + 1;
               const p = payments[month];
-              const status = p?.status ?? "unpaid";
+              // Status auto-derives — flipping the stored status field
+              // is gone; the pill reflects allocated receipts vs owed.
+              const status: PaymentStatusV2 = p
+                ? effectiveInvoiceStatus({
+                    amount: Number(p.amount) || 0,
+                    amount_paid: Number(p.amount_paid) || 0,
+                    period_year: p.period_year,
+                    period_month: p.period_month,
+                  })
+                : "unpaid";
               return (
                 <button
                   key={month}
