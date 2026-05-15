@@ -95,7 +95,7 @@ const WORKSPACE_SECTION: NavSection = {
     // R5 Sweep 8: Calculator excluded from partner. Partners don't
     // price deals; the tool was visual noise in their nav. Admin /
     // finance / operator still see it.
-    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "accounting", "operator"] },
+    { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "accounting"] },
     // Round 3 follow-up: Vendors / Talents / Frazier's House
     // collapsed into Workspace per Gustavo. The standalone
     // LEDGERS section is gone — these three sit beneath the

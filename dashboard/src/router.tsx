@@ -53,7 +53,7 @@ export const router = createBrowserRouter([
           // partner in Sweep 8 — partners don't price deals, the
           // tool was visual noise in their nav). Sidebar + router
           // are now aligned.
-          <ProtectedRoute allow={["admin", "accounting", "operator"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <CalculatorPage />
           </ProtectedRoute>
         ),
