@@ -94,11 +94,6 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
                 {campaign.campaign_type}
               </span>
             )}
-            {campaign.is_ad_overlay && (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-900">
-                Ad overlay
-              </span>
-            )}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
             {campaign.start_date ?? "—"} → {campaign.end_date ?? "—"}

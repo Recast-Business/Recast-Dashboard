@@ -466,7 +466,13 @@ export interface CampaignV2 {
    *  the campaign. Replaces fixed end-date as the "how much work"
    *  signal — campaigns are deliverables-based, not date-bounded. */
   deliverables_count: number | null;
-  is_ad_overlay: boolean;
+  /** Ad Overlay deals: $ per 1,000 viewers per ad airing. Null for
+   *  non-Ad-Overlay campaigns. Lives on the campaign because every
+   *  attached creator inherits one rate card. */
+  cpm_rate: number | null;
+  /** Ad Overlay deals: ads played per streaming hour. Null for non-
+   *  Ad-Overlay campaigns. */
+  ad_frequency_per_hr: number | null;
   brief_id: string | null;
   notes: string | null;
   created_at: string;
@@ -509,6 +515,12 @@ export interface CampaignPayment {
   paid_at: string | null;
   invoice_url: string | null;
   notes: string | null;
+  /** Ad Overlay deals: average concurrent viewer count during this
+   *  month's airtime. Null for other deal types. */
+  ccv: number | null;
+  /** Ad Overlay deals: total streamed minutes in this month. Null
+   *  for other deal types. */
+  airtime_minutes: number | null;
   created_at: string;
   updated_at: string;
 }

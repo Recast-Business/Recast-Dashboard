@@ -6,7 +6,10 @@ import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
  * NOTE: this file replaces the legacy hook of the same name. The old version
  * targeted the pre-Phase-A schema (`commission_rate`, `brand_id` FK). The new
  * schema is `default_commission_pct`, free-text `brand`, plus `campaign_type`,
- * `is_ad_overlay`, `brief_id`, etc. — all reflected in CampaignV2 in types/finance.
+ * `brief_id`, etc. — all reflected in CampaignV2 in types/finance.
+ * (0049: is_ad_overlay dropped — campaign_type === "Ad Overlay" is the
+ * single source of truth, with cpm_rate + ad_frequency_per_hr columns
+ * carrying the rate card.)
  */
 
 export interface CampaignFilter {
@@ -51,7 +54,10 @@ export interface CampaignInput {
   /** R5 Sweep 1 (Gustavo, T2): deliverables count replaces end-date as
    *  the "how much work" signal. */
   deliverables_count?: number | null;
-  is_ad_overlay?: boolean;
+  /** Ad Overlay deals: campaign-level rate card. Set when
+   *  campaign_type === "Ad Overlay". */
+  cpm_rate?: number | null;
+  ad_frequency_per_hr?: number | null;
   notes?: string | null;
 }
 

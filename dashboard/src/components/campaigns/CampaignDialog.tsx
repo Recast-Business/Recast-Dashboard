@@ -68,7 +68,10 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
   // R5 Sweep 1 (Gustavo, T2): Deliverables count replaces end_date as
   // the "how much work" signal. Optional.
   const [deliverablesCount, setDeliverablesCount] = React.useState<string>("");
-  const [isAdOverlay, setIsAdOverlay] = React.useState(false);
+  // Ad Overlay rate card — both editable while the type select is
+  // 'Ad Overlay', cleared (null) for every other type.
+  const [cpmRate, setCpmRate] = React.useState<string>("");
+  const [adFrequencyPerHr, setAdFrequencyPerHr] = React.useState<string>("");
   const [description, setDescription] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
@@ -85,7 +88,10 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
       setDeliverablesCount(
         campaign.deliverables_count != null ? String(campaign.deliverables_count) : "",
       );
-      setIsAdOverlay(campaign.is_ad_overlay);
+      setCpmRate(campaign.cpm_rate != null ? String(campaign.cpm_rate) : "");
+      setAdFrequencyPerHr(
+        campaign.ad_frequency_per_hr != null ? String(campaign.ad_frequency_per_hr) : "",
+      );
       setDescription(campaign.description ?? "");
       setNotes(campaign.notes ?? "");
     } else {
@@ -97,7 +103,8 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
       setStart("");
       setEndInternal("");
       setDeliverablesCount("");
-      setIsAdOverlay(false);
+      setCpmRate("");
+      setAdFrequencyPerHr("");
       setDescription("");
       setNotes("");
     }
@@ -114,6 +121,21 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
       return toast.error("Deliverables count must be a non-negative number.");
     }
 
+    // Ad Overlay rate card only persists when the campaign actually IS
+    // an Ad Overlay — clears to null on every other type so the columns
+    // don't carry stale values.
+    const isAdOverlay = campaignType.trim() === "Ad Overlay";
+    const cpmNum = cpmRate.trim() === "" ? null : Number(cpmRate);
+    const adFreqNum = adFrequencyPerHr.trim() === "" ? null : Number(adFrequencyPerHr);
+    if (isAdOverlay) {
+      if (cpmNum != null && (!Number.isFinite(cpmNum) || cpmNum < 0)) {
+        return toast.error("CPM rate must be a non-negative number.");
+      }
+      if (adFreqNum != null && (!Number.isFinite(adFreqNum) || adFreqNum < 0)) {
+        return toast.error("Ad frequency must be a non-negative number.");
+      }
+    }
+
     const input: CampaignInput = {
       name: name.trim(),
       brand: brand.trim(),
@@ -127,7 +149,8 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
       // R5 Sweep 1: end_date preserved on edit; not exposed in the form.
       end_date: endInternal || null,
       deliverables_count: deliverablesNum,
-      is_ad_overlay: isAdOverlay,
+      cpm_rate: isAdOverlay ? cpmNum : null,
+      ad_frequency_per_hr: isAdOverlay ? adFreqNum : null,
       notes: notes.trim() || null,
     };
 
@@ -239,14 +262,40 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
             <DatePicker id="c-start" value={start} onChange={(v) => setStart(v ?? "")} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={isAdOverlay}
-              onChange={(e) => setIsAdOverlay(e.target.checked)}
-            />
-            Ad overlay campaign
-          </label>
+          {/* Ad Overlay rate card — only surfaces when Type = Ad
+              Overlay. CPM + ad frequency live on the campaign so
+              every attached creator inherits the same rate; per-
+              creator CCV + airtime are entered on the period cell. */}
+          {campaignType.trim() === "Ad Overlay" ? (
+            <div className="grid grid-cols-2 gap-3 rounded-md border bg-card/60 p-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="c-cpm">CPM rate ($ per 1,000 viewers)</Label>
+                <Input
+                  id="c-cpm"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.5"
+                  value={cpmRate}
+                  onChange={(e) => setCpmRate(e.target.value)}
+                  placeholder="e.g. 15"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="c-adfreq">Ad frequency (ads / hr)</Label>
+                <Input
+                  id="c-adfreq"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="1"
+                  value={adFrequencyPerHr}
+                  onChange={(e) => setAdFrequencyPerHr(e.target.value)}
+                  placeholder="e.g. 4"
+                />
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-1.5">
             <Label htmlFor="c-desc">Description</Label>

@@ -213,7 +213,6 @@ const CAMPAIGN_CSV_COLUMNS: CSVColumn<CampaignV2>[] = [
   { header: "Default commission %", value: (c) => c.default_commission_pct },
   { header: "Start date", value: (c) => c.start_date ?? "" },
   { header: "End date", value: (c) => c.end_date ?? "" },
-  { header: "Ad overlay", value: (c) => (c.is_ad_overlay ? "yes" : "no") },
   { header: "Description", value: (c) => c.description ?? "" },
   { header: "Notes", value: (c) => c.notes ?? "" },
 ];
