@@ -12,7 +12,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
-import { useLogReceiptFifo, useHouseRentReceipts } from "@/hooks/usePaymentReceipts";
+import { useHouseRentReceipts } from "@/hooks/usePaymentReceipts";
+import {
+  useHouseRentPayments,
+  useHouseUtilityPayments,
+} from "@/hooks/useHouse";
+import { useLogHouseCombinedPayment } from "@/hooks/useLogHouseCombinedPayment";
 import type { HouseResident, PaymentMethod } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 
@@ -56,8 +61,14 @@ interface Props {
 }
 
 export function HousePaymentEntryBox({ year, residents }: Props) {
-  const log = useLogReceiptFifo();
+  // R5 follow-up (Gus #5 + #7): the entry box now logs a COMBINED
+  // rent + utility payment via useLogHouseCombinedPayment. The old
+  // useLogReceiptFifo path is gone; combined logic walks oldest
+  // unpaid months and splits proportionally per Gus's spec.
+  const log = useLogHouseCombinedPayment();
   const { data: receipts, isLoading } = useHouseRentReceipts(year);
+  const { data: rentByGroup } = useHouseRentPayments(year);
+  const { data: utilByUtility } = useHouseUtilityPayments(year);
 
   const today = new Date().toISOString().slice(0, 10);
   const [residentId, setResidentId] = React.useState<string>("");
@@ -91,18 +102,32 @@ export function HousePaymentEntryBox({ year, residents }: Props) {
       return;
     }
     try {
-      await log.mutateAsync({
-        source: "house_rent",
+      // R5 follow-up (Gus #5): resolve the resident's rent_group, then
+      // call the combined-payment hook. The hook walks oldest unpaid
+      // months and splits each month's apply across rent + utility
+      // proportionally (Gus #7 rounding rule baked in).
+      const resident = residents.find((r) => r.id === residentId);
+      const rentForResident = resident?.rent_group_id
+        ? rentByGroup?.[resident.rent_group_id]
+        : undefined;
+      const result = await log.mutateAsync({
         resident_id: residentId,
-        received_at: receivedAt,
         amount: num,
+        received_at: receivedAt,
         method: method || null,
         reference: reference.trim() || null,
         notes: notes.trim() || null,
+        residents,
+        rentForResident,
+        utilByUtility,
+        year,
       });
-      const resident = residents.find((r) => r.id === residentId);
+      const tail =
+        result.unallocated > 0
+          ? ` · ${formatUSD(result.unallocated, { decimals: 2 })} unallocated (no open balance)`
+          : "";
       toast.success(
-        `${formatUSD(num, { decimals: 2 })} logged${resident ? ` for ${resident.name}` : ""}`,
+        `${formatUSD(num, { decimals: 2 })} logged${resident ? ` for ${resident.name}` : ""}${tail}`,
       );
       reset();
     } catch (e) {

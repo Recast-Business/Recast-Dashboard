@@ -95,11 +95,25 @@ const SOURCE_META: Record<
   },
 };
 
+// R5 follow-up (Gus #8): house_rent + house_utility removed from the
+// global payments log. Frazier's House gets its own payment log on the
+// /house page so household receipts don't mix into the Recast-business
+// view here. The page query also filters house sources out below so a
+// House receipt won't leak even if the chip toggle is on.
 const SOURCE_FILTER_GROUPS: { value: PaymentSource[]; label: string }[] = [
   { value: ["vendor"], label: "Vendors" },
   { value: ["campaign"], label: "Campaigns" },
   { value: ["telegram", "onlyfans"], label: "Talent (Tele + OF)" },
-  { value: ["house_rent", "house_utility"], label: "House" },
+];
+
+// The sources actually allowed onto this page. House sources are
+// intentionally absent and the query short-circuits any request for
+// them.
+const BUSINESS_SOURCES: PaymentSource[] = [
+  "vendor",
+  "campaign",
+  "telegram",
+  "onlyfans",
 ];
 
 // ─────────────────────────────────────────────────────────────────────
@@ -115,10 +129,13 @@ export function PaymentsPage() {
   const [search, setSearch] = React.useState("");
   const [logOpen, setLogOpen] = React.useState(false);
 
-  // Flatten the active groups back to a flat PaymentSource[] for the
-  // server query. Empty = no filter (show all).
+  // Flatten the active groups back to a flat PaymentSource[]. R5
+  // follow-up (Gus #8): the query is always scoped to BUSINESS_SOURCES
+  // even when all chips are toggled on, so house_rent + house_utility
+  // never appear on the global log regardless of UI state. When the
+  // user deselects chips we narrow further to just the picked groups.
   const activeSources: PaymentSource[] = React.useMemo(() => {
-    if (activeGroups.size === SOURCE_FILTER_GROUPS.length) return [];
+    if (activeGroups.size === SOURCE_FILTER_GROUPS.length) return BUSINESS_SOURCES;
     const out: PaymentSource[] = [];
     for (const g of SOURCE_FILTER_GROUPS) {
       if (activeGroups.has(g.label)) out.push(...g.value);
@@ -128,7 +145,7 @@ export function PaymentsPage() {
 
   const { data: receipts, isLoading } = useAllPaymentReceipts({
     year,
-    sources: activeSources.length > 0 ? activeSources : undefined,
+    sources: activeSources.length > 0 ? activeSources : BUSINESS_SOURCES,
   });
 
   // Client-side search across payee name + reference.

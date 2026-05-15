@@ -18,6 +18,7 @@ import { HouseCellDialog } from "@/components/finance/HouseCellDialog";
 import { ResidentDialog } from "@/components/finance/ResidentDialog";
 import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { UtilitySplitsPanel } from "@/components/finance/UtilitySplitsPanel";
+import { HousePaymentLogPanel } from "@/components/finance/HousePaymentLogPanel";
 import { useConfirm } from "@/hooks/useConfirm";
 import type {
   HouseRentPayment,
@@ -472,6 +473,11 @@ export function HousePage() {
       {!isLoading && ((rentGroups?.length ?? 0) > 0 || (utilities?.length ?? 0) > 0) ? (
         <ReconciliationStrip totals={totals} />
       ) : null}
+
+      {/* R5 follow-up (Gus #8): House-only payment log. Lives here so
+          household receipts stay separate from the Recast-business
+          /payments page. */}
+      {!isLoading ? <HousePaymentLogPanel year={year} /> : null}
 
       {/* Dialogs */}
       <ResidentDialog

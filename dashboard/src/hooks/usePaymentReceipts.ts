@@ -182,6 +182,44 @@ export function useHouseRentReceipts(year: number) {
   });
 }
 
+/**
+ * R5 follow-up (Gus #8) — the unified House payment log on /house.
+ *
+ * Pulls BOTH house_rent and house_utility receipts for the year so
+ * the dedicated panel can show every household receipt in one place
+ * (the global /payments page no longer carries house sources).
+ * Resident + utility join shapes are normalised so the consumer
+ * doesn't have to branch on source.
+ */
+export function useHouseAllReceipts(year: number) {
+  return useQuery({
+    queryKey: ["payment-receipts", "house_all", year],
+    queryFn: async () => {
+      const start = `${year}-01-01`;
+      const end = `${year}-12-31`;
+      const { data, error } = await supabase
+        .from("payment_receipts")
+        .select(
+          `*,
+           allocations:payment_allocations(*),
+           resident:house_residents(id, name, rent_group_id),
+           utility:house_utilities(id, utility_name)`,
+        )
+        .in("source", ["house_rent", "house_utility"])
+        .gte("received_at", start)
+        .lte("received_at", end)
+        .order("received_at", { ascending: false });
+      if (error) throw error;
+      // Supabase nested-to-one selects can return arrays; normalise.
+      return (data ?? []).map((r: Record<string, unknown>) => ({
+        ...r,
+        resident: Array.isArray(r.resident) ? r.resident[0] ?? null : r.resident ?? null,
+        utility: Array.isArray(r.utility) ? r.utility[0] ?? null : r.utility ?? null,
+      }));
+    },
+  });
+}
+
 /** Receipts for one specific obligor — newest first. Pass `enabled=false`
  *  to skip the query when the dialog is closed. */
 export function useReceiptsForObligor(ref: ObligorRef | null, enabled = true) {

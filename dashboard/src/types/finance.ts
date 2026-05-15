@@ -350,6 +350,11 @@ export interface HouseUtilityPayment {
   period_year: number;
   period_month: number;
   amount: number;
+  /** Phase K-3a (migration 0027): amount paid against this row, kept
+   *  in sync by the reconcile_period_status trigger. Type was missing
+   *  this field — added in R5 follow-up after the combined house
+   *  payment hook started reading it. */
+  amount_paid: number;
   status: PaymentStatusV2;
   paid_at: string | null;
   notes: string | null;
