@@ -71,13 +71,16 @@ function NumberField({
 }
 
 export function AdOverlayCalculator() {
-  // Defaults match the FanDuel walk-through Gus laid out so the page
-  // loads with a working example.
-  const [cpm, setCpm] = React.useState(15);
-  const [ccv, setCcv] = React.useState(3364);
-  const [adsPerHr, setAdsPerHr] = React.useState(4);
-  const [airtimeHr, setAirtimeHr] = React.useState(169);
-  const [airtimeMin, setAirtimeMin] = React.useState(10);
+  // Inputs start empty (Gus: the card is a how-the-math-works
+  // reference, not a stored example — operators punch in the
+  // current campaign's CPM / CCV / frequency / airtime fresh
+  // every time). Commission keeps a 20% structural default
+  // because it's a config knob, not an example value.
+  const [cpm, setCpm] = React.useState(0);
+  const [ccv, setCcv] = React.useState(0);
+  const [adsPerHr, setAdsPerHr] = React.useState(0);
+  const [airtimeHr, setAirtimeHr] = React.useState(0);
+  const [airtimeMin, setAirtimeMin] = React.useState(0);
   const [commissionPct, setCommissionPct] = React.useState(20);
 
   const airtimeHours = airtimeHr + airtimeMin / 60;
