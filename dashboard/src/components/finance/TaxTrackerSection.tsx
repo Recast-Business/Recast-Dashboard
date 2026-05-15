@@ -11,38 +11,33 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EyebrowLabel, MetricStrip, YearSelector } from "@/components/recast";
+import { EyebrowLabel, MetricStrip } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { useTaxTrackerSubjects, useUpsertTaxRecord, useUpdateSubjectTax } from "@/hooks/useTaxRecords";
 import type { TaxTrackerRow } from "@/hooks/useTaxRecords";
 import { cn, formatUSD } from "@/lib/utils";
 
 /**
- * Round 4 B — year-end tax tracker page (/tax).
+ * Bruno: tax tracker only matters once a year — it doesn't deserve a
+ * top-level sidebar entry. Was at /tax, now folded into the bottom
+ * of /payments as a section. Same data + same inline editor; just
+ * lives next to the receipts log where Gus already spends time.
  *
- * Lists every subject (creator + vendor) tagged with
- * requires_tax_info=true for a given year. Each row surfaces:
- *
- *   • W9 status — received / not received, with the link button
- *   • 1099 status — sent / not sent, with the link button
- *   • Amount reported (manual entry)
+ * Per-subject rows surface:
+ *   • W9 status (received / not received, link)
+ *   • 1099 status (sent / not sent, link)
+ *   • Amount reported
  *   • Notes
  *
- * Editing happens inline via the cell click → small input row drops
- * open inside the row. Less ceremony than a modal for a fast year-end
- * sweep.
- *
- * Admin + finance only (RLS on tax_records also enforces it server-
- * side). The /tax route blocks partner + operator from rendering at
- * all, matching the data sensitivity.
- *
- * CSV export still available for handing to the accountant in
- * whatever format they prefer.
+ * Editing drops open inline below the row. Admin + accounting only
+ * (RLS enforced server-side too). CSV export retained.
  */
 
-export function TaxTrackerPage() {
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+interface Props {
+  year: number;
+}
+
+export function TaxTrackerSection({ year }: Props) {
   const { data: rows, isLoading } = useTaxTrackerSubjects(year);
   const upsertRecord = useUpsertTaxRecord();
   const updateSubject = useUpdateSubjectTax();
@@ -96,23 +91,15 @@ export function TaxTrackerPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ── Page header ─────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <EyebrowLabel withRule>Tax Tracker · {year}</EyebrowLabel>
-          <h1 className="mt-2 font-display text-h2 font-bold tracking-[-0.02em]">
-            Year-end 1099 prep
-          </h1>
-          <p className="mt-1 max-w-[80ch] text-[13px] text-steel">
-            Tracks W9 receipt + 1099 issuance + amount reported for every
-            person and vendor tagged for tax info. Tag a subject from
-            their profile dialog (Talents or Vendors) — they then surface
-            here. Default behaviour is "not tracked" so the list stays
-            focused on the contractors that actually need a 1099.
-          </p>
-        </div>
-        <YearSelector value={year} onChange={setYear} />
+    <div className="space-y-4">
+      {/* ── Section header ─────────────────────────────────────────── */}
+      <div>
+        <EyebrowLabel withRule>Tax Tracker · {year}</EyebrowLabel>
+        <p className="mt-1 max-w-[80ch] text-[13px] text-steel">
+          Year-end 1099 prep for every subject tagged{" "}
+          <em>requires tax info</em>. Tag a subject from the Talent
+          Ledger or Vendors page; they then surface here.
+        </p>
       </div>
 
       {/* ── KPI strip ──────────────────────────────────────────────── */}

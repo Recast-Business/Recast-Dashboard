@@ -19,7 +19,6 @@ import { ActivityPage } from "@/pages/Activity";
 import { VendorsPage } from "@/pages/Vendors";
 import { VendorDetailPage } from "@/pages/VendorDetail";
 import { HousePage } from "@/pages/House";
-import { TaxTrackerPage } from "@/pages/TaxTracker";
 import { PaymentsPage } from "@/pages/Payments";
 import { RoleRedirect } from "@/auth/RoleRedirect";
 
@@ -190,17 +189,10 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      // R4.B: Year-end tax tracker (1099 prep). Admin + finance
-      // only — touches sensitive person-level tax data (W9 / 1099
-      // links) so partners and operators don't see the route.
-      {
-        path: "tax",
-        element: (
-          <ProtectedRoute allow={["admin", "accounting"]}>
-            <TaxTrackerPage />
-          </ProtectedRoute>
-        ),
-      },
+      // Bruno: Tax tracker no longer a top-level route — folded into
+      // the bottom of /payments as a section since it's only touched
+      // once a year. Old /tax route removed; the section component
+      // lives at @/components/finance/TaxTrackerSection.
       // R5 Sweep 5: Unified payments log. Admin + finance only —
       // surfaces every payment_receipts row this year across vendors,
       // campaigns, talent, and house. Partners are excluded because

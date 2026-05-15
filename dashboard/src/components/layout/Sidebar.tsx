@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
-  Receipt,
   Search,
   Star,
   Store,
@@ -118,9 +117,6 @@ const WORKSPACE_SECTION: NavSection = {
     // talents / house in one filterable view. Read-only for
     // partner since some receipts contain talent earnings.
     { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "accounting"] },
-    // R4.B: Year-end tax tracker — admin + finance only because
-    // it surfaces W9 / 1099 / amount-reported data.
-    { to: "/tax", label: "Tax Tracker", icon: Receipt, allow: ["admin", "accounting"] },
   ],
 };
 

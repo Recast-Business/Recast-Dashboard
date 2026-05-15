@@ -23,6 +23,8 @@ import {
   type ReceiptWithJoins,
 } from "@/hooks/usePaymentReceipts";
 import { LogPaymentDialog } from "@/components/finance/LogPaymentDialog";
+import { TaxTrackerSection } from "@/components/finance/TaxTrackerSection";
+import { useAuth } from "@/auth/AuthProvider";
 import type { PaymentSource } from "@/types/finance";
 import { cn, formatUSD, formatDate } from "@/lib/utils";
 
@@ -121,6 +123,7 @@ const BUSINESS_SOURCES: PaymentSource[] = [
 // ─────────────────────────────────────────────────────────────────────
 
 export function PaymentsPage() {
+  const { role } = useAuth();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = React.useState(currentYear);
   const [activeGroups, setActiveGroups] = React.useState<Set<string>>(
@@ -351,6 +354,13 @@ export function PaymentsPage() {
       )}
 
       <LogPaymentDialog open={logOpen} onOpenChange={setLogOpen} />
+
+      {/* Bruno: tax tracker folded in here since it's only used once
+          a year. Same year scope as the receipts log above. Admin +
+          accounting only — RLS enforces it server-side too. */}
+      {(role === "admin" || role === "accounting") ? (
+        <TaxTrackerSection year={year} />
+      ) : null}
     </div>
   );
 }
