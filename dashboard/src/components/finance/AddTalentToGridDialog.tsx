@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -18,23 +19,24 @@ import {
   useTalentGridTracking,
   type TalentGridSide,
 } from "@/hooks/useTalentGridTracking";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import type { Vendor } from "@/types/finance";
 
 /**
  * R5 follow-up — "Add Talent" picker for both Invoice grid sides.
  *
- * Lists existing talent the user can add to the grid. Picking a row
- * inserts a talent_grid_tracking row for (side, year, target_id) and
- * closes the dialog. The grid then renders the new row with empty
- * "+" cells in every month.
+ * Both sides now source the Talent Ledger directly (Bruno: all talent
+ * pickers should pull from the ledger, not a separate vendors list).
  *
- * Side-specific source:
- *   • paying_us → useCreators("signed") — the Talent Ledger
- *   • we_pay    → useVendors({ kind: "talent_we_pay" })
+ * Side-specific persistence:
+ *   • paying_us → talent_grid_tracking row keyed by creator_id.
+ *   • we_pay    → find-or-create a vendors row (kind='talent_we_pay',
+ *                  creator_id=picked) per migration 0050, then track
+ *                  by that vendor_id. The unique partial index makes
+ *                  the find-or-create idempotent.
  *
- * Already-on-grid rows render at the top of the list with a "Added"
- * badge and a disabled state so the user can see they're available
- * without re-clicking.
+ * Already-on-grid rows render at the top with an "Added" badge.
  */
 
 interface Props {
@@ -53,9 +55,14 @@ interface PickerRow {
 
 export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props) {
   const [search, setSearch] = React.useState("");
+  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const qc = useQueryClient();
   const add = useAddTalentToGrid();
   const { data: tracking } = useTalentGridTracking(side, year);
   const { data: creators } = useCreators("signed");
+  // we_pay side: existing vendor rows let us mark creators that
+  // already have an underlying vendor row (so the row is "added"
+  // if the vendor_id appears in tracking). Drives the badge state.
   const { data: vendors } = useVendors({ kind: "talent_we_pay" });
 
   // Reset search when the dialog re-opens so stale filters don't
@@ -64,7 +71,16 @@ export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props)
     if (open) setSearch("");
   }, [open]);
 
-  const trackedIds = React.useMemo(() => {
+  // Map creator_id → underlying talent_we_pay vendor row (if any).
+  const vendorByCreator = React.useMemo(() => {
+    const m: Record<string, Vendor> = {};
+    for (const v of vendors ?? []) {
+      if (v.creator_id) m[v.creator_id] = v;
+    }
+    return m;
+  }, [vendors]);
+
+  const trackedTargetIds = React.useMemo(() => {
     const s = new Set<string>();
     for (const t of tracking ?? []) {
       const id = side === "paying_us" ? t.creator_id : t.vendor_id;
@@ -74,21 +90,17 @@ export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props)
   }, [tracking, side]);
 
   const rows: PickerRow[] = React.useMemo(() => {
-    if (side === "paying_us") {
-      return (creators ?? []).map((c) => ({
+    return (creators ?? []).map((c) => {
+      const trackedId =
+        side === "paying_us" ? c.id : vendorByCreator[c.id]?.id;
+      return {
         id: c.id,
         name: c.name,
         subtitle: c.category ?? undefined,
-        alreadyAdded: trackedIds.has(c.id),
-      }));
-    }
-    return (vendors ?? []).map((v) => ({
-      id: v.id,
-      name: v.name,
-      subtitle: v.contact_name ?? undefined,
-      alreadyAdded: trackedIds.has(v.id),
-    }));
-  }, [side, creators, vendors, trackedIds]);
+        alreadyAdded: trackedId ? trackedTargetIds.has(trackedId) : false,
+      };
+    });
+  }, [creators, side, vendorByCreator, trackedTargetIds]);
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -108,29 +120,60 @@ export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props)
     });
   }, [rows, search]);
 
+  // For the we_pay side, look up the talent_we_pay vendor row for the
+  // selected creator. Create it if it doesn't exist yet — the partial
+  // unique index on vendors(creator_id) WHERE kind='talent_we_pay'
+  // keeps this idempotent under concurrent picks.
+  async function findOrCreateTalentVendor(
+    creatorId: string,
+    creatorName: string,
+  ): Promise<string> {
+    const existing = vendorByCreator[creatorId];
+    if (existing) return existing.id;
+    const { data, error } = await supabase
+      .from("vendors")
+      .insert({
+        name: creatorName,
+        kind: "talent_we_pay",
+        creator_id: creatorId,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    // Refresh useVendors so the grid + dialog both pick up the new row.
+    await qc.invalidateQueries({ queryKey: ["vendors"] });
+    return data.id as string;
+  }
+
   async function onPick(row: PickerRow) {
     if (row.alreadyAdded) return;
+    setPendingId(row.id);
     try {
+      let trackedId = row.id;
+      if (side === "we_pay") {
+        trackedId = await findOrCreateTalentVendor(row.id, row.name);
+      }
       await add.mutateAsync({
         side,
         year,
         ...(side === "paying_us"
-          ? { creator_id: row.id }
-          : { vendor_id: row.id }),
+          ? { creator_id: trackedId }
+          : { vendor_id: trackedId }),
       });
       toast.success(`${row.name} added to ${year} grid`);
       onOpenChange(false);
-    } catch {
-      // useAddTalentToGrid already toasts on error.
+    } catch (e) {
+      toast.error(`Add failed: ${(e as Error).message}`);
+    } finally {
+      setPendingId(null);
     }
   }
 
   const title =
     side === "paying_us" ? "Add Talent · Paying Us" : "Add Talent · We Pay";
   const description =
-    side === "paying_us"
-      ? "Pick a signed creator from the Roster. They'll appear on the grid with empty monthly cells — click any \"+\" cell to record that month's invoice."
-      : 'Pick a "Talent We Pay" vendor. They\'ll appear on the grid with empty monthly cells — click any "+" cell to record that month\'s payment.';
+    "Pick a signed creator from the Talent Ledger. They'll appear on the grid with empty monthly cells — click any \"+\" cell to record that month.";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,11 +192,7 @@ export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props)
               strokeWidth={1.5}
             />
             <Input
-              placeholder={
-                side === "paying_us"
-                  ? "Search creators…"
-                  : "Search vendors…"
-              }
+              placeholder="Search creators…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 pl-8 text-[13px]"
@@ -166,9 +205,7 @@ export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props)
           {filtered.length === 0 ? (
             <div className="rounded-md border border-dashed bg-card/40 p-6 text-center text-[12.5px] text-steel">
               {rows.length === 0
-                ? side === "paying_us"
-                  ? "No signed creators yet. Add one from the Roster page first."
-                  : 'No "Talent We Pay" vendors yet. Add one from the Vendors page first.'
+                ? "No signed creators yet. Add one from the Talent Ledger first."
                 : "No matches for that search."}
             </div>
           ) : (
@@ -178,7 +215,7 @@ export function AddTalentToGridDialog({ open, onOpenChange, side, year }: Props)
                   <button
                     type="button"
                     onClick={() => onPick(row)}
-                    disabled={row.alreadyAdded || add.isPending}
+                    disabled={row.alreadyAdded || add.isPending || pendingId !== null}
                     className={cn(
                       "flex w-full items-center justify-between gap-3 px-2 py-2.5 text-left transition-colors duration-base ease-out",
                       row.alreadyAdded

@@ -206,6 +206,11 @@ export interface Vendor {
   legal_name: string | null;
   business_name: string | null;
   address: string | null;
+  /** Migration 0050: when kind='talent_we_pay' the row is a shim for
+   *  a Talent Ledger creator. This FK points at the underlying
+   *  creators row; one talent_we_pay row per creator. NULL for
+   *  vendor-side rows. */
+  creator_id: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
