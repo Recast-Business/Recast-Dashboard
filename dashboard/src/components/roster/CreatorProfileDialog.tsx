@@ -512,7 +512,6 @@ export function CreatorProfileDialog({ open, onOpenChange, creator }: Props) {
                   step="0.01"
                   value={minGuarantee}
                   onChange={(e) => setMinGuarantee(e.target.value)}
-                  placeholder="e.g. 7000.00"
                 />
               </div>
               <div className="grid gap-1.5">

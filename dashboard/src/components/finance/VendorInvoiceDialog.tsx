@@ -140,7 +140,6 @@ export function VendorInvoiceDialog({
               id="vi-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. One-time legal fee · MacBook for Bruno"
               autoFocus
             />
           </div>

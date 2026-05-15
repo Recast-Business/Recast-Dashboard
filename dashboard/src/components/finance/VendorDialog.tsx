@@ -392,7 +392,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                 id="v-cname"
                 value={form.contact_name ?? ""}
                 onChange={(e) => set("contact_name", e.target.value)}
-                placeholder="e.g. Acme Studios LLC"
               />
             </div>
             <div className="grid gap-1.5">
@@ -431,7 +430,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                     id="v-legal-name"
                     value={form.legal_name ?? ""}
                     onChange={(e) => set("legal_name", e.target.value)}
-                    placeholder="e.g. Jane Doe"
                   />
                 </div>
                 <div className="grid gap-1.5">
@@ -442,7 +440,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                     id="v-business-name"
                     value={form.business_name ?? ""}
                     onChange={(e) => set("business_name", e.target.value)}
-                    placeholder="e.g. Acme Studios LLC"
                   />
                 </div>
               </div>
@@ -543,7 +540,6 @@ export function VendorDialog({ open, onOpenChange, defaultDivision, defaultKind,
                         : Number(e.target.value),
                     )
                   }
-                  placeholder="e.g. 35.00"
                   disabled={!form.recurring_monthly}
                 />
               </div>

@@ -224,7 +224,6 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
                 step="1"
                 value={deliverablesCount}
                 onChange={(e) => setDeliverablesCount(e.target.value)}
-                placeholder="e.g. 3 posts"
               />
             </div>
             {seeFinancials ? (
@@ -278,7 +277,6 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
                   step="0.5"
                   value={cpmRate}
                   onChange={(e) => setCpmRate(e.target.value)}
-                  placeholder="e.g. 15"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -291,7 +289,6 @@ export function CampaignDialog({ open, onOpenChange, campaign }: Props) {
                   step="1"
                   value={adFrequencyPerHr}
                   onChange={(e) => setAdFrequencyPerHr(e.target.value)}
-                  placeholder="e.g. 4"
                 />
               </div>
             </div>

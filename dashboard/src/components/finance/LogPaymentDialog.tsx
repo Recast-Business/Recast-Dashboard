@@ -292,7 +292,6 @@ export function LogPaymentDialog({ open, onOpenChange }: Props) {
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="e.g. 1500.00"
               />
             </div>
             <div className="grid gap-1.5">

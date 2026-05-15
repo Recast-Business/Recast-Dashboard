@@ -355,7 +355,6 @@ export function TalentInvoiceDialog({
                 id="ti-number"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
-                placeholder="e.g. INV-2026-014"
               />
             </div>
             <div className="grid gap-1.5">
