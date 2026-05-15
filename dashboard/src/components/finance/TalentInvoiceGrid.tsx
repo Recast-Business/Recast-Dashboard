@@ -9,6 +9,7 @@ import { useCreators } from "@/hooks/useCreators";
 import { useTalentInvoicesByYear } from "@/hooks/useTalentInvoices";
 import { useTalentGridTracking } from "@/hooks/useTalentGridTracking";
 import { TalentInvoiceDialog } from "@/components/finance/TalentInvoiceDialog";
+import { TalentMonthInvoicesDialog } from "@/components/finance/TalentMonthInvoicesDialog";
 import { AddTalentToGridDialog } from "@/components/finance/AddTalentToGridDialog";
 import type { PaymentStatusV2, TalentInvoice } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
@@ -40,6 +41,25 @@ import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
  */
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * R5 follow-up (Gus): with multiple invoices allowed per cell, the
+ * cell's status pill needs a worst-status aggregation. Order of
+ * severity: overdue > partial > unpaid > paid. Any overdue invoice
+ * makes the cell overdue. All-paid → paid. Else partial if any is
+ * partial, otherwise unpaid.
+ *
+ * Statuses are computed via effectiveInvoiceStatus so an invoice
+ * past its due date with no payment still reads overdue even if the
+ * stored status hasn't been flipped.
+ */
+function aggregateCellStatus(invoices: TalentInvoice[]): PaymentStatusV2 {
+  const statuses = invoices.map((inv) => effectiveInvoiceStatus(inv));
+  if (statuses.includes("overdue")) return "overdue";
+  if (statuses.includes("partial")) return "partial";
+  if (statuses.every((s) => s === "paid")) return "paid";
+  return "unpaid";
+}
 
 interface Props {
   year: number;
@@ -94,28 +114,46 @@ export function TalentInvoiceGrid({ year }: Props) {
     if (q) rows = rows.filter((c) => c.name.toLowerCase().includes(q));
     if (statusFilter !== "all") {
       // R5 follow-up: filter uses the EFFECTIVE (compute-at-render)
-      // status so "Overdue" surfaces rows whose stored status hasn't
-      // been flipped yet.
+      // status across ANY invoice in the cell so "Overdue" surfaces
+      // rows whose stored status hasn't been flipped yet. With
+      // multi-invoice cells (migration 0047), any one matching
+      // invoice keeps the row visible.
       rows = rows.filter((c) => {
         const cells = invoiceMap?.[c.id] ?? {};
-        return Object.values(cells).some(
-          (inv) => effectiveInvoiceStatus(inv) === statusFilter,
-        );
+        for (const monthInvs of Object.values(cells)) {
+          for (const inv of monthInvs) {
+            if (effectiveInvoiceStatus(inv) === statusFilter) return true;
+          }
+        }
+        return false;
       });
     }
     return rows;
   }, [creators, search, statusFilter, invoiceMap]);
 
+  // R5 follow-up (Gus): per-month list dialog state. Distinct from
+  // the create/edit dialog above — opened when the user clicks a
+  // cell that already has invoices. Empty cells still open the
+  // create dialog directly via openCell().
+  const [monthListOpen, setMonthListOpen] = React.useState(false);
+  const [monthListContext, setMonthListContext] = React.useState<{
+    creatorId: string;
+    month: number;
+  } | null>(null);
+
   function openCell(creatorId: string, month: number) {
-    const existing = invoiceMap?.[creatorId]?.[month];
-    if (existing) {
-      setEditing(existing);
-      setCreating(null);
-    } else {
+    const list = invoiceMap?.[creatorId]?.[month] ?? [];
+    if (list.length === 0) {
+      // Empty cell: jump straight to the create form for this slot.
       setCreating({ creatorId, year, month });
       setEditing(null);
+      setDialogOpen(true);
+      return;
     }
-    setDialogOpen(true);
+    // 1+ invoices: route through the per-month list dialog. Lets the
+    // user pick which to edit, delete one, or add another.
+    setMonthListContext({ creatorId, month });
+    setMonthListOpen(true);
   }
 
   // Yearly totals across visible creators (for the reconciliation strip).
@@ -127,14 +165,15 @@ export function TalentInvoiceGrid({ year }: Props) {
     for (const c of filtered) {
       const cells = invoiceMap?.[c.id] ?? {};
       for (let m = 1; m <= 12; m++) {
-        const inv = cells[m];
-        if (!inv) continue;
-        invoiceCount++;
-        totalInvoiced += Number(inv.amount) || 0;
-        totalPaid += Number(inv.amount_paid) || 0;
-        // R5 follow-up: count using effective status so a fully-paid
-        // row counts as paid even if the stored status lags.
-        if (effectiveInvoiceStatus(inv) === "paid") paidCount++;
+        const list = cells[m] ?? [];
+        for (const inv of list) {
+          invoiceCount++;
+          totalInvoiced += Number(inv.amount) || 0;
+          totalPaid += Number(inv.amount_paid) || 0;
+          // R5 follow-up: count using effective status so a fully-paid
+          // row counts as paid even if the stored status lags.
+          if (effectiveInvoiceStatus(inv) === "paid") paidCount++;
+        }
       }
     }
     return {
@@ -149,21 +188,24 @@ export function TalentInvoiceGrid({ year }: Props) {
 
   const isLoading = creatorsLoading || invoicesLoading;
 
-  // Flat row list for CSV export (creator × month → flat invoice rows).
+  // Flat row list for CSV export (creator × month × invoice → flat).
+  // Multi-invoice months become multiple CSV rows so the export
+  // doesn't lose the per-invoice detail.
   const csvRows = React.useMemo(() => {
     const rows: { creator: string; month: string; amount: number; ref: string; status: string }[] = [];
     for (const c of filtered) {
       const cells = invoiceMap?.[c.id] ?? {};
       for (let m = 1; m <= 12; m++) {
-        const inv = cells[m];
-        if (!inv) continue;
-        rows.push({
-          creator: c.name,
-          month: `${MONTHS[m - 1]} ${year}`,
-          amount: Number(inv.amount) || 0,
-          ref: inv.invoice_number ?? "—",
-          status: inv.status,
-        });
+        const list = cells[m] ?? [];
+        for (const inv of list) {
+          rows.push({
+            creator: c.name,
+            month: `${MONTHS[m - 1]} ${year}`,
+            amount: Number(inv.amount) || 0,
+            ref: inv.invoice_number ?? "—",
+            status: inv.status,
+          });
+        }
       }
     }
     return rows;
@@ -287,8 +329,8 @@ export function TalentInvoiceGrid({ year }: Props) {
                   let creatorTotal = 0;
                   let creatorInvoiceCount = 0;
                   for (let m = 1; m <= 12; m++) {
-                    const inv = cells[m];
-                    if (inv) {
+                    const list = cells[m] ?? [];
+                    for (const inv of list) {
                       creatorTotal += Number(inv.amount) || 0;
                       creatorInvoiceCount++;
                     }
@@ -312,7 +354,7 @@ export function TalentInvoiceGrid({ year }: Props) {
 
                       {MONTHS.map((_label, i) => {
                         const month = i + 1;
-                        const inv = cells[month];
+                        const list = cells[month] ?? [];
                         const isFuture =
                           currentMonthIdx !== null && i > currentMonthIdx;
                         // R3D.2 + R4.A.2:
@@ -324,23 +366,50 @@ export function TalentInvoiceGrid({ year }: Props) {
                         //     unlock overrides via lock.canEdit.
                         const canCreate = lock.canCreate(year, month);
                         const canEdit = lock.canEdit(year, month);
+                        // R5 follow-up (Gus): aggregate when > 0
+                        // invoices in the cell. Single-invoice cells
+                        // look identical to before; multi-invoice
+                        // cells show the SUM amount + a small "N×"
+                        // count badge top-right so the user can spot
+                        // them at a glance.
+                        const cellAmount = list.reduce(
+                          (s, inv) => s + (Number(inv.amount) || 0),
+                          0,
+                        );
+                        const cellStatus =
+                          list.length > 0 ? aggregateCellStatus(list) : "unpaid";
+                        const cellRef =
+                          list.length === 1
+                            ? list[0].invoice_number ?? "—"
+                            : list.length > 1
+                              ? `${list.length} invoices`
+                              : "—";
                         return (
-                          <td key={month} className="p-1 align-middle">
-                            {inv ? (
-                              <InvoiceCell
-                                amount={Number(inv.amount) || 0}
-                                ref_={inv.invoice_number ?? "—"}
-                                status={effectiveInvoiceStatus(inv)}
-                                future={isFuture}
-                                onClick={canEdit ? () => openCell(c.id, month) : undefined}
-                                disabled={!canEdit}
-                                className={cn(!canEdit && "cursor-not-allowed opacity-60")}
-                                title={
-                                  canEdit
-                                    ? undefined
-                                    : `${MONTHS[month - 1]} ${year} is locked. Admin or finance can unlock from the column header.`
-                                }
-                              />
+                          <td key={month} className="relative p-1 align-middle">
+                            {list.length > 0 ? (
+                              <>
+                                <InvoiceCell
+                                  amount={cellAmount}
+                                  ref_={cellRef}
+                                  status={cellStatus}
+                                  future={isFuture}
+                                  onClick={canEdit ? () => openCell(c.id, month) : undefined}
+                                  disabled={!canEdit}
+                                  className={cn(!canEdit && "cursor-not-allowed opacity-60")}
+                                  title={
+                                    canEdit
+                                      ? list.length > 1
+                                        ? `${list.length} invoices for ${MONTHS[month - 1]} ${year} — click to view, edit, or add another`
+                                        : undefined
+                                      : `${MONTHS[month - 1]} ${year} is locked. Admin or finance can unlock from the column header.`
+                                  }
+                                />
+                                {list.length > 1 ? (
+                                  <span className="pointer-events-none absolute right-1.5 top-1.5 rounded-sm bg-white/[0.08] px-1 py-0.5 text-[9px] font-semibold leading-none text-white">
+                                    {list.length}×
+                                  </span>
+                                ) : null}
+                              </>
                             ) : (
                               <button
                                 type="button"
@@ -421,6 +490,54 @@ export function TalentInvoiceGrid({ year }: Props) {
         side="paying_us"
         year={year}
       />
+
+      {/* R5 follow-up (Gus): per-month list dialog. Mounts when a
+          non-empty cell is clicked. Edit / delete / add-another all
+          live here. The TalentInvoiceDialog still does the actual
+          form work — this dialog just hands off via setEditing /
+          setCreating + setDialogOpen. */}
+      {monthListContext ? (
+        <TalentMonthInvoicesDialog
+          open={monthListOpen}
+          onOpenChange={(o) => {
+            if (!o) {
+              setMonthListOpen(false);
+              setMonthListContext(null);
+            }
+          }}
+          creatorId={monthListContext.creatorId}
+          creatorName={
+            (creators ?? []).find((c) => c.id === monthListContext.creatorId)?.name
+              ?? "(unknown)"
+          }
+          year={year}
+          month={monthListContext.month}
+          invoices={
+            invoiceMap?.[monthListContext.creatorId]?.[monthListContext.month] ?? []
+          }
+          onEdit={(inv) => {
+            // Hand off to the existing invoice form in edit mode.
+            setEditing(inv);
+            setCreating(null);
+            setDialogOpen(true);
+            setMonthListOpen(false);
+            setMonthListContext(null);
+          }}
+          onCreate={() => {
+            // Hand off to the existing invoice form in create mode,
+            // pre-scoped to this (creator, month).
+            setEditing(null);
+            setCreating({
+              creatorId: monthListContext.creatorId,
+              year,
+              month: monthListContext.month,
+            });
+            setDialogOpen(true);
+            setMonthListOpen(false);
+            setMonthListContext(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

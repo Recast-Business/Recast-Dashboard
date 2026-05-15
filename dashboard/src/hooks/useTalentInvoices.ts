@@ -20,13 +20,19 @@ export function useTalentInvoicesByYear(year: number) {
         .from("talent_invoices")
         .select("*")
         .eq("period_year", year)
-        .order("period_month");
+        .order("period_month")
+        .order("due_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
-      // Index by creator_id → month → invoice for grid rendering.
-      const map: Record<string, Record<number, TalentInvoice>> = {};
+      // R5 follow-up (Gus): now an ARRAY per (creator, month).
+      // Migration 0047 dropped the unique constraint so a creator
+      // can have multiple invoices for the same month (e.g. Adelia
+      // March × 3). The grid aggregates amount + worst-status per
+      // cell; the TalentMonthInvoicesDialog handles per-invoice
+      // CRUD for cells with > 1 row.
+      const map: Record<string, Record<number, TalentInvoice[]>> = {};
       for (const row of (data ?? []) as TalentInvoice[]) {
         map[row.creator_id] ??= {};
-        map[row.creator_id][row.period_month] = row;
+        (map[row.creator_id][row.period_month] ??= []).push(row);
       }
       return map;
     },
