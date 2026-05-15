@@ -48,7 +48,12 @@ export const router = createBrowserRouter([
         // that haven't migrated yet.
         path: "calculator",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "finance", "operator"]}>
+          // R5 follow-up (roles audit): partner removed from
+          // /calculator router to match the sidebar (which dropped
+          // partner in Sweep 8 — partners don't price deals, the
+          // tool was visual noise in their nav). Sidebar + router
+          // are now aligned.
+          <ProtectedRoute allow={["admin", "finance", "operator"]}>
             <CalculatorPage />
           </ProtectedRoute>
         ),
@@ -64,7 +69,12 @@ export const router = createBrowserRouter([
       {
         path: "finance",
         element: (
-          <ProtectedRoute allow={["admin", "finance"]}>
+          // R5 follow-up (roles audit): partner added for read-only
+          // access. Sidebar already showed Invoice to partners but
+          // the router blocked them — fixed mismatch. Write actions
+          // (Add Talent, edit/delete invoices) are gated inside the
+          // grid components so partner sees data only.
+          <ProtectedRoute allow={["admin", "partner", "finance"]}>
             <FinancePage />
           </ProtectedRoute>
         ),

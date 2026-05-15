@@ -16,6 +16,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 import type { PaymentStatusV2, Vendor, VendorPayment } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 import { useLockState } from "@/hooks/useLockState";
+import { useAuth } from "@/auth/AuthProvider";
 import { MonthLockBadge } from "@/components/finance/MonthLockBadge";
 import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
 
@@ -47,6 +48,12 @@ interface Props {
 }
 
 export function TalentWePayGrid({ year }: Props) {
+  // R5 follow-up (roles audit): partner has read-only access. Gates
+  // the "+ Add Talent" button, per-row edit/delete pencil/trash, and
+  // any cell click that would open a write dialog.
+  const { role } = useAuth();
+  const canWrite = role === "admin" || role === "finance";
+
   const { data: vendors, isLoading: vendorsLoading } = useVendors({ kind: "talent_we_pay" });
 
   const lock = useLockState();
@@ -238,10 +245,12 @@ export function TalentWePayGrid({ year }: Props) {
           {/* R5 follow-up (Gus): button now opens a picker that adds
               an existing kind='talent_we_pay' vendor to the grid as
               an empty row. Brand-new vendors are still added from
-              /vendors. */}
-          <Button onClick={() => setAddTalentOpen(true)} size="sm" className="h-8">
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add Talent
-          </Button>
+              /vendors. Hidden for partner (roles audit). */}
+          {canWrite ? (
+            <Button onClick={() => setAddTalentOpen(true)} size="sm" className="h-8">
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add Talent
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -356,7 +365,10 @@ export function TalentWePayGrid({ year }: Props) {
                               promotes to full white on a 6% tint
                               background so it's clear they're
                               interactive. The destructive confirm
-                              dialog still gates the actual delete. */}
+                              dialog still gates the actual delete.
+                              R5 follow-up (roles audit): hidden
+                              entirely for partner (read-only). */}
+                          {canWrite ? (
                           <div className="flex shrink-0 items-center gap-0.5">
                             <button
                               type="button"
@@ -378,6 +390,7 @@ export function TalentWePayGrid({ year }: Props) {
                               <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                             </button>
                           </div>
+                          ) : null}
                         </div>
                       </td>
 
@@ -418,31 +431,46 @@ export function TalentWePayGrid({ year }: Props) {
                                 })}
                                 future={isFuture}
                                 onClick={
-                                  canEdit
+                                  // R5 follow-up (roles audit):
+                                  // partner can see but not edit.
+                                  canEdit && canWrite
                                     ? () => setEditingCell({ vendorId: v.id, month, existing: p })
                                     : undefined
                                 }
-                                disabled={!canEdit}
-                                className={cn(!canEdit && "cursor-not-allowed opacity-60")}
+                                disabled={!canEdit || !canWrite}
+                                className={cn((!canEdit || !canWrite) && "cursor-not-allowed opacity-60")}
                                 title={
-                                  canEdit
-                                    ? undefined
-                                    : `${MONTHS[month - 1]} ${year} is locked. Admin or finance can unlock from the column header.`
+                                  !canWrite
+                                    ? "Read-only — partner role can't edit payments."
+                                    : canEdit
+                                      ? undefined
+                                      : `${MONTHS[month - 1]} ${year} is locked. Admin or finance can unlock from the column header.`
                                 }
                               />
                             ) : showRecurring ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setEditingCell({
-                                    vendorId: v.id,
-                                    month,
-                                    existing: null,
-                                    defaultAmount: v.recurring_amount,
-                                  })
+                                disabled={!canWrite}
+                                onClick={
+                                  canWrite
+                                    ? () =>
+                                        setEditingCell({
+                                          vendorId: v.id,
+                                          month,
+                                          existing: null,
+                                          defaultAmount: v.recurring_amount,
+                                        })
+                                    : undefined
                                 }
-                                className="block h-full w-full rounded-sm border border-dashed border-electric/50 bg-electric/[0.04] px-2 py-1.5 text-center transition-colors duration-base ease-out hover:bg-electric/[0.10]"
-                                title={`Expected $${v.recurring_amount?.toFixed(2)} for ${MONTHS[month - 1]} ${year} — click to log`}
+                                className={cn(
+                                  "block h-full w-full rounded-sm border border-dashed border-electric/50 bg-electric/[0.04] px-2 py-1.5 text-center transition-colors duration-base ease-out hover:bg-electric/[0.10]",
+                                  !canWrite && "cursor-not-allowed opacity-50 hover:bg-electric/[0.04]",
+                                )}
+                                title={
+                                  canWrite
+                                    ? `Expected $${v.recurring_amount?.toFixed(2)} for ${MONTHS[month - 1]} ${year} — click to log`
+                                    : "Read-only — partner role can't log payments."
+                                }
                               >
                                 <div className="tabular text-[12px] font-semibold leading-none text-electric">
                                   ${(v.recurring_amount ?? 0).toFixed(0)}
@@ -454,23 +482,29 @@ export function TalentWePayGrid({ year }: Props) {
                             ) : (
                               <button
                                 type="button"
-                                disabled={!canCreate}
-                                onClick={() =>
-                                  setEditingCell({
-                                    vendorId: v.id,
-                                    month,
-                                    existing: p ?? null,
-                                  })
+                                disabled={!canCreate || !canWrite}
+                                onClick={
+                                  canWrite
+                                    ? () =>
+                                        setEditingCell({
+                                          vendorId: v.id,
+                                          month,
+                                          existing: p ?? null,
+                                        })
+                                    : undefined
                                 }
                                 className={cn(
                                   "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
                                   isFuture && "opacity-50",
-                                  !canCreate && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
+                                  (!canCreate || !canWrite) &&
+                                    "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
                                 )}
                                 title={
-                                  !canCreate
-                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked. Admin/finance can unlock from the column header to log a back-dated payment.`
-                                    : `Log ${MONTHS[month - 1]} ${year} payment for ${v.name}`
+                                  !canWrite
+                                    ? "Read-only — partner role can't log payments."
+                                    : !canCreate
+                                      ? `${MONTHS[month - 1]} ${year} is closed — past months are locked. Admin/finance can unlock from the column header to log a back-dated payment.`
+                                      : `Log ${MONTHS[month - 1]} ${year} payment for ${v.name}`
                                 }
                               >
                                 +

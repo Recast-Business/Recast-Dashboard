@@ -45,6 +45,11 @@ const MONTHS = [
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /** R5 follow-up (roles audit): when false (partner role) the per-
+   *  row Edit + Delete icons and "+ Add another invoice" button are
+   *  hidden. Dialog still opens so the partner can SEE the invoice
+   *  list — they just can't mutate it. */
+  canWrite: boolean;
   creatorId: string;
   creatorName: string;
   year: number;
@@ -62,6 +67,7 @@ interface Props {
 export function TalentMonthInvoicesDialog({
   open,
   onOpenChange,
+  canWrite,
   creatorId: _creatorId,
   creatorName,
   year,
@@ -197,27 +203,32 @@ export function TalentMonthInvoicesDialog({
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(inv)}
-                        title="Edit invoice"
-                        aria-label="Edit invoice"
-                        className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
-                      >
-                        <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(inv)}
-                        disabled={del.isPending}
-                        title="Delete invoice"
-                        aria-label="Delete invoice"
-                        className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-overdue/40 hover:bg-overdue/10 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </button>
-                    </div>
+                    {/* R5 follow-up (roles audit): write actions
+                        hidden for partner. The dialog still surfaces
+                        the invoice list for read access. */}
+                    {canWrite ? (
+                      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(inv)}
+                          title="Edit invoice"
+                          aria-label="Edit invoice"
+                          className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                        >
+                          <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(inv)}
+                          disabled={del.isPending}
+                          title="Delete invoice"
+                          aria-label="Delete invoice"
+                          className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-overdue/40 hover:bg-overdue/10 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}
@@ -229,10 +240,14 @@ export function TalentMonthInvoicesDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button onClick={onCreate}>
-            <Plus className="mr-1 h-3.5 w-3.5" strokeWidth={1.5} />
-            Add another invoice
-          </Button>
+          {/* R5 follow-up (roles audit): create action hidden for
+              partner. */}
+          {canWrite ? (
+            <Button onClick={onCreate}>
+              <Plus className="mr-1 h-3.5 w-3.5" strokeWidth={1.5} />
+              Add another invoice
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

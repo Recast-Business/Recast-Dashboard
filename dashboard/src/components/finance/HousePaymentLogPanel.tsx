@@ -11,6 +11,7 @@ import {
 } from "@/hooks/usePaymentReceipts";
 import { EditReceiptDialog } from "@/components/finance/EditReceiptDialog";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useAuth } from "@/auth/AuthProvider";
 import type { PaymentMethod } from "@/types/finance";
 import { cn, formatDate, formatUSD } from "@/lib/utils";
 
@@ -53,6 +54,11 @@ const MONTH_ABBREV = [
 ];
 
 export function HousePaymentLogPanel({ year }: Props) {
+  // R5 follow-up (roles audit): partner sees the log read-only.
+  // Edit/Delete icons + EditReceiptDialog are gated by canWrite.
+  const { role } = useAuth();
+  const canWrite = role === "admin" || role === "finance";
+
   const { data, isLoading } = useHouseAllReceipts(year);
   const del = useDeleteReceipt();
   const confirm = useConfirm();
@@ -212,7 +218,7 @@ export function HousePaymentLogPanel({ year }: Props) {
                   <Th>Method</Th>
                   <Th>Reference</Th>
                   <Th>Allocations</Th>
-                  <Th right>Actions</Th>
+                  {canWrite ? <Th right>Actions</Th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -220,6 +226,7 @@ export function HousePaymentLogPanel({ year }: Props) {
                   <ReceiptRowView
                     key={r.id}
                     row={r}
+                    canWrite={canWrite}
                     onEdit={() => setEditingRow(r)}
                     onDelete={() => onDelete(r)}
                     deleting={del.isPending}
@@ -266,11 +273,13 @@ export function HousePaymentLogPanel({ year }: Props) {
 
 function ReceiptRowView({
   row,
+  canWrite,
   onEdit,
   onDelete,
   deleting,
 }: {
   row: ReceiptRow;
+  canWrite: boolean;
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
@@ -312,30 +321,35 @@ function ReceiptRowView({
         {summariseAllocations(row.allocations)}
       </td>
       {/* R5 follow-up (Gus): per-row edit + delete. Icons stay quiet
-          until row hover so the table doesn't get visually noisy. */}
-      <td className="px-3 py-2.5 text-right align-top">
-        <div className="inline-flex items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100">
-          <button
-            type="button"
-            onClick={onEdit}
-            title="Edit receipt"
-            aria-label="Edit receipt"
-            className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
-          >
-            <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            title="Delete receipt"
-            aria-label="Delete receipt"
-            className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-overdue/40 hover:bg-overdue/10 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-        </div>
-      </td>
+          until row hover so the table doesn't get visually noisy.
+          R5 follow-up (roles audit): the whole column is omitted for
+          partner — write actions hidden + the table header drops the
+          Actions <Th> entirely so the layout stays clean. */}
+      {canWrite ? (
+        <td className="px-3 py-2.5 text-right align-top">
+          <div className="inline-flex items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={onEdit}
+              title="Edit receipt"
+              aria-label="Edit receipt"
+              className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+            >
+              <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              title="Delete receipt"
+              aria-label="Delete receipt"
+              className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-overdue/40 hover:bg-overdue/10 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+            </button>
+          </div>
+        </td>
+      ) : null}
     </tr>
   );
 }

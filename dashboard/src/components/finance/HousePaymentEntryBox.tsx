@@ -18,6 +18,7 @@ import {
   useHouseUtilityPayments,
 } from "@/hooks/useHouse";
 import { useLogHouseCombinedPayment } from "@/hooks/useLogHouseCombinedPayment";
+import { useAuth } from "@/auth/AuthProvider";
 import type { HouseResident, PaymentMethod } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 
@@ -61,6 +62,13 @@ interface Props {
 }
 
 export function HousePaymentEntryBox({ year, residents }: Props) {
+  // R5 follow-up (roles audit): partner can VIEW the receipt
+  // history pane on the right but the entry form on the left is
+  // hidden — they have no write permission on payment_receipts.
+  // RLS at the DB layer is the real guarantee.
+  const { role } = useAuth();
+  const canWrite = role === "admin" || role === "finance";
+
   // R5 follow-up (Gus #5 + #7): the entry box now logs a COMBINED
   // rent + utility payment via useLogHouseCombinedPayment. The old
   // useLogReceiptFifo path is gone; combined logic walks oldest
@@ -169,8 +177,16 @@ export function HousePaymentEntryBox({ year, residents }: Props) {
   }, [receipts]);
 
   return (
-    <div className="grid grid-cols-1 gap-4 rounded-lg border bg-card p-4 lg:grid-cols-2">
-      {/* LEFT — entry form */}
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-4 rounded-lg border bg-card p-4",
+        // R5 follow-up (roles audit): single-column layout for
+        // partner since the entry form on the left is hidden.
+        canWrite && "lg:grid-cols-2",
+      )}
+    >
+      {/* LEFT — entry form (hidden for partner) */}
+      {canWrite ? (
       <div className="space-y-3">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold">
@@ -271,6 +287,7 @@ export function HousePaymentEntryBox({ year, residents }: Props) {
           </Button>
         </div>
       </div>
+      ) : null}
 
       {/* RIGHT — per-person history */}
       <div className="space-y-2">

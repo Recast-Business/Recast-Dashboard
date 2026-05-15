@@ -14,6 +14,7 @@ import { AddTalentToGridDialog } from "@/components/finance/AddTalentToGridDialo
 import type { PaymentStatusV2, TalentInvoice } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 import { useLockState } from "@/hooks/useLockState";
+import { useAuth } from "@/auth/AuthProvider";
 import { MonthLockBadge } from "@/components/finance/MonthLockBadge";
 import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
 
@@ -66,6 +67,13 @@ interface Props {
 }
 
 export function TalentInvoiceGrid({ year }: Props) {
+  // R5 follow-up (roles audit): partner now has READ-ONLY access to
+  // the Invoice page. canWrite gates the "+ Add Talent" button and
+  // every write affordance in the child dialogs. RLS at the DB layer
+  // is the actual guarantee; this just keeps partner UX clean
+  // (no clickable buttons that would toast-fail).
+  const { role } = useAuth();
+  const canWrite = role === "admin" || role === "finance";
   // R5 follow-up (Gus): the grid's row set is now the UNION of two
   // sources, not "only creators with ≥1 invoice":
   //   1. talent_grid_tracking rows for (paying_us, year) — explicit
@@ -144,6 +152,10 @@ export function TalentInvoiceGrid({ year }: Props) {
   function openCell(creatorId: string, month: number) {
     const list = invoiceMap?.[creatorId]?.[month] ?? [];
     if (list.length === 0) {
+      // R5 follow-up (roles audit): partner shouldn't reach the
+      // create form. Empty-cell click no-ops for partner. With
+      // invoices present, the list dialog still opens read-only.
+      if (!canWrite) return;
       // Empty cell: jump straight to the create form for this slot.
       setCreating({ creatorId, year, month });
       setEditing(null);
@@ -151,7 +163,9 @@ export function TalentInvoiceGrid({ year }: Props) {
       return;
     }
     // 1+ invoices: route through the per-month list dialog. Lets the
-    // user pick which to edit, delete one, or add another.
+    // user pick which to edit, delete one, or add another. For
+    // partner the dialog opens with edit/delete/add affordances
+    // hidden (gated inside the dialog via canWrite).
     setMonthListContext({ creatorId, month });
     setMonthListOpen(true);
   }
@@ -243,10 +257,13 @@ export function TalentInvoiceGrid({ year }: Props) {
           />
           {/* R5 follow-up (Gus): button now adds a TALENT ROW to the
               grid, not an invoice. Per-month "+" cells continue to
-              drive invoice creation. */}
-          <Button onClick={() => setAddTalentOpen(true)} size="sm" className="h-8">
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add Talent
-          </Button>
+              drive invoice creation. Hidden for partner — read-only
+              role audit, R5 follow-up. */}
+          {canWrite ? (
+            <Button onClick={() => setAddTalentOpen(true)} size="sm" className="h-8">
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add Talent
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -413,17 +430,20 @@ export function TalentInvoiceGrid({ year }: Props) {
                             ) : (
                               <button
                                 type="button"
-                                disabled={!canCreate}
+                                disabled={!canCreate || !canWrite}
                                 onClick={() => openCell(c.id, month)}
                                 className={cn(
                                   "block h-full w-full rounded-sm border border-dashed border-rule px-2 py-2 text-center text-[18px] font-semibold leading-none text-steel/30 transition-colors duration-base ease-out hover:bg-white/[0.04] hover:text-steel/60",
                                   isFuture && "opacity-50",
-                                  !canCreate && "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
+                                  (!canCreate || !canWrite) &&
+                                    "cursor-not-allowed opacity-20 hover:bg-transparent hover:text-steel/30",
                                 )}
                                 title={
-                                  !canCreate
-                                    ? `${MONTHS[month - 1]} ${year} is closed — past months are locked. Admin/finance can unlock from the column header to log a back-dated invoice.`
-                                    : `Add ${MONTHS[month - 1]} ${year} invoice for ${c.name}`
+                                  !canWrite
+                                    ? "Read-only — partner role can't create invoices."
+                                    : !canCreate
+                                      ? `${MONTHS[month - 1]} ${year} is closed — past months are locked. Admin/finance can unlock from the column header to log a back-dated invoice.`
+                                      : `Add ${MONTHS[month - 1]} ${year} invoice for ${c.name}`
                                 }
                               >
                                 +
@@ -505,6 +525,7 @@ export function TalentInvoiceGrid({ year }: Props) {
               setMonthListContext(null);
             }
           }}
+          canWrite={canWrite}
           creatorId={monthListContext.creatorId}
           creatorName={
             (creators ?? []).find((c) => c.id === monthListContext.creatorId)?.name
