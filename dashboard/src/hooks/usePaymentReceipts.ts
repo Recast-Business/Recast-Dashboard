@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type {
   PaymentAllocation,
@@ -144,6 +145,83 @@ export function useDeleteReceipt() {
       if (error) throw error;
     },
     onSuccess: (_data, vars) => invalidateForSource(qc, vars.source),
+  });
+}
+
+/**
+ * R5 follow-up — edit an existing receipt.
+ *
+ * Two semantics depending on what changed:
+ *
+ *   • Metadata only (received_at / method / reference / notes) →
+ *     plain UPDATE. Allocations untouched. The cascading status
+ *     trigger doesn't fire because amount_paid on the obligor rows
+ *     didn't change.
+ *
+ *   • Amount changed → UPDATE the receipt, then DELETE every
+ *     existing payment_allocations row for this receipt (which
+ *     fires the reconcile trigger to back out the prior amount_paid
+ *     attribution), then call allocate_fifo to re-spread the new
+ *     amount across the obligor's oldest unpaid periods.
+ *
+ * Not transactionally atomic across the three steps. A mid-flight
+ * failure leaves the receipt updated but unallocated; the toast
+ * surfaces the error and the user can re-save to trigger
+ * re-allocation. Promote to a single SQL RPC if/when that becomes
+ * a real problem.
+ */
+interface EditReceiptInput {
+  id: string;
+  source: PaymentSource;
+  /** Original receipt amount — used to decide whether re-allocation
+   *  is needed. The mutation does the comparison itself. */
+  originalAmount: number;
+  received_at: string;
+  amount: number;
+  method?: PaymentMethod | null;
+  reference?: string | null;
+  notes?: string | null;
+}
+
+export function useEditReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: EditReceiptInput) => {
+      const amountChanged =
+        Math.round((Number(input.amount) || 0) * 100) !==
+        Math.round((Number(input.originalAmount) || 0) * 100);
+
+      // 1. UPDATE the receipt row itself.
+      const { error: updErr } = await supabase
+        .from("payment_receipts")
+        .update({
+          received_at: input.received_at,
+          amount: input.amount,
+          method: input.method ?? null,
+          reference: input.reference ?? null,
+          notes: input.notes ?? null,
+        })
+        .eq("id", input.id);
+      if (updErr) throw updErr;
+
+      // 2. If amount changed, wipe old allocations + re-allocate.
+      //    The cascade via the reconcile_period_status trigger will
+      //    drop the old amount_paid attribution on every affected
+      //    obligor row before the new allocate_fifo lands.
+      if (amountChanged) {
+        const { error: delAllocErr } = await supabase
+          .from("payment_allocations")
+          .delete()
+          .eq("receipt_id", input.id);
+        if (delAllocErr) throw delAllocErr;
+        const { error: rpcErr } = await supabase.rpc("allocate_fifo", {
+          p_receipt_id: input.id,
+        });
+        if (rpcErr) throw rpcErr;
+      }
+    },
+    onSuccess: (_data, vars) => invalidateForSource(qc, vars.source),
+    onError: (e) => toast.error(`Edit receipt failed: ${(e as Error).message}`),
   });
 }
 

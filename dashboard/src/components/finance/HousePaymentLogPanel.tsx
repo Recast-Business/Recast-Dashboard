@@ -1,9 +1,16 @@
 import * as React from "react";
-import { Home, Zap } from "lucide-react";
+import { Home, Pencil, Trash2, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EyebrowLabel, MoneyCell } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
-import { useHouseAllReceipts } from "@/hooks/usePaymentReceipts";
+import {
+  useDeleteReceipt,
+  useHouseAllReceipts,
+} from "@/hooks/usePaymentReceipts";
+import { EditReceiptDialog } from "@/components/finance/EditReceiptDialog";
+import { useConfirm } from "@/hooks/useConfirm";
+import type { PaymentMethod } from "@/types/finance";
 import { cn, formatDate, formatUSD } from "@/lib/utils";
 
 /**
@@ -27,7 +34,7 @@ interface ReceiptRow {
   source: "house_rent" | "house_utility";
   received_at: string;
   amount: number;
-  method: string | null;
+  method: PaymentMethod | null;
   reference: string | null;
   notes: string | null;
   resident: { id: string; name: string } | null;
@@ -46,7 +53,37 @@ const MONTH_ABBREV = [
 
 export function HousePaymentLogPanel({ year }: Props) {
   const { data, isLoading } = useHouseAllReceipts(year);
+  const del = useDeleteReceipt();
+  const confirm = useConfirm();
+  const [editingRow, setEditingRow] = React.useState<ReceiptRow | null>(null);
+
   const rows = (data ?? []) as ReceiptRow[];
+
+  async function onDelete(row: ReceiptRow) {
+    const payee = row.source === "house_rent"
+      ? row.resident?.name ?? "(unknown resident)"
+      : row.utility?.utility_name ?? "(unknown utility)";
+    const ok = await confirm({
+      title: `Delete this receipt?`,
+      description: (
+        <>
+          {formatUSD(Number(row.amount) || 0, { decimals: 2 })} for{" "}
+          <strong>{payee}</strong> on {formatDate(row.received_at)}. The
+          allocations roll back automatically so the rent / utility
+          row&apos;s amount_paid and status update on their own.
+        </>
+      ),
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync({ id: row.id, source: row.source });
+      toast.success("Receipt deleted");
+    } catch (e) {
+      toast.error(`Delete failed: ${(e as Error).message}`);
+    }
+  }
 
   const totals = React.useMemo(() => {
     let total = 0;
@@ -165,17 +202,50 @@ export function HousePaymentLogPanel({ year }: Props) {
                   <Th>Method</Th>
                   <Th>Reference</Th>
                   <Th>Allocations</Th>
+                  <Th right>Actions</Th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <ReceiptRowView key={r.id} row={r} />
+                  <ReceiptRowView
+                    key={r.id}
+                    row={r}
+                    onEdit={() => setEditingRow(r)}
+                    onDelete={() => onDelete(r)}
+                    deleting={del.isPending}
+                  />
                 ))}
               </tbody>
             </table>
           </div>
         </div>
       )}
+
+      {/* R5 follow-up — edit dialog driven by the row pencil button.
+          Mounts always; receipt=null while closed. */}
+      <EditReceiptDialog
+        open={editingRow != null}
+        onOpenChange={(o) => {
+          if (!o) setEditingRow(null);
+        }}
+        receipt={
+          editingRow
+            ? {
+                id: editingRow.id,
+                source: editingRow.source,
+                received_at: editingRow.received_at,
+                amount: editingRow.amount,
+                method: editingRow.method,
+                reference: editingRow.reference,
+                notes: editingRow.notes,
+                display_name:
+                  editingRow.source === "house_rent"
+                    ? `Rent · ${editingRow.resident?.name ?? "(unknown)"}`
+                    : `Utility · ${editingRow.utility?.utility_name ?? "(unknown)"}`,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
@@ -184,14 +254,24 @@ export function HousePaymentLogPanel({ year }: Props) {
 // Row
 // ─────────────────────────────────────────────────────────────────────
 
-function ReceiptRowView({ row }: { row: ReceiptRow }) {
+function ReceiptRowView({
+  row,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  row: ReceiptRow;
+  onEdit: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
   const isRent = row.source === "house_rent";
   const Icon = isRent ? Home : Zap;
   const payee = isRent
     ? row.resident?.name ?? "(unknown resident)"
     : row.utility?.utility_name ?? "(unknown utility)";
   return (
-    <tr className="border-b border-rule transition-colors duration-base ease-out hover:bg-white/[0.04]">
+    <tr className="group border-b border-rule transition-colors duration-base ease-out hover:bg-white/[0.04]">
       <td className="px-3 py-2.5 align-top text-[12px] tabular text-white">
         {formatDate(row.received_at)}
       </td>
@@ -220,6 +300,31 @@ function ReceiptRowView({ row }: { row: ReceiptRow }) {
       </td>
       <td className="px-3 py-2.5 align-top text-[12px] text-steel">
         {summariseAllocations(row.allocations)}
+      </td>
+      {/* R5 follow-up (Gus): per-row edit + delete. Icons stay quiet
+          until row hover so the table doesn't get visually noisy. */}
+      <td className="px-3 py-2.5 text-right align-top">
+        <div className="inline-flex items-center gap-0.5 opacity-0 transition-opacity duration-base ease-out group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={onEdit}
+            title="Edit receipt"
+            aria-label="Edit receipt"
+            className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+          >
+            <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            title="Delete receipt"
+            aria-label="Delete receipt"
+            className="rounded-sm border border-rule p-1 text-steel transition-colors duration-base ease-out hover:border-overdue/40 hover:bg-overdue/10 hover:text-overdue disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+          </button>
+        </div>
       </td>
     </tr>
   );
