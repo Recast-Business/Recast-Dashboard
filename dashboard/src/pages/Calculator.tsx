@@ -8,6 +8,7 @@ import { EFuseIncomeSummary } from "@/components/finance/EFuseIncomeSummary";
 import { EyebrowLabel } from "@/components/recast";
 import { TalentPicker } from "@/components/calculator/TalentPicker";
 import { CommissionResolvedCard } from "@/components/calculator/CommissionResolvedCard";
+import { AdOverlayCalculator } from "@/components/calculator/AdOverlayCalculator";
 
 /**
  * Calculator page — math home.
@@ -102,6 +103,10 @@ export function CalculatorPage() {
         </TabsContent>
 
         <TabsContent value="deals" className="space-y-4">
+          {/* Live Ad Overlay math — operators sweep CPM / CCV /
+              frequency / airtime to model what a given creator
+              would earn on a livestream-overlay sponsorship. */}
+          <AdOverlayCalculator />
           <DealsPointer />
           {/* R3E follow-up + R5 merge: scopes to campaigns where the
               picked creator is attached. With no talent picked, full
