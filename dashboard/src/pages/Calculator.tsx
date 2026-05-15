@@ -1,11 +1,9 @@
 import * as React from "react";
-import { ExternalLink, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OFIncomeSection } from "@/components/finance/OFIncomeSection";
 import { TeleIncomeSection } from "@/components/finance/TeleIncomeSection";
 import { EFuseIncomeSummary } from "@/components/finance/EFuseIncomeSummary";
-import { EyebrowLabel } from "@/components/recast";
+import { EyebrowLabel, YearSelector } from "@/components/recast";
 import { TalentPicker } from "@/components/calculator/TalentPicker";
 import { CommissionResolvedCard } from "@/components/calculator/CommissionResolvedCard";
 import { AdOverlayCalculator } from "@/components/calculator/AdOverlayCalculator";
@@ -103,14 +101,13 @@ export function CalculatorPage() {
         </TabsContent>
 
         <TabsContent value="deals" className="space-y-4">
-          {/* Live Ad Overlay math — operators sweep CPM / CCV /
-              frequency / airtime to model what a given creator
-              would earn on a livestream-overlay sponsorship. */}
+          {/* Deals tab = Ad Overlay calculator (reference math, with
+              an inline "Open Campaigns" CTA in its footer) + the
+              EFuseIncomeSummary read-out scoped to the picked
+              talent. The old standalone DealsPointer card was
+              folded into the calculator footer so the tab is one
+              coherent surface instead of two competing ones. */}
           <AdOverlayCalculator />
-          <DealsPointer />
-          {/* R3E follow-up + R5 merge: scopes to campaigns where the
-              picked creator is attached. With no talent picked, full
-              division roll-up like before. */}
           <EFuseIncomeSummary year={year} talentFilterId={talentId} />
         </TabsContent>
       </Tabs>
@@ -118,72 +115,3 @@ export function CalculatorPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Deals tab — pointer to /campaigns
-//
-// R3F note: rather than duplicating the campaign math engine here,
-// the Deals tab links to the existing /campaigns page (8-type deal
-// structures, expandable cards, finance hub roll-ups). One source of
-// truth for one-off deal accounting.
-// ─────────────────────────────────────────────────────────────────────
-
-function DealsPointer() {
-  return (
-    <div className="rounded-lg border bg-card p-6 text-sm">
-      <div className="flex items-start gap-3">
-        <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-electric" />
-        <div className="min-w-0 flex-1">
-          <h3 className="font-display text-h3 font-bold tracking-[-0.02em]">
-            One-off deal math lives on Campaigns
-          </h3>
-          <p className="mt-1 max-w-[60ch] text-steel">
-            Brand-deal accounting (flat fee, per-stream rates, CPM
-            bonuses, hybrid stacks) runs end-to-end on the Campaigns
-            page — expandable creator rows, per-deal commission, and
-            full payment-status tracking. We don't duplicate that math
-            here so there's a single source of truth.
-          </p>
-          <Link
-            to="/campaigns"
-            className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-electric hover:underline"
-          >
-            Open Campaigns <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// Year selector — copied from Finance.tsx so this page is self-contained
-// ─────────────────────────────────────────────────────────────────────
-
-function YearSelector({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (y: number) => void;
-}) {
-  const now = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
-        Year
-      </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-9 rounded-md border bg-background px-2 text-sm"
-      >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}

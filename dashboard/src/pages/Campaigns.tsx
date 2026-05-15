@@ -12,6 +12,7 @@ import { ExportPDFButton } from "@/components/ui/export-pdf-button";
 import {
   PageHeader,
   MetricStrip,
+  YearSelector,
   type MetricTile,
 } from "@/components/recast";
 import type { CSVColumn } from "@/lib/export/csv";
@@ -180,27 +181,6 @@ export function CampaignsPage() {
       {dialogOpen && (
         <CampaignDialog open onOpenChange={(o) => !o && setDialogOpen(false)} campaign={null} />
       )}
-    </div>
-  );
-}
-
-function YearSelector({ value, onChange }: { value: number; onChange: (y: number) => void }) {
-  const now = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted-foreground">Year:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="rounded-md border bg-background px-2 py-1 text-sm"
-      >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }

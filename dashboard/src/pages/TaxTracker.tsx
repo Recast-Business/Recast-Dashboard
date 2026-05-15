@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EyebrowLabel, MetricStrip } from "@/components/recast";
+import { EyebrowLabel, MetricStrip, YearSelector } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { useTaxTrackerSubjects, useUpsertTaxRecord, useUpdateSubjectTax } from "@/hooks/useTaxRecords";
 import type { TaxTrackerRow } from "@/hooks/useTaxRecords";
@@ -532,34 +532,5 @@ function StatusCell({
   );
 }
 
-// R5 follow-up: local CountTile removed — consolidated onto
-// `MetricStrip` / `MetricTile` from @/components/recast.
-
-function YearSelector({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (y: number) => void;
-}) {
-  const now = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-steel">
-        Year
-      </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-9 rounded-md border bg-background px-2 text-sm"
-      >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
+// R5 follow-up: local CountTile + YearSelector removed — consolidated
+// onto `MetricStrip` / `MetricTile` / `YearSelector` from @/components/recast.

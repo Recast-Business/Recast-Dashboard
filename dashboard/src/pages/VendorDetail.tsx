@@ -530,7 +530,7 @@ export function VendorDetailPage() {
               <div className="flex items-center justify-between gap-2">
                 <EyebrowLabel withRule>Recent receipts</EyebrowLabel>
                 <Link
-                  to="/finance"
+                  to="/payments"
                   className="inline-flex items-center gap-0.5 text-[11px] text-steel hover:text-white"
                 >
                   All <ExternalLink className="h-3 w-3" strokeWidth={1.5} />

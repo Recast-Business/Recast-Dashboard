@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Tv } from "lucide-react";
+import { ExternalLink, Tv } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyCell } from "@/components/recast";
@@ -231,6 +232,23 @@ export function AdOverlayCalculator() {
             className="mt-1 text-paid"
           />
         </div>
+      </div>
+
+      {/* CTA footer — this calculator is a math reference; real deals
+          get created on /campaigns where the rate card + per-month
+          CCV/airtime persist and feed Overview. */}
+      <div className="mt-4 flex items-start gap-2 border-t border-rule pt-3 text-[12px] text-steel">
+        <span className="flex-1">
+          This is a reference tool. To lock these numbers in for a real
+          creator, create an Ad Overlay campaign and enter the per-month
+          CCV + airtime there.
+        </span>
+        <Link
+          to="/campaigns"
+          className="inline-flex items-center gap-1 text-[12px] font-semibold text-electric hover:underline"
+        >
+          Open Campaigns <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+        </Link>
       </div>
     </div>
   );

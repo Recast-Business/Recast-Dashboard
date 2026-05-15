@@ -1,6 +1,7 @@
 import * as React from "react";
 import { TalentSection } from "@/components/finance/TalentSection";
 import { OverdueDrawer } from "@/components/finance/OverdueDrawer";
+import { YearSelector } from "@/components/recast";
 
 /**
  * Round 3D follow-up (Gustavo): /finance is the Talent ledger only.
@@ -45,33 +46,3 @@ export function FinancePage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Year selector
-// ─────────────────────────────────────────────────────────────────────
-
-function YearSelector({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (y: number) => void;
-}) {
-  const now = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => now - 2 + i);
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted-foreground">Year:</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="rounded-md border bg-background px-2 py-1 text-sm"
-      >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
