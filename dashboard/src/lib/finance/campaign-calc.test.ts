@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcCampaignDeal } from "./campaign-calc";
+import { calcAdOverlay, calcCampaignDeal } from "./campaign-calc";
 
 describe("calcCampaignDeal — CPM", () => {
   it("100k views at $25 CPM → $2,500 gross", () => {
@@ -172,6 +172,64 @@ describe("calcCampaignDeal — defensive inputs", () => {
       views: 100_000,
       default_commission_pct: 20,
     });
+    expect(r.gross).toBe(0);
+  });
+});
+
+describe("calcAdOverlay — livestream overlay", () => {
+  it("FanDuel walk-through: $15 CPM, 3,364 CCV, 4 ads/hr, 169h 10m → $34,144.60 gross", () => {
+    const r = calcAdOverlay({
+      cpm_rate: 15,
+      ad_frequency_per_hr: 4,
+      ccv: 3_364,
+      airtime_minutes: 169 * 60 + 10,
+      default_commission_pct: 20,
+    });
+    expect(r.per_ad).toBeCloseTo(50.46, 2);
+    expect(r.per_hour).toBeCloseTo(201.84, 2);
+    expect(r.gross).toBeCloseTo(34_144.6, 1);
+    expect(r.recast_commission).toBeCloseTo(6_828.92, 1);
+    expect(r.creator_take_home).toBeCloseTo(27_315.68, 1);
+  });
+
+  it("per-creator commission override beats campaign default", () => {
+    const r = calcAdOverlay({
+      cpm_rate: 10,
+      ad_frequency_per_hr: 2,
+      ccv: 1_000,
+      airtime_minutes: 60,
+      override_commission_pct: 15,
+      default_commission_pct: 20,
+    });
+    expect(r.gross).toBe(20);
+    expect(r.effective_commission_pct).toBe(15);
+    expect(r.recast_commission).toBe(3);
+    expect(r.creator_take_home).toBe(17);
+  });
+
+  it("zero airtime → zero gross", () => {
+    const r = calcAdOverlay({
+      cpm_rate: 15,
+      ad_frequency_per_hr: 4,
+      ccv: 3_364,
+      airtime_minutes: 0,
+      default_commission_pct: 20,
+    });
+    expect(r.per_ad).toBeCloseTo(50.46, 2);
+    expect(r.per_hour).toBeCloseTo(201.84, 2);
+    expect(r.gross).toBe(0);
+    expect(r.recast_commission).toBe(0);
+  });
+
+  it("null / undefined inputs clamp to zero", () => {
+    const r = calcAdOverlay({
+      cpm_rate: null,
+      ad_frequency_per_hr: undefined,
+      ccv: null,
+      airtime_minutes: null,
+      default_commission_pct: 20,
+    });
+    expect(r.per_ad).toBe(0);
     expect(r.gross).toBe(0);
   });
 });

@@ -98,6 +98,71 @@ export function calcCampaignDeal(input: CampaignDealInputs): CampaignDealCalc {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Ad Overlay deals
+// ─────────────────────────────────────────────────────────────────────
+//
+// Lives outside the DealType enum because the inputs don't overlap with
+// the views/displays/clicks model — overlay revenue scales with CCV and
+// airtime, not page views. CPM + ad frequency come from the campaign;
+// CCV + airtime come from the per-creator-per-month period cell.
+//
+//   per ad airing = (CCV / 1000) × CPM
+//   per hour      = per ad airing × ads/hr
+//   gross         = per hour × (airtime_minutes / 60)
+
+export interface AdOverlayInputs {
+  /** $ per 1,000 viewers per ad airing — campaign-level. */
+  cpm_rate: number | null | undefined;
+  /** Ads played per streaming hour — campaign-level. */
+  ad_frequency_per_hr: number | null | undefined;
+  /** Average concurrent viewer count during the month — per-creator-period. */
+  ccv: number | null | undefined;
+  /** Total streamed minutes in the month — per-creator-period. */
+  airtime_minutes: number | null | undefined;
+  /** Per-creator override; falls through to campaign default if null. */
+  override_commission_pct?: number | null;
+  /** Campaign-level default commission % (used when override is null). */
+  default_commission_pct: number;
+}
+
+export interface AdOverlayCalc {
+  per_ad: number;
+  per_hour: number;
+  gross: number;
+  effective_commission_pct: number;
+  recast_commission: number;
+  creator_take_home: number;
+}
+
+export function calcAdOverlay(input: AdOverlayInputs): AdOverlayCalc {
+  const cpm = nonneg(input.cpm_rate ?? 0);
+  const adsPerHr = nonneg(input.ad_frequency_per_hr ?? 0);
+  const ccv = nonneg(input.ccv ?? 0);
+  const minutes = nonneg(input.airtime_minutes ?? 0);
+
+  const perAd = round2((ccv / 1000) * cpm);
+  const perHour = round2(perAd * adsPerHr);
+  const gross = round2(perHour * (minutes / 60));
+
+  const effectivePct =
+    input.override_commission_pct != null
+      ? input.override_commission_pct
+      : input.default_commission_pct;
+
+  const recastCommission = round2(gross * (effectivePct / 100));
+  const creatorTakeHome = round2(gross - recastCommission);
+
+  return {
+    per_ad: perAd,
+    per_hour: perHour,
+    gross,
+    effective_commission_pct: effectivePct,
+    recast_commission: recastCommission,
+    creator_take_home: creatorTakeHome,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

@@ -3,6 +3,7 @@ import { Tv } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyCell } from "@/components/recast";
+import { calcAdOverlay } from "@/lib/finance/campaign-calc";
 import { cn, formatUSD } from "@/lib/utils";
 
 /**
@@ -84,12 +85,19 @@ export function AdOverlayCalculator() {
   const [commissionPct, setCommissionPct] = React.useState(20);
 
   const airtimeHours = airtimeHr + airtimeMin / 60;
-  const perAd = (ccv / 1000) * cpm;
-  const perHour = perAd * adsPerHr;
-  const monthlyGross = perHour * airtimeHours;
-  const commissionFraction = Math.max(0, Math.min(commissionPct, 100)) / 100;
-  const recastCut = monthlyGross * commissionFraction;
-  const creatorNet = monthlyGross - recastCut;
+  const airtimeMinutes = airtimeHr * 60 + airtimeMin;
+  const calc = calcAdOverlay({
+    cpm_rate: cpm,
+    ad_frequency_per_hr: adsPerHr,
+    ccv,
+    airtime_minutes: airtimeMinutes,
+    default_commission_pct: Math.max(0, Math.min(commissionPct, 100)),
+  });
+  const perAd = calc.per_ad;
+  const perHour = calc.per_hour;
+  const monthlyGross = calc.gross;
+  const recastCut = calc.recast_commission;
+  const creatorNet = calc.creator_take_home;
 
   return (
     <div className="rounded-lg border bg-card p-6">
