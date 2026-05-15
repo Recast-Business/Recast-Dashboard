@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Home, Pencil, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EyebrowLabel, MoneyCell } from "@/components/recast";
 import { ExportCSVButton } from "@/components/ui/export-csv-button";
@@ -122,14 +123,21 @@ export function HousePaymentLogPanel({ year }: Props) {
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    // R5 follow-up (Gus): panel now wrapped in a Card matching the
+    // rest of the /house sections (UtilitySplitsPanel etc.). Header
+    // sits in a bordered top region so it doesn't slam into the
+    // reconciliation strip above. Stats line below the header gets
+    // its own section divider. Plenty of breathing room — the prior
+    // bare-div version felt claustrophobic next to the strip.
+    <Card className="overflow-hidden p-0">
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-rule px-tile-md py-tile-md">
         <div>
           <EyebrowLabel withRule>Payment log · {year}</EyebrowLabel>
           <h2 className="mt-2 font-display text-h2 font-bold tracking-[-0.02em]">
             House receipts
           </h2>
-          <p className="mt-1 max-w-[60ch] text-[13px] text-steel">
+          <p className="mt-1.5 max-w-[60ch] text-[13px] text-steel">
             Every rent + utility receipt logged for Frazier&apos;s House
             this year. Separated from the global Recast payment log so
             household reconciliation stays focused.
@@ -153,9 +161,8 @@ export function HousePaymentLogPanel({ year }: Props) {
         />
       </div>
 
-      {/* Totals summary line — quick reconciliation across rent +
-          utilities for the year. */}
-      <div className="flex flex-wrap items-center gap-3 rounded-md border bg-card px-3 py-2 text-[12px] text-steel">
+      {/* ── Totals strip ────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-rule bg-[#0d0d0d] px-tile-md py-2.5 text-[12px] text-steel">
         <span>
           {rows.length} receipt{rows.length === 1 ? "" : "s"}
         </span>
@@ -182,15 +189,18 @@ export function HousePaymentLogPanel({ year }: Props) {
         </span>
       </div>
 
+      {/* ── Body ────────────────────────────────────────────────── */}
       {isLoading ? (
-        <Skeleton className="h-[200px] w-full rounded-lg" />
+        <div className="p-tile-md">
+          <Skeleton className="h-[200px] w-full rounded-md" />
+        </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
+        <div className="px-tile-md py-10 text-center text-[13px] text-steel">
           No house receipts logged for {year} yet. Log one above via the
           combined-payment box and it&apos;ll appear here.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-card">
+        <div className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -246,7 +256,7 @@ export function HousePaymentLogPanel({ year }: Props) {
             : null
         }
       />
-    </div>
+    </Card>
   );
 }
 
