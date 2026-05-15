@@ -22,7 +22,6 @@ import { canAccess } from "@/auth/useRole";
 import type { UserRole } from "@/types/database";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Avatar } from "@/components/recast";
 import { useNavCounts } from "@/hooks/useNavCounts";
 
@@ -277,7 +276,6 @@ export function Sidebar() {
           </div>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-steel" />
         </button>
-        <ThemeToggle className="w-full justify-around" />
         <Button
           variant="ghost"
           size="sm"
