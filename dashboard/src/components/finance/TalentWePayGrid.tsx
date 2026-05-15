@@ -8,13 +8,16 @@ import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { EyebrowLabel, InvoiceCell, MoneyCell } from "@/components/recast";
 import { useVendors, useDeleteVendor } from "@/hooks/useVendors";
 import { useVendorPaymentsByVendors } from "@/hooks/useVendorPayments";
+import { useTalentGridTracking } from "@/hooks/useTalentGridTracking";
 import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
+import { AddTalentToGridDialog } from "@/components/finance/AddTalentToGridDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import type { PaymentStatusV2, Vendor, VendorPayment } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 import { useLockState } from "@/hooks/useLockState";
 import { MonthLockBadge } from "@/components/finance/MonthLockBadge";
+import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
 
 /**
  * Phase L (C3): Talent We Pay — sister grid to C2 (Talent Paying Us).
@@ -49,10 +52,14 @@ export function TalentWePayGrid({ year }: Props) {
   const lock = useLockState();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PaymentStatusV2 | "all">("all");
-  // VendorDialog state — handles BOTH create (vendor=null) and edit
-  // (vendor=Vendor). Toggle via openAddVendor / openEditVendor below.
+  // VendorDialog state — used ONLY for per-row Edit clicks now.
+  // The top-right "+ Add Talent" button opens AddTalentToGridDialog
+  // (R5 follow-up) instead of opening VendorDialog for create.
   const [vendorDialogOpen, setVendorDialogOpen] = React.useState(false);
   const [editingVendor, setEditingVendor] = React.useState<Vendor | null>(null);
+  // R5 follow-up: the picker for adding existing talent_we_pay vendors
+  // to the grid. Separate state from PaymentCellDialog.
+  const [addTalentOpen, setAddTalentOpen] = React.useState(false);
   const [editingCell, setEditingCell] = React.useState<{
     vendorId: string;
     month: number;
@@ -65,10 +72,6 @@ export function TalentWePayGrid({ year }: Props) {
   const del = useDeleteVendor();
   const confirm = useConfirm();
 
-  function openAddVendor() {
-    setEditingVendor(null);
-    setVendorDialogOpen(true);
-  }
   function openEditVendor(v: Vendor) {
     setEditingVendor(v);
     setVendorDialogOpen(true);
@@ -101,12 +104,21 @@ export function TalentWePayGrid({ year }: Props) {
   // actually have payment rows for the year.
   const allVendorIds = React.useMemo(() => (vendors ?? []).map((v) => v.id), [vendors]);
   const { data: paymentsByVendor, isLoading: paymentsLoading } = useVendorPaymentsByVendors(allVendorIds, year);
+  // R5 follow-up: explicit grid tracking rows. Same union pattern as
+  // TalentInvoiceGrid — visible rows = tracking rows ∪ vendors that
+  // already have payments this year. Lets the user add a contractor
+  // to the grid before logging any payment.
+  const { data: tracking } = useTalentGridTracking("we_pay", year);
 
   const tracked = React.useMemo(() => {
-    if (!vendors || !paymentsByVendor) return [];
-    const trackedIds = new Set(Object.keys(paymentsByVendor));
-    return vendors.filter((v) => trackedIds.has(v.id));
-  }, [vendors, paymentsByVendor]);
+    if (!vendors) return [];
+    const visibleIds = new Set<string>();
+    for (const id of Object.keys(paymentsByVendor ?? {})) visibleIds.add(id);
+    for (const t of tracking ?? []) {
+      if (t.vendor_id) visibleIds.add(t.vendor_id);
+    }
+    return vendors.filter((v) => visibleIds.has(v.id));
+  }, [vendors, paymentsByVendor, tracking]);
 
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -122,12 +134,23 @@ export function TalentWePayGrid({ year }: Props) {
   }, [tracked, search]);
 
   // Apply status filter after loading payments (vendor row stays visible
-  // if any of their cells matches).
+  // if any of their cells matches). R5 follow-up: filter uses effective
+  // status so "Overdue" surfaces payments whose stored status hasn't
+  // been flipped yet (the row's EOM is past, paid_at is null).
   const filteredByStatus = React.useMemo(() => {
     if (statusFilter === "all") return filtered;
     return filtered.filter((v) => {
       const cells = paymentsByVendor?.[v.id] ?? {};
-      return Object.values(cells).some((p) => p.status === statusFilter);
+      return Object.values(cells).some((p) => {
+        const eff = effectiveInvoiceStatus({
+          amount: Number(p.amount) || 0,
+          amount_paid: p.status === "paid" ? Number(p.amount) || 0 : 0,
+          due_date: null,
+          period_year: p.period_year,
+          period_month: p.period_month,
+        });
+        return eff === statusFilter;
+      });
     });
   }, [filtered, paymentsByVendor, statusFilter]);
 
@@ -212,8 +235,12 @@ export function TalentWePayGrid({ year }: Props) {
               { header: "Status", value: (r) => r.status },
             ]}
           />
-          <Button onClick={openAddVendor} size="sm" className="h-8">
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add talent
+          {/* R5 follow-up (Gus): button now opens a picker that adds
+              an existing kind='talent_we_pay' vendor to the grid as
+              an empty row. Brand-new vendors are still added from
+              /vendors. */}
+          <Button onClick={() => setAddTalentOpen(true)} size="sm" className="h-8">
+            <Plus className="mr-1 h-3.5 w-3.5" /> Add Talent
           </Button>
         </div>
       </div>
@@ -241,7 +268,7 @@ export function TalentWePayGrid({ year }: Props) {
       ) : filteredByStatus.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
           {tracked.length === 0
-            ? `No payments logged yet for ${year}. Click "Add talent" to record one — the contractor will appear here automatically.`
+            ? `No talent on the ${year} grid yet. Click "Add Talent" to pick a contractor — they'll appear here with empty monthly cells you can fill in.`
             : "No matches for the current filter."}
         </div>
       ) : (
@@ -382,7 +409,13 @@ export function TalentWePayGrid({ year }: Props) {
                               <InvoiceCell
                                 amount={Number(p.amount) || 0}
                                 ref_={p.invoice_url ? "↗ link" : "—"}
-                                status={p.status}
+                                status={effectiveInvoiceStatus({
+                                  amount: Number(p.amount) || 0,
+                                  amount_paid: p.status === "paid" ? Number(p.amount) || 0 : 0,
+                                  due_date: null,
+                                  period_year: p.period_year,
+                                  period_month: p.period_month,
+                                })}
                                 future={isFuture}
                                 onClick={
                                   canEdit
@@ -491,9 +524,9 @@ export function TalentWePayGrid({ year }: Props) {
         />
       ) : null}
 
-      {/* Vendor dialog — handles both add (vendor=null) and edit
-          (vendor=editingVendor). Closing resets editingVendor so the
-          next "+ Add talent" click opens in create mode. */}
+      {/* Vendor dialog — now opens for EDIT only (per-row Pencil
+          click). New talent goes through AddTalentToGridDialog below;
+          brand-new vendors are added on /vendors itself. */}
       <VendorDialog
         open={vendorDialogOpen}
         onOpenChange={(o) => {
@@ -502,6 +535,16 @@ export function TalentWePayGrid({ year }: Props) {
         }}
         defaultKind="talent_we_pay"
         vendor={editingVendor}
+      />
+
+      {/* R5 follow-up: "+ Add Talent" picker — same pattern as the
+          Talent Paying Us side. Inserts a tracking row for the picked
+          vendor; the grid then renders empty monthly cells. */}
+      <AddTalentToGridDialog
+        open={addTalentOpen}
+        onOpenChange={setAddTalentOpen}
+        side="we_pay"
+        year={year}
       />
     </div>
   );

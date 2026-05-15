@@ -7,11 +7,14 @@ import { ExportCSVButton } from "@/components/ui/export-csv-button";
 import { EyebrowLabel, InvoiceCell, MoneyCell } from "@/components/recast";
 import { useCreators } from "@/hooks/useCreators";
 import { useTalentInvoicesByYear } from "@/hooks/useTalentInvoices";
+import { useTalentGridTracking } from "@/hooks/useTalentGridTracking";
 import { TalentInvoiceDialog } from "@/components/finance/TalentInvoiceDialog";
+import { AddTalentToGridDialog } from "@/components/finance/AddTalentToGridDialog";
 import type { PaymentStatusV2, TalentInvoice } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 import { useLockState } from "@/hooks/useLockState";
 import { MonthLockBadge } from "@/components/finance/MonthLockBadge";
+import { effectiveInvoiceStatus } from "@/lib/finance/invoiceStatus";
 
 /**
  * Phase L (C2): Talent Paying Us — invoice grid.
@@ -43,22 +46,27 @@ interface Props {
 }
 
 export function TalentInvoiceGrid({ year }: Props) {
-  // Round 3D.1 (Gustavo): the grid no longer auto-populates from
-  // `useCreators("signed")`. Instead it derives the set of creator
-  // rows from invoices that actually exist for the year — so the
-  // page starts COMPLETELY EMPTY until you add a real invoice via
-  // "+ Add invoice". `useCreators` is still loaded so the dialog's
-  // creator picker can offer the full Talent Ledger.
+  // R5 follow-up (Gus): the grid's row set is now the UNION of two
+  // sources, not "only creators with ≥1 invoice":
+  //   1. talent_grid_tracking rows for (paying_us, year) — explicit
+  //      rows the user added via "+ Add Talent".
+  //   2. creators with ≥1 invoice in the year — keeps historical
+  //      data visible even if no tracking row was ever inserted.
+  // The button at the top adds rows to (1); per-month "+" cells
+  // continue to drive invoice creation.
   const { data: allCreators, isLoading: creatorsLoading } = useCreators("signed");
   const { data: invoiceMap, isLoading: invoicesLoading } = useTalentInvoicesByYear(year);
+  const { data: tracking } = useTalentGridTracking("paying_us", year);
 
-  // The visible-row source: only creators with ≥1 invoice in this
-  // year. Empty until invoices land.
   const creators = React.useMemo(() => {
-    if (!allCreators || !invoiceMap) return [];
-    const trackedIds = new Set(Object.keys(invoiceMap));
-    return allCreators.filter((c) => trackedIds.has(c.id));
-  }, [allCreators, invoiceMap]);
+    if (!allCreators) return [];
+    const visibleIds = new Set<string>();
+    for (const id of Object.keys(invoiceMap ?? {})) visibleIds.add(id);
+    for (const t of tracking ?? []) {
+      if (t.creator_id) visibleIds.add(t.creator_id);
+    }
+    return allCreators.filter((c) => visibleIds.has(c.id));
+  }, [allCreators, invoiceMap, tracking]);
 
   const lock = useLockState();
   const [search, setSearch] = React.useState("");
@@ -70,6 +78,10 @@ export function TalentInvoiceGrid({ year }: Props) {
     month: number;
   } | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  // R5 follow-up: separate state for the "+ Add Talent" picker. The
+  // invoice dialog (above) only opens when the user clicks a per-month
+  // "+" cell.
+  const [addTalentOpen, setAddTalentOpen] = React.useState(false);
 
   // "Now" cursor — current month if we're in this year, else null.
   const now = new Date();
@@ -81,10 +93,14 @@ export function TalentInvoiceGrid({ year }: Props) {
     let rows = creators ?? [];
     if (q) rows = rows.filter((c) => c.name.toLowerCase().includes(q));
     if (statusFilter !== "all") {
-      // A creator-row is included if any of their cells matches the filter.
+      // R5 follow-up: filter uses the EFFECTIVE (compute-at-render)
+      // status so "Overdue" surfaces rows whose stored status hasn't
+      // been flipped yet.
       rows = rows.filter((c) => {
         const cells = invoiceMap?.[c.id] ?? {};
-        return Object.values(cells).some((inv) => inv.status === statusFilter);
+        return Object.values(cells).some(
+          (inv) => effectiveInvoiceStatus(inv) === statusFilter,
+        );
       });
     }
     return rows;
@@ -99,11 +115,6 @@ export function TalentInvoiceGrid({ year }: Props) {
       setCreating({ creatorId, year, month });
       setEditing(null);
     }
-    setDialogOpen(true);
-  }
-  function openCreateBlank() {
-    setEditing(null);
-    setCreating(null);
     setDialogOpen(true);
   }
 
@@ -121,7 +132,9 @@ export function TalentInvoiceGrid({ year }: Props) {
         invoiceCount++;
         totalInvoiced += Number(inv.amount) || 0;
         totalPaid += Number(inv.amount_paid) || 0;
-        if (inv.status === "paid") paidCount++;
+        // R5 follow-up: count using effective status so a fully-paid
+        // row counts as paid even if the stored status lags.
+        if (effectiveInvoiceStatus(inv) === "paid") paidCount++;
       }
     }
     return {
@@ -186,8 +199,11 @@ export function TalentInvoiceGrid({ year }: Props) {
               { header: "Status",  value: (r) => r.status },
             ]}
           />
-          <Button onClick={openCreateBlank} size="sm" className="h-8">
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add invoice
+          {/* R5 follow-up (Gus): button now adds a TALENT ROW to the
+              grid, not an invoice. Per-month "+" cells continue to
+              drive invoice creation. */}
+          <Button onClick={() => setAddTalentOpen(true)} size="sm" className="h-8">
+            <Plus className="mr-1 h-3.5 w-3.5" /> Add Talent
           </Button>
         </div>
       </div>
@@ -215,8 +231,7 @@ export function TalentInvoiceGrid({ year }: Props) {
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
           {creators.length === 0
-            ? "No invoices logged yet for " + year +
-              ". Click “Add invoice” to record one — the creator will appear here automatically."
+            ? `No talent on the ${year} grid yet. Click "Add Talent" to pick from the Roster — they'll appear here with empty monthly cells you can fill in.`
             : "No matches for the current filter."}
         </div>
       ) : (
@@ -315,7 +330,7 @@ export function TalentInvoiceGrid({ year }: Props) {
                               <InvoiceCell
                                 amount={Number(inv.amount) || 0}
                                 ref_={inv.invoice_number ?? "—"}
-                                status={inv.status as PaymentStatusV2}
+                                status={effectiveInvoiceStatus(inv)}
                                 future={isFuture}
                                 onClick={canEdit ? () => openCell(c.id, month) : undefined}
                                 disabled={!canEdit}
@@ -396,6 +411,16 @@ export function TalentInvoiceGrid({ year }: Props) {
           defaultMonth={creating?.month}
         />
       )}
+
+      {/* R5 follow-up: "+ Add Talent" picker — separate state from the
+          invoice dialog. Adding a talent only inserts a tracking row;
+          the user still uses per-month "+" cells to create invoices. */}
+      <AddTalentToGridDialog
+        open={addTalentOpen}
+        onOpenChange={setAddTalentOpen}
+        side="paying_us"
+        year={year}
+      />
     </div>
   );
 }
