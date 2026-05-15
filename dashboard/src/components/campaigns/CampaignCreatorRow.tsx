@@ -63,9 +63,16 @@ export function CampaignCreatorRow({
   }, [payments]);
 
   const effectivePct = cc.commission_pct != null ? cc.commission_pct : defaultCommissionPct;
+  const isAdOverlay = campaign.campaign_type === "Ad Overlay";
   // Operators with view_campaign_financials=false see only the deal *type*,
-  // not the rates / flat amount / commission %.
-  const dealLabel = seeFinancials
+  // not the rates / flat amount / commission %. Ad Overlay deals pull
+  // CPM + ad frequency from the parent campaign (not the creator row —
+  // those columns are null for AO since the rate card is campaign-level).
+  const dealLabel = isAdOverlay
+    ? seeFinancials
+      ? `Ad Overlay · $${campaign.cpm_rate ?? 0}/1k · ${campaign.ad_frequency_per_hr ?? 0} ads/hr`
+      : "Ad Overlay"
+    : seeFinancials
     ? cc.deal_type === "cpm"
       ? `CPM · $${cc.cpm_rate ?? 0}/1k`
       : cc.deal_type === "flat_fee"

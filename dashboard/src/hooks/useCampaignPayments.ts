@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { CampaignPayment, PaymentStatusV2 } from "@/types/finance";
+import type { CampaignPayment } from "@/types/finance";
 
 /**
  * Per-month payment grid for a single campaign creator.
@@ -51,8 +51,6 @@ export interface CampaignPaymentInput {
   period_year: number;
   period_month: number;
   amount: number;
-  status?: PaymentStatusV2;
-  paid_at?: string | null;
   invoice_url?: string | null;
   notes?: string | null;
   /** Ad Overlay deals: per-creator-per-month inputs that drove this
@@ -66,6 +64,11 @@ export function useUpsertCampaignPayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CampaignPaymentInput) => {
+      // status + paid_at intentionally omitted — effective status is
+      // derived from amount_paid + period EOM via effectiveInvoiceStatus.
+      // Omitting them means INSERT uses the DB defaults; UPDATE leaves
+      // existing values untouched (Supabase upsert only SETs columns
+      // present on the inserted row).
       const { data, error } = await supabase
         .from("campaign_payments")
         .upsert(
@@ -74,8 +77,6 @@ export function useUpsertCampaignPayment() {
             period_year: input.period_year,
             period_month: input.period_month,
             amount: input.amount,
-            status: input.status ?? "unpaid",
-            paid_at: input.paid_at ?? null,
             invoice_url: input.invoice_url ?? null,
             notes: input.notes ?? null,
             ccv: input.ccv ?? null,
