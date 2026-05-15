@@ -48,6 +48,31 @@ export function useAllOverdueInvoices() {
   });
 }
 
+/** Phase: Bruno separation — cross-vendor invoice list for the
+ *  Vendor Invoices tab on /finance. Joined with vendor name + kind so
+ *  the table can render the vendor alongside each invoice. */
+export interface VendorInvoiceWithVendor extends VendorInvoice {
+  vendor: { id: string; name: string; kind: string } | null;
+}
+
+export function useAllVendorInvoices(year: number) {
+  return useQuery({
+    queryKey: ["vendor-invoices", "all", year],
+    queryFn: async (): Promise<VendorInvoiceWithVendor[]> => {
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
+      const { data, error } = await supabase
+        .from("vendor_invoices")
+        .select("*, vendor:vendors(id, name, kind)")
+        .gte("issued_at", yearStart)
+        .lte("issued_at", yearEnd)
+        .order("issued_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as VendorInvoiceWithVendor[];
+    },
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Mutations
 // ─────────────────────────────────────────────────────────────────────

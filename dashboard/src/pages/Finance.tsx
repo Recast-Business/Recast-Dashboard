@@ -1,23 +1,21 @@
 import * as React from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TalentSection } from "@/components/finance/TalentSection";
+import { VendorInvoicesSection } from "@/components/finance/VendorInvoicesSection";
 import { OverdueDrawer } from "@/components/finance/OverdueDrawer";
 import { YearSelector } from "@/components/recast";
 
 /**
- * Round 3D follow-up (Gustavo): /finance is the Talent ledger only.
+ * /finance — the dashboard's invoice home.
  *
- * Frazier's House and Vendors used to be sub-tabs here back when the
- * sidebar didn't surface them. Now that both have dedicated sidebar
- * entries (`/house` and `/vendors`) the duplicate tabs were just
- * extra clicks — they're gone. /finance still owns:
+ * Bruno separation: two top-level tabs so talent invoices and vendor
+ * invoices manage independently. Vendor Ledger (/vendors) keeps just
+ * profiles + the recurring grid; vendor *invoicing* lives here.
  *
- *   • Talent Paying Us (creator → us invoices)
- *   • Talent We Pay    (us → contractor payments)
- *   • Year selector
- *   • Overdue drawer
+ *   • Talent tab     — TalentSection sub-tabs (paying us / we pay)
+ *   • Vendor tab     — cross-vendor ad-hoc invoice list with filter
  *
- * No tabs at the top level; the Talent section internally tabs
- * between "Paying Us" and "We Pay".
+ * Year selector + overdue drawer span both tabs.
  */
 
 export function FinancePage() {
@@ -28,12 +26,11 @@ export function FinancePage() {
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-h2">Invoice</h1>
+          <h1 className="text-h2">Invoices</h1>
           <p className="text-sm text-muted-foreground">
-            Talent invoices Recast issues + contractor payment grid.
-            Year-by-year view with full audit trail on banking access.
-            Vendors and Frazier&apos;s House live in their own sidebar
-            sections.
+            Talent invoices Recast issues + cross-vendor invoice log.
+            Frazier&apos;s House and the vendor recurring grid live in
+            their own sidebar sections.
           </p>
         </div>
         <YearSelector value={year} onChange={setYear} />
@@ -41,8 +38,24 @@ export function FinancePage() {
 
       <OverdueDrawer />
 
-      <TalentSection year={year} />
+      <Tabs defaultValue="talent" className="space-y-4">
+        <TabsList className="h-10">
+          <TabsTrigger value="talent" className="px-4">
+            Talent Invoices
+          </TabsTrigger>
+          <TabsTrigger value="vendor" className="px-4">
+            Vendor Invoices
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="talent">
+          <TalentSection year={year} />
+        </TabsContent>
+
+        <TabsContent value="vendor">
+          <VendorInvoicesSection year={year} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-
