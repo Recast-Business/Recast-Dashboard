@@ -40,13 +40,21 @@ jobs:
             echo "::error::SUPABASE_URL or SUPABASE_ANON_KEY secret not set in repo settings."
             exit 1
           fi
-          status=$(curl -sf -o /tmp/resp.json -w '%{http_code}' \
+          # -s = silent, no -f so curl returns 0 even on 4xx and we
+          # can log the actual status + body before deciding.
+          status=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
             "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY")
           echo "HTTP $status"
-          head -c 200 /tmp/resp.json && echo
+          echo "Response body:"
+          head -c 500 /tmp/resp.json && echo
+          # 200 = success (rows returned, even an empty [] still counts
+          # as DB activity and keeps the project warm).
+          # 401/403 usually means the anon key is wrong or RLS blocks
+          # the role; 404 usually means the table name is wrong.
           if [ "$status" != "200" ]; then
-            echo "::error::Keepalive ping failed (HTTP $status). Check that the project isn't already paused and that the anon key is current."
+            echo "::error::Keepalive ping failed (HTTP $status). Check the response body above + that the project isn't already paused + that the anon key matches the one in your frontend .env."
             exit 1
           fi
+          echo "Keepalive OK — Supabase project pinged."
