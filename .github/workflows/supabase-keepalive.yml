@@ -1,0 +1,52 @@
+name: Supabase Keepalive
+
+# Supabase free-tier pauses a project after ~7 days with no database
+# activity (auth/API hits don't count — it watches actual query
+# traffic). This workflow runs a tiny SELECT on the profiles table
+# twice a week so the project stays warm. Costs nothing on GitHub
+# Actions (under the 2k minutes/month free tier — this is seconds
+# of compute per run).
+#
+# Setup once: in the GitHub repo settings → Secrets and variables →
+# Actions, add:
+#   SUPABASE_URL       =  https://<project-ref>.supabase.co
+#   SUPABASE_ANON_KEY  =  the anon/public key (same one the frontend
+#                         uses — not the service_role key)
+#
+# Both values are non-secret in the strictest sense (the anon key
+# ships in the client bundle and the URL is in the auth callback),
+# but GitHub Secrets keeps them out of workflow logs.
+
+on:
+  schedule:
+    # Twice a week (Mon + Thu, 12:00 UTC) — well inside Supabase's
+    # 7-day pause window even if one run is delayed by GitHub's
+    # cron queue.
+    - cron: "0 12 * * 1,4"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping Supabase (SELECT id FROM profiles LIMIT 1)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::SUPABASE_URL or SUPABASE_ANON_KEY secret not set in repo settings."
+            exit 1
+          fi
+          status=$(curl -sf -o /tmp/resp.json -w '%{http_code}' \
+            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "HTTP $status"
+          head -c 200 /tmp/resp.json && echo
+          if [ "$status" != "200" ]; then
+            echo "::error::Keepalive ping failed (HTTP $status). Check that the project isn't already paused and that the anon key is current."
+            exit 1
+          fi
