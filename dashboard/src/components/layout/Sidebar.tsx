@@ -91,31 +91,16 @@ const WORKSPACE_SECTION: NavSection = {
   header: "Workspace",
   items: [
     { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "accounting"] },
-    // R5 follow-up: label renamed from "Finance" to "Invoice" per
-    // Gustavo. The /finance route is unchanged — the page itself is
-    // the talent-invoice grid, so the new label reads more honestly.
-    { to: "/finance", label: "Invoices", icon: DollarSign, allow: ["admin", "partner", "accounting"] },
-    // R5 Sweep 8: Calculator excluded from partner. Partners don't
-    // price deals; the tool was visual noise in their nav. Admin /
-    // finance / operator still see it.
+    // Workspace is admin + accounting only. R5 partner-read-only on
+    // /finance + /vendors + /house was rolled back — partners are
+    // strictly pipeline-side now (briefs / leads / scout / roster /
+    // campaigns). Keeps the sidebar shorter for them and removes
+    // any expectation that they can drill into financial detail.
+    { to: "/finance", label: "Invoices", icon: DollarSign, allow: ["admin", "accounting"] },
     { to: "/calculator", label: "Calculator", icon: Calculator, allow: ["admin", "accounting", "operator"], requireViewCampaignFinancials: true },
-    // Round 3 follow-up: Vendors / Talents / Frazier's House
-    // collapsed into Workspace per Gustavo. The standalone
-    // LEDGERS section is gone — these three sit beneath the
-    // workflow tools so the sidebar stays a single shallow list
-    // instead of three thin sections. Role gating is unchanged
-    // (Talent Ledger still admin + finance only; Vendors + House
-    // exclude operator).
-    { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "partner", "accounting"] },
-    // R5 Sweep 8: "Talents" → "Talent Ledger" rename. Disambiguates
-    // from the operational Roster lens (Pipeline section) and
-    // mirrors the page's internal title (TalentLedger.tsx).
+    { to: "/vendors", label: "Vendors", icon: Store, allow: ["admin", "accounting"] },
     { to: "/talents", label: "Talent Ledger", icon: Users, allow: ["admin", "accounting"] },
-    { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "partner", "accounting"] },
-    // R5 Sweep 5: unified payments log. Admin + finance only —
-    // surfaces every payment receipt across vendors / campaigns /
-    // talents / house in one filterable view. Read-only for
-    // partner since some receipts contain talent earnings.
+    { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "accounting"] },
     { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "accounting"] },
   ],
 };

@@ -68,12 +68,10 @@ export const router = createBrowserRouter([
       {
         path: "finance",
         element: (
-          // R5 follow-up (roles audit): partner added for read-only
-          // access. Sidebar already showed Invoice to partners but
-          // the router blocked them — fixed mismatch. Write actions
-          // (Add Talent, edit/delete invoices) are gated inside the
-          // grid components so partner sees data only.
-          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
+          // Partner rolled back off Workspace (Bruno feedback) —
+          // admin + accounting only. Sidebar entry hidden in parallel
+          // so the entries stay in sync.
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <FinancePage />
           </ProtectedRoute>
         ),
@@ -161,12 +159,13 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      // C4: Vendors index + detail. Both admin/partner/finance.
-      // Falls under the "Ledgers" sidebar group.
+      // Vendors + House — admin + accounting only. Partner rolled
+      // back off Workspace per Bruno feedback (Sidebar entry hidden
+      // alongside these route guards).
       {
         path: "vendors",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <VendorsPage />
           </ProtectedRoute>
         ),
@@ -174,17 +173,15 @@ export const router = createBrowserRouter([
       {
         path: "vendors/:id",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <VendorDetailPage />
           </ProtectedRoute>
         ),
       },
-      // C5: Frazier's House — promoted from Finance tab to its own
-      // top-level route under the Ledgers sidebar group.
       {
         path: "house",
         element: (
-          <ProtectedRoute allow={["admin", "partner", "accounting"]}>
+          <ProtectedRoute allow={["admin", "accounting"]}>
             <HousePage />
           </ProtectedRoute>
         ),
