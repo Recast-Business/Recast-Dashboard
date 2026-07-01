@@ -38,6 +38,15 @@ jobs:
             echo "::error::SUPABASE_DB_URL secret not set. Add the Session pooler URI (Supabase Dashboard → Connect → Session pooler) in repo Settings → Secrets and variables → Actions."
             exit 1
           fi
+          # Strip stray CR/LF from copy-paste; catch the classic
+          # "[YOUR-PASSWORD] brackets left in" mistake with a clear
+          # error instead of a cryptic auth failure.
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//$'\r'/}"
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//$'\n'/}"
+          if [[ "$SUPABASE_DB_URL" == *"["* || "$SUPABASE_DB_URL" == *"]"* ]]; then
+            echo "::error::SUPABASE_DB_URL contains [ or ] — replace [YOUR-PASSWORD] (brackets included) with the actual password, e.g. ...postgres.ref:MyPass123@aws-0-..."
+            exit 1
+          fi
           # psql ships preinstalled on the runner; a plain query works
           # across server major versions (only pg_dump is version-picky).
           psql "$SUPABASE_DB_URL" \

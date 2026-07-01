@@ -56,6 +56,15 @@ jobs:
             echo "::error::SUPABASE_DB_URL secret not set. Add the Session pooler URI in repo Settings → Secrets and variables → Actions."
             exit 1
           fi
+          # Strip stray CR/LF from copy-paste; catch the classic
+          # "[YOUR-PASSWORD] brackets left in" mistake with a clear
+          # error instead of a cryptic auth failure.
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//$'\r'/}"
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//$'\n'/}"
+          if [[ "$SUPABASE_DB_URL" == *"["* || "$SUPABASE_DB_URL" == *"]"* ]]; then
+            echo "::error::SUPABASE_DB_URL contains [ or ] — replace [YOUR-PASSWORD] (brackets included) with the actual password, e.g. ...postgres.ref:MyPass123@aws-0-..."
+            exit 1
+          fi
           STAMP=$(date -u +%F)
           # Plain-SQL dump of the data schemas. --no-owner/--no-privileges
           # so the file restores cleanly into any project. auth + storage
