@@ -1,9 +1,9 @@
-import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TalentSection } from "@/components/finance/TalentSection";
 import { VendorInvoicesSection } from "@/components/finance/VendorInvoicesSection";
 import { OverdueDrawer } from "@/components/finance/OverdueDrawer";
 import { YearSelector } from "@/components/recast";
+import { useSharedYear } from "@/hooks/useSharedYear";
 
 /**
  * /finance — the dashboard's invoice home.
@@ -19,8 +19,8 @@ import { YearSelector } from "@/components/recast";
  */
 
 export function FinancePage() {
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  const [year, setYear] = useSharedYear();
 
   return (
     <div className="space-y-4">

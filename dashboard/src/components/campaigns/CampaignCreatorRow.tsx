@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function CampaignCreatorRow({
   const del = useDeleteCampaignCreator();
   const confirm = useConfirm();
   const seeFinancials = useViewCampaignFinancials();
+  const navigate = useNavigate();
 
   const totals = React.useMemo(() => {
     let gross = 0, paidCount = 0;
@@ -110,7 +112,20 @@ export function CampaignCreatorRow({
         {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{cc.creator?.name ?? "Unknown creator"}</span>
+            {/* Round-1 efficiency: the creator name jumps to their
+                profile (all-roles /creators/:id route). span+navigate
+                instead of <Link> because we're inside the expand
+                <button> — nested anchors are invalid HTML. */}
+            <span
+              className="cursor-pointer font-medium hover:text-electric hover:underline"
+              title="Open creator profile"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/creators/${cc.creator_id}`);
+              }}
+            >
+              {cc.creator?.name ?? "Unknown creator"}
+            </span>
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
               {dealLabel}
             </span>

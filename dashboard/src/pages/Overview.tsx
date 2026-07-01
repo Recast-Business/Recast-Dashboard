@@ -30,6 +30,7 @@ import {
   MoneyCell,
 } from "@/components/recast";
 import { useFinanceOverview, type MonthlyFlow } from "@/hooks/useFinanceOverview";
+import { useSharedYear } from "@/hooks/useSharedYear";
 import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
 
 /**
@@ -60,7 +61,9 @@ const SECTION_LABEL: Record<string, string> = {
 
 export function OverviewPage() {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  // (currentYear stays — the monthly-flow chart still compares against it.)
+  const [year, setYear] = useSharedYear();
   const [compareYoY, setCompareYoY] = React.useState(false);
   const [bannerHidden, setBannerHidden] = React.useState(false);
   const { data, isLoading } = useFinanceOverview(year);
@@ -406,7 +409,7 @@ function OverdueBanner({
   totalAmount,
   onHide,
 }: {
-  items: { source: string; name: string; period_month: number; period_year: number; days_overdue: number; amount: number }[];
+  items: { source: string; name: string; period_month: number; period_year: number; days_overdue: number; amount: number; link?: string | null }[];
   totalAmount: number;
   onHide: () => void;
 }) {
@@ -459,10 +462,22 @@ function OverdueBanner({
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-steel">
               {SECTION_LABEL[item.source] ?? item.source}
             </span>
-            {/* Name — Inter 500 / white */}
-            <span className="truncate text-[13px] font-medium text-white">
-              {item.name} · {MONTH_LABELS[item.period_month - 1]}
-            </span>
+            {/* Name — Inter 500 / white. Round-1 efficiency: links to
+                the obligor's page so the row is fixable in one click
+                instead of a sidebar hunt. */}
+            {item.link ? (
+              <Link
+                to={item.link}
+                className="truncate text-[13px] font-medium text-white hover:text-electric hover:underline"
+                title={`Open ${item.name}`}
+              >
+                {item.name} · {MONTH_LABELS[item.period_month - 1]}
+              </Link>
+            ) : (
+              <span className="truncate text-[13px] font-medium text-white">
+                {item.name} · {MONTH_LABELS[item.period_month - 1]}
+              </span>
+            )}
             {/* Amount — Unbounded tabular / white (Phase L money override) */}
             <span className="tabular font-display text-[13px] font-bold text-white">
               {formatUSD(item.amount, { decimals: 0 })}

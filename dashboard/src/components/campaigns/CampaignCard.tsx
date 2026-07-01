@@ -30,10 +30,24 @@ interface Props {
   campaign: CampaignV2;
   year: number;
   canEdit: boolean;
+  /** Round-1 efficiency: true when this card was deep-linked via
+   *  /campaigns?open=<id> (Payments rows, Overview overdue banner).
+   *  Starts expanded and scrolls itself into view so the user lands
+   *  on the thing they clicked, not the top of the list. */
+  defaultExpanded?: boolean;
 }
 
-export function CampaignCard({ campaign, year, canEdit }: Props) {
-  const [expanded, setExpanded] = React.useState(false);
+export function CampaignCard({ campaign, year, canEdit, defaultExpanded = false }: Props) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (defaultExpanded && rootRef.current) {
+      rootRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    // Mount-only: the deep link targets the initial render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [editingCampaign, setEditingCampaign] = React.useState(false);
   const [editingCreator, setEditingCreator] = React.useState<CCRow | null>(null);
   const [addingCreator, setAddingCreator] = React.useState(false);
@@ -74,7 +88,7 @@ export function CampaignCard({ campaign, year, canEdit }: Props) {
   }
 
   return (
-    <div className="rounded-lg border bg-card">
+    <div ref={rootRef} className="rounded-lg border bg-card">
       <button
         type="button"
         onClick={() => setExpanded((x) => !x)}

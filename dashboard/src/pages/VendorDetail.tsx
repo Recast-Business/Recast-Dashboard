@@ -27,6 +27,7 @@ import { PaymentCellDialog } from "@/components/finance/PaymentCellDialog";
 import { VendorDialog } from "@/components/finance/VendorDialog";
 import { VendorInvoiceDialog } from "@/components/finance/VendorInvoiceDialog";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useSharedYear } from "@/hooks/useSharedYear";
 import type { VendorInvoice, VendorPayment } from "@/types/finance";
 import { cn, formatUSD, formatDate } from "@/lib/utils";
 
@@ -86,8 +87,8 @@ export function VendorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  const [year, setYear] = useSharedYear();
   const [vendorEditOpen, setVendorEditOpen] = React.useState(false);
   const [editingCell, setEditingCell] = React.useState<{
     month: number;

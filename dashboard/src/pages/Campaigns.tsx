@@ -1,9 +1,11 @@
 import * as React from "react";
+import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Clock, Megaphone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCampaigns } from "@/hooks/useCampaigns";
+import { useSharedYear } from "@/hooks/useSharedYear";
 import { useAuth } from "@/auth/AuthProvider";
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
 import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
@@ -31,11 +33,17 @@ const STATUS_FILTERS: { value: CampaignStatusV2 | "all"; label: string }[] = [
 export function CampaignsPage() {
   const { role } = useAuth();
   const canEdit = role === "admin" || role === "accounting" || role === "operator";
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  const [year, setYear] = useSharedYear();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<CampaignStatusV2 | "all">("all");
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  // Round-1 efficiency: /campaigns?open=<id> (linked from Payments
+  // rows + the Overview overdue banner) auto-expands + scrolls to
+  // that campaign's card instead of dumping the user at the top of
+  // the list to hunt for it.
+  const [searchParams] = useSearchParams();
+  const openId = searchParams.get("open");
 
   // R5 follow-up: fetch ALL campaigns (no status filter) so the KPI
   // tiles can reflect the full set regardless of which filter is
@@ -53,11 +61,14 @@ export function CampaignsPage() {
     const awaiting = byStatus("awaiting_payment");
     const active = byStatus("active");
     return [
+      // Round-1 efficiency: tiles drill into the matching status
+      // filter instead of being display-only.
       {
         label: "Total campaigns",
         value: String(rows.length),
         sub: rows.length === 0 ? "—" : `${active} active`,
         icon: Megaphone,
+        onClick: () => setStatusFilter("all"),
       },
       {
         label: "Active",
@@ -65,6 +76,7 @@ export function CampaignsPage() {
         sub: rows.length === 0 ? "—" : `${Math.round((active / Math.max(rows.length, 1)) * 100)}% of roster`,
         icon: CheckCircle2,
         tone: active > 0 ? "paid" : "default",
+        onClick: () => setStatusFilter("active"),
       },
       {
         label: "Awaiting payment",
@@ -72,6 +84,7 @@ export function CampaignsPage() {
         sub: awaiting === 0 ? "All settled" : "Chase these",
         icon: Clock,
         tone: awaiting > 0 ? "partial" : "default",
+        onClick: () => setStatusFilter("awaiting_payment"),
       },
       {
         label: "Overdue",
@@ -79,6 +92,7 @@ export function CampaignsPage() {
         sub: overdue === 0 ? "Clean" : "Action required",
         icon: AlertTriangle,
         tone: overdue > 0 ? "overdue" : "default",
+        onClick: () => setStatusFilter("overdue"),
       },
     ];
   }, [allCampaigns]);
@@ -174,7 +188,13 @@ export function CampaignsPage() {
 
       <div className="space-y-2">
         {(data ?? []).map((c) => (
-          <CampaignCard key={c.id} campaign={c} year={year} canEdit={canEdit} />
+          <CampaignCard
+            key={c.id}
+            campaign={c}
+            year={year}
+            canEdit={canEdit}
+            defaultExpanded={c.id === openId}
+          />
         ))}
       </div>
 

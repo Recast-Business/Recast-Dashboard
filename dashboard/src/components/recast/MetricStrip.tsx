@@ -91,6 +91,11 @@ export interface MetricTile {
     strokeWidth?: number | string;
   }>;
   tone?: MetricTone;
+  /** Round-1 efficiency: when set, the tile renders as a button —
+   *  used to make KPI counts drill into a pre-filtered list instead
+   *  of being display-only (e.g. "Awaiting payment: 8" → click →
+   *  status filter flips to awaiting). */
+  onClick?: () => void;
 }
 
 export function MetricStrip({ tiles }: { tiles: MetricTile[] }) {
@@ -104,16 +109,9 @@ export function MetricStrip({ tiles }: { tiles: MetricTile[] }) {
 }
 
 function MetricCell({ tile }: { tile: MetricTile }) {
-  const { label, value, sub, icon: Icon, tone = "default" } = tile;
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-card p-4",
-        tone === "paid" && "border-t border-t-paid",
-        tone === "partial" && "border-t border-t-partial",
-        tone === "overdue" && "border-t border-t-overdue",
-      )}
-    >
+  const { label, value, sub, icon: Icon, tone = "default", onClick } = tile;
+  const inner = (
+    <>
       <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-steel">
         {Icon ? <Icon className="h-3 w-3" strokeWidth={1.5} /> : null}
         <span className="truncate">{label}</span>
@@ -130,6 +128,31 @@ function MetricCell({ tile }: { tile: MetricTile }) {
         {value}
       </div>
       {sub ? <div className="mt-1 text-[11px] text-steel">{sub}</div> : null}
-    </div>
+    </>
   );
+
+  const shell = cn(
+    "rounded-lg border bg-card p-4",
+    tone === "paid" && "border-t border-t-paid",
+    tone === "partial" && "border-t border-t-partial",
+    tone === "overdue" && "border-t border-t-overdue",
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          shell,
+          "block w-full text-left transition-colors duration-base ease-out hover:border-electric/40 hover:bg-white/[0.03]",
+        )}
+        title={`Filter by ${label.toLowerCase()}`}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return <div className={shell}>{inner}</div>;
 }

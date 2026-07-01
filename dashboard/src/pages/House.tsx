@@ -20,6 +20,7 @@ import { UtilityDialog } from "@/components/finance/UtilityDialog";
 import { UtilitySplitsPanel } from "@/components/finance/UtilitySplitsPanel";
 import { HousePaymentLogPanel } from "@/components/finance/HousePaymentLogPanel";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useSharedYear } from "@/hooks/useSharedYear";
 import type {
   HouseRentPayment,
   HouseUtility,
@@ -56,8 +57,8 @@ import { cn, formatUSD } from "@/lib/utils";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function HousePage() {
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  const [year, setYear] = useSharedYear();
 
   const { data: rentGroups, isLoading: rentGroupsLoading } = useRentGroups({ includeInactive: false });
   const { data: utilities, isLoading: utilitiesLoading } = useHouseUtilities({ includeInactive: false });

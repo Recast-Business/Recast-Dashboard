@@ -7,6 +7,7 @@ import { EyebrowLabel, YearSelector } from "@/components/recast";
 import { TalentPicker } from "@/components/calculator/TalentPicker";
 import { CommissionResolvedCard } from "@/components/calculator/CommissionResolvedCard";
 import { AdOverlayCalculator } from "@/components/calculator/AdOverlayCalculator";
+import { useSharedYear } from "@/hooks/useSharedYear";
 
 /**
  * Calculator page — math home.
@@ -31,8 +32,8 @@ import { AdOverlayCalculator } from "@/components/calculator/AdOverlayCalculator
  */
 
 export function CalculatorPage() {
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  const [year, setYear] = useSharedYear();
 
   // Page-level state: a single optional talent filter applied to all
   // four sub-tabs. Lifting it up keeps tab-switching cheap (no

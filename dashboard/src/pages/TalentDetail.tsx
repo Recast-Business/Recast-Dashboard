@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EyebrowLabel, MetricStrip, MoneyCell, Sparkline } from "@/components/recast";
 import { useCreators } from "@/hooks/useCreators";
 import { useCreatorPerformance } from "@/hooks/useCreatorPerformance";
+import { useSharedYear } from "@/hooks/useSharedYear";
 import { CreatorProfileDialog } from "@/components/roster/CreatorProfileDialog";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn, formatUSD } from "@/lib/utils";
@@ -54,9 +55,9 @@ export function TalentDetailPage() {
   const { data: creators } = useCreators("signed");
   const creator = (creators ?? []).find((c) => c.id === id);
 
-  const currentYear = new Date().getFullYear();
   const [mode, setMode] = React.useState<"lifetime" | "year">("year");
-  const [year, setYear] = React.useState(currentYear);
+  // Round-1 efficiency: year pick persists across pages/sessions.
+  const [year, setYear] = useSharedYear();
   const effectiveYear = mode === "lifetime" ? null : year;
 
   const { data: perf, isLoading } = useCreatorPerformance(id, effectiveYear);

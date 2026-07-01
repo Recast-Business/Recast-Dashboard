@@ -33,6 +33,10 @@ export interface OverdueLeader {
   period_year: number;
   period_month: number;
   days_overdue: number;
+  /** Round-1 efficiency: deep link to the obligor's page so the
+   *  banner row is actionable, not just informational. Null when
+   *  the joined id was missing. */
+  link: string | null;
 }
 
 export interface TalentLeader {
@@ -173,15 +177,15 @@ export function useFinanceOverview(year: number) {
       ] = await Promise.all([
         supabase
           .from("vendor_payments")
-          .select("amount, amount_paid, period_year, period_month, vendor:vendors(name)")
+          .select("amount, amount_paid, period_year, period_month, vendor:vendors(id, name)")
           .eq("status", "overdue"),
         supabase
           .from("tele_period_performance")
-          .select("recast_commission, amount_paid, period_year, period_month, creator:creators(name)")
+          .select("recast_commission, amount_paid, period_year, period_month, creator:creators(id, name)")
           .eq("status", "overdue"),
         supabase
           .from("of_period_performance")
-          .select("recast_commission, amount_paid, period_year, period_month, deal:of_deals(creator:creators(name), page_name)")
+          .select("recast_commission, amount_paid, period_year, period_month, deal:of_deals(creator:creators(id, name), page_name)")
           .eq("status", "overdue"),
         supabase
           .from("house_rent_payments")
@@ -193,7 +197,7 @@ export function useFinanceOverview(year: number) {
           .eq("status", "overdue"),
         supabase
           .from("campaign_payments")
-          .select("amount, amount_paid, period_year, period_month, campaign_creator:campaign_creators(creator:creators(name))")
+          .select("amount, amount_paid, period_year, period_month, campaign_creator:campaign_creators(campaign_id, creator:creators(name))")
           .eq("status", "overdue"),
       ]);
 
@@ -205,6 +209,7 @@ export function useFinanceOverview(year: number) {
         paid: number,
         py: number,
         pm: number,
+        link: string | null,
       ) => {
         const remaining = Math.max(0, owed - paid);
         if (remaining <= 0) return;
@@ -215,18 +220,24 @@ export function useFinanceOverview(year: number) {
           period_year: py,
           period_month: pm,
           days_overdue: daysOverdue(py, pm, now),
+          link,
         });
       };
+      // Links target the obligor's page. Overview is admin+accounting
+      // only, so /talents/:id (same gating) is safe to link to.
       for (const r of (vendorsOverdue.data ?? []) as any[]) {
-        pushOverdue("vendor", r.vendor?.name ?? "Vendor", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
+        pushOverdue("vendor", r.vendor?.name ?? "Vendor", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month,
+          r.vendor?.id ? `/vendors/${r.vendor.id}` : null);
       }
       for (const r of (teleOverdue.data ?? []) as any[]) {
-        pushOverdue("telegram", r.creator?.name ?? "Creator", Number(r.recast_commission) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
+        pushOverdue("telegram", r.creator?.name ?? "Creator", Number(r.recast_commission) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month,
+          r.creator?.id ? `/talents/${r.creator.id}` : null);
       }
       for (const r of (ofOverdue.data ?? []) as any[]) {
         const cn = r.deal?.creator?.name ?? "Creator";
         const page = r.deal?.page_name;
-        pushOverdue("onlyfans", page ? `${cn} — ${page}` : cn, Number(r.recast_commission) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
+        pushOverdue("onlyfans", page ? `${cn} — ${page}` : cn, Number(r.recast_commission) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month,
+          r.deal?.creator?.id ? `/talents/${r.deal.creator.id}` : null);
       }
       // R5 Sweep 1 (Gustavo, T1 + T3 emphasised): Frazier's House
       // rent + utility overdues are NOT surfaced in the dashboard's
@@ -240,7 +251,8 @@ export function useFinanceOverview(year: number) {
       //
       // Intentionally left blank.
       for (const r of (campaignOverdue.data ?? []) as any[]) {
-        pushOverdue("campaign", r.campaign_creator?.creator?.name ?? "Creator", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month);
+        pushOverdue("campaign", r.campaign_creator?.creator?.name ?? "Creator", Number(r.amount) || 0, Number(r.amount_paid) || 0, r.period_year, r.period_month,
+          r.campaign_creator?.campaign_id ? `/campaigns?open=${r.campaign_creator.campaign_id}` : null);
       }
       const outstandingOverdue = overdue.reduce((s, r) => s + r.amount, 0);
       const mostOverdue = [...overdue]
