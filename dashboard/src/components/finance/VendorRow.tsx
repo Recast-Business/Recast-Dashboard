@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronRight, FileSignature, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   const del = useDeleteVendor();
   const confirm = useConfirm();
+  const navigate = useNavigate();
 
   const paidCount = React.useMemo(
     () => Object.values(payments).filter((p) => p.status === "paid").length,
@@ -68,7 +70,20 @@ export function VendorRow({ vendor, year, payments, onEdit }: Props) {
         {expanded ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium">{vendor.name}</span>
+            {/* Round-1 efficiency (audit #11): the vendor name jumps
+                to /vendors/:id. span+navigate because we're inside
+                the expand <button> — a nested <a> is invalid HTML
+                (same idiom as the NDA pill below + campaign rows). */}
+            <span
+              className="cursor-pointer truncate font-medium hover:text-electric hover:underline"
+              title="Open vendor detail"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/vendors/${vendor.id}`);
+              }}
+            >
+              {vendor.name}
+            </span>
             {!vendor.active && <Badge variant="secondary">Inactive</Badge>}
             {/* Phase M-1: NDA pill in card header — same idiom as VendorTable */}
             {vendor.nda_signed ? (
