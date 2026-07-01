@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useSessionState } from "@/hooks/useSessionState";
 
 export interface CreatorRow {
   id: string;
@@ -194,6 +195,12 @@ interface Props {
     selected: Set<string>;
     onChange: (next: Set<string>) => void;
   };
+  /** Round-1 efficiency (friction audit #23): when set, search +
+   *  filter picks persist in sessionStorage under this key, so
+   *  navigating to a profile and back doesn't wipe them. Each page
+   *  passes its own key ("leads" / "roster" / "potential") so the
+   *  three lists don't bleed filters into each other. */
+  stateKey?: string;
 }
 
 type PlatformFilter =
@@ -278,6 +285,7 @@ export function CreatorTable({
   showStar = false,
   selection,
   defaultSort,
+  stateKey,
 }: Props) {
   const selected = selection?.selected;
   const onSelectionChange = selection?.onChange;
@@ -295,15 +303,19 @@ export function CreatorTable({
   const showTier = !hide.has("tier");
   const showStatus = !hide.has("status");
   const showCategory = !hide.has("category");
-  const [search, setSearch] = React.useState("");
-  const [categoryFilter, setCategoryFilter] = React.useState(ALL);
-  const [tierFilter, setTierFilter] = React.useState(ALL);
-  const [countryFilter, setCountryFilter] = React.useState(ALL);
-  const [statusFilter, setStatusFilter] = React.useState(ALL);
-  const [platformFilter, setPlatformFilter] = React.useState<PlatformFilter>("any");
-  const [regionTier, setRegionTier] = React.useState<RegionTier>("any");
-  const [ccvMin, setCcvMin] = React.useState<string>("");
-  const [casinoFilter, setCasinoFilter] = React.useState<"any" | "yes" | "no">("any");
+  // Search + filters persist per-page via sessionStorage when the
+  // caller passes stateKey (audit #23 — filters used to wipe on any
+  // navigation away). Sort + detail selection stay ephemeral.
+  const sk = (suffix: string) => (stateKey ? `recast.${stateKey}.${suffix}` : null);
+  const [search, setSearch] = useSessionState(sk("search"), "");
+  const [categoryFilter, setCategoryFilter] = useSessionState(sk("category"), ALL);
+  const [tierFilter, setTierFilter] = useSessionState(sk("tier"), ALL);
+  const [countryFilter, setCountryFilter] = useSessionState(sk("country"), ALL);
+  const [statusFilter, setStatusFilter] = useSessionState(sk("status"), ALL);
+  const [platformFilter, setPlatformFilter] = useSessionState<PlatformFilter>(sk("platform"), "any");
+  const [regionTier, setRegionTier] = useSessionState<RegionTier>(sk("regionTier"), "any");
+  const [ccvMin, setCcvMin] = useSessionState<string>(sk("ccvMin"), "");
+  const [casinoFilter, setCasinoFilter] = useSessionState<"any" | "yes" | "no">(sk("casino"), "any");
   const [detailId, setDetailId] = React.useState<string | null>(null);
   const { role } = useAuth();
   const [sortField, setSortField] = React.useState<SortField>(

@@ -105,13 +105,24 @@ export function LogPaymentDialog({ open, onOpenChange }: Props) {
 
   // Reset state every time the dialog opens — leftover state from a
   // previous open would be confusing across different payees.
+  //
+  // Round-1 efficiency (friction audit #4): source + method DO carry
+  // over from the last successful log this session. Gus batch-enters
+  // receipts of the same kind back-to-back, and re-picking "Vendor"
+  // + "Bank transfer" on every single one was pure click tax. The
+  // payee/amount/reference still reset — those genuinely differ per
+  // receipt.
   React.useEffect(() => {
     if (!open) return;
-    setSource("");
+    setSource(
+      (sessionStorage.getItem("recast.lastPaymentSource") as PaymentSource | null) ?? "",
+    );
     setObligorId("");
     setAmount("");
     setReceivedAt(new Date().toISOString().slice(0, 10));
-    setMethod("");
+    setMethod(
+      (sessionStorage.getItem("recast.lastPaymentMethod") as PaymentMethod | null) ?? "",
+    );
     setReference("");
     setNotes("");
     setAllocMode("fifo");
@@ -206,6 +217,14 @@ export function LogPaymentDialog({ open, onOpenChange }: Props) {
           `Logged ${formatUSD(amt, { decimals: 2 })} · ${allocs.length} ` +
             `allocation${allocs.length === 1 ? "" : "s"}`,
         );
+      }
+      // Remember the kind of receipt just logged so the next open
+      // starts pre-picked for batch entry (session-scoped).
+      try {
+        sessionStorage.setItem("recast.lastPaymentSource", source);
+        if (method) sessionStorage.setItem("recast.lastPaymentMethod", method);
+      } catch {
+        /* best-effort */
       }
       onOpenChange(false);
     } catch (e) {

@@ -390,6 +390,7 @@ export function LeadsPage() {
       />
 
       <CreatorTable
+        stateKey="leads"
         rows={filteredRows as CreatorRow[]}
         isLoading={isLoading}
         error={(error as Error) ?? null}

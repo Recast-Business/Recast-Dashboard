@@ -86,6 +86,18 @@ export function HousePaymentEntryBox({ year, residents }: Props) {
   const [reference, setReference] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
+  // Round-1 efficiency (friction audit #24): after logging, keep the
+  // resident + method + date picks — Gus often logs several payments
+  // for the same person (or same batch of bank lines) back-to-back,
+  // and re-picking everything per entry was click tax. Only the
+  // per-payment fields (amount / reference / notes) clear. The
+  // explicit "Reset" button still wipes everything.
+  function resetAfterLog() {
+    setAmount("");
+    setReference("");
+    setNotes("");
+  }
+
   function reset() {
     setResidentId("");
     setAmount("");
@@ -137,7 +149,7 @@ export function HousePaymentEntryBox({ year, residents }: Props) {
       toast.success(
         `${formatUSD(num, { decimals: 2 })} logged${resident ? ` for ${resident.name}` : ""}${tail}`,
       );
-      reset();
+      resetAfterLog();
     } catch (e) {
       toast.error(`Save failed: ${(e as Error).message}`);
     }

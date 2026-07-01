@@ -139,6 +139,7 @@ export function PotentialPage() {
       </div>
 
       <CreatorTable
+        stateKey="potential"
         rows={filteredRows as CreatorRow[]}
         isLoading={isLoading}
         error={(error as Error) ?? null}

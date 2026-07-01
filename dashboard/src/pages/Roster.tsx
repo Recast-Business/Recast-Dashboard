@@ -256,6 +256,7 @@ export function RosterPage() {
       </div>
 
       <CreatorTable
+        stateKey="roster"
         rows={filteredRows as CreatorRow[]}
         isLoading={isLoading}
         error={(error as Error) ?? null}
