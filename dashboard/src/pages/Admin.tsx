@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Copy,
   KeyRound,
@@ -28,7 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -99,6 +99,44 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     >
       <Copy className="h-4 w-4" />
     </Button>
+  );
+}
+
+/**
+ * Collapsed-by-default audit/status panel. Native <details> — no extra
+ * dependency, keyboard/screen-reader accessible for free, and the
+ * open/close state needs no React state at all.
+ */
+function CollapsibleCard({
+  icon: Icon,
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details
+      className="group rounded-lg border bg-card"
+      open={defaultOpen}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-steel" strokeWidth={1.5} />
+          <span className="text-[13px] font-semibold leading-none tracking-tight">
+            {title}
+          </span>
+        </div>
+        <ChevronDown
+          className="h-4 w-4 shrink-0 text-steel transition-transform duration-base ease-out group-open:rotate-180"
+          strokeWidth={1.5}
+        />
+      </summary>
+      <div className="px-4 pb-4">{children}</div>
+    </details>
   );
 }
 
@@ -824,42 +862,34 @@ function AdminActivityCard() {
   const { data, isLoading, error } = useAdminActivity(50);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-steel" strokeWidth={1.5} />
-          <CardTitle className="text-[13px]">Recent admin activity</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {error ? (
-          <p className="text-[12px] text-overdue">
-            Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
-          </p>
-        ) : isLoading ? (
-          <Skeleton className="h-32 w-full" />
-        ) : !data || data.length === 0 ? (
-          <p className="text-[12px] text-steel">No admin actions logged yet.</p>
-        ) : (
-          <ul className="max-h-72 space-y-1.5 overflow-y-auto">
-            {data.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-start justify-between gap-3 border-b border-rule pb-1.5 text-[12px] last:border-b-0"
-              >
-                <div className="min-w-0">
-                  <span className="font-medium text-white">{row.kind}</span>
-                  <span className="text-steel"> by {row.actor_email ?? "unknown"}</span>
-                </div>
-                <span className="shrink-0 text-steel" title={formatDate(row.created_at)}>
-                  {formatDistanceToNow(row.created_at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <CollapsibleCard icon={Activity} title="Recent admin activity">
+      {error ? (
+        <p className="text-[12px] text-overdue">
+          Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
+        </p>
+      ) : isLoading ? (
+        <Skeleton className="h-32 w-full" />
+      ) : !data || data.length === 0 ? (
+        <p className="text-[12px] text-steel">No admin actions logged yet.</p>
+      ) : (
+        <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+          {data.map((row) => (
+            <li
+              key={row.id}
+              className="flex items-start justify-between gap-3 border-b border-rule pb-1.5 text-[12px] last:border-b-0"
+            >
+              <div className="min-w-0">
+                <span className="font-medium text-white">{row.kind}</span>
+                <span className="text-steel"> by {row.actor_email ?? "unknown"}</span>
+              </div>
+              <span className="shrink-0 text-steel" title={formatDate(row.created_at)}>
+                {formatDistanceToNow(row.created_at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </CollapsibleCard>
   );
 }
 
@@ -878,57 +908,49 @@ function VaultAccessCard() {
   const { data, isLoading, error } = useAdminVaultAccess(50);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-steel" strokeWidth={1.5} />
-          <CardTitle className="text-[13px]">Banking vault access</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {error ? (
-          <p className="text-[12px] text-overdue">
-            Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
-          </p>
-        ) : isLoading ? (
-          <Skeleton className="h-32 w-full" />
-        ) : !data || data.length === 0 ? (
-          <p className="text-[12px] text-steel">No banking records accessed yet.</p>
-        ) : (
-          <ul className="max-h-72 space-y-1.5 overflow-y-auto">
-            {data.map((row) => {
-              const Icon = VAULT_ACTION_ICON[row.action] ?? Lock;
-              return (
-                <li
-                  key={row.id}
-                  className="flex items-start justify-between gap-3 border-b border-rule pb-1.5 text-[12px] last:border-b-0"
-                >
-                  <div className="flex min-w-0 items-start gap-1.5">
-                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
-                    <div className="min-w-0">
-                      <span className="font-medium text-white">{row.action}</span>
-                      <span className="text-steel">
-                        {" "}
-                        by {row.user_email ?? "unknown"}
-                        {row.user_role ? ` (${row.user_role})` : ""}
-                      </span>
-                      {row.fields && row.fields.length > 0 && (
-                        <div className="text-[11px] text-steel">
-                          {row.fields.join(", ")}
-                        </div>
-                      )}
-                    </div>
+    <CollapsibleCard icon={Lock} title="Banking vault access">
+      {error ? (
+        <p className="text-[12px] text-overdue">
+          Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
+        </p>
+      ) : isLoading ? (
+        <Skeleton className="h-32 w-full" />
+      ) : !data || data.length === 0 ? (
+        <p className="text-[12px] text-steel">No banking records accessed yet.</p>
+      ) : (
+        <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+          {data.map((row) => {
+            const Icon = VAULT_ACTION_ICON[row.action] ?? Lock;
+            return (
+              <li
+                key={row.id}
+                className="flex items-start justify-between gap-3 border-b border-rule pb-1.5 text-[12px] last:border-b-0"
+              >
+                <div className="flex min-w-0 items-start gap-1.5">
+                  <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
+                  <div className="min-w-0">
+                    <span className="font-medium text-white">{row.action}</span>
+                    <span className="text-steel">
+                      {" "}
+                      by {row.user_email ?? "unknown"}
+                      {row.user_role ? ` (${row.user_role})` : ""}
+                    </span>
+                    {row.fields && row.fields.length > 0 && (
+                      <div className="text-[11px] text-steel">
+                        {row.fields.join(", ")}
+                      </div>
+                    )}
                   </div>
-                  <span className="shrink-0 text-steel" title={formatDate(row.accessed_at)}>
-                    {formatDistanceToNow(row.accessed_at)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+                </div>
+                <span className="shrink-0 text-steel" title={formatDate(row.accessed_at)}>
+                  {formatDistanceToNow(row.accessed_at)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </CollapsibleCard>
   );
 }
 
@@ -940,58 +962,50 @@ function CronStatusCard() {
   const { data, isLoading, error } = useAdminCronStatus();
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-steel" strokeWidth={1.5} />
-          <CardTitle className="text-[13px]">Scheduled jobs</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {error ? (
-          <p className="text-[12px] text-overdue">
-            Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
-          </p>
-        ) : isLoading ? (
-          <Skeleton className="h-24 w-full" />
-        ) : !data || data.length === 0 ? (
-          <p className="text-[12px] text-steel">No scheduled jobs found.</p>
-        ) : (
-          <ul className="space-y-2">
-            {data.map((job) => {
-              const failed = job.last_status != null && job.last_status !== "succeeded";
-              return (
-                <li
-                  key={job.jobname}
-                  className="flex items-center justify-between gap-3 rounded-md border bg-background/40 px-3 py-2 text-[12px]"
-                >
-                  <div className="flex items-center gap-2">
-                    {!job.active ? (
-                      <XCircle className="h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
-                    ) : failed ? (
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-overdue" strokeWidth={1.5} />
-                    ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-paid" strokeWidth={1.5} />
-                    )}
-                    <div>
-                      <div className="font-medium text-white">{job.jobname}</div>
-                      <div className="font-mono text-[11px] text-steel">{job.schedule}</div>
-                    </div>
+    <CollapsibleCard icon={Clock} title="Scheduled jobs">
+      {error ? (
+        <p className="text-[12px] text-overdue">
+          Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
+        </p>
+      ) : isLoading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : !data || data.length === 0 ? (
+        <p className="text-[12px] text-steel">No scheduled jobs found.</p>
+      ) : (
+        <ul className="space-y-2">
+          {data.map((job) => {
+            const failed = job.last_status != null && job.last_status !== "succeeded";
+            return (
+              <li
+                key={job.jobname}
+                className="flex items-center justify-between gap-3 rounded-md border bg-background/40 px-3 py-2 text-[12px]"
+              >
+                <div className="flex items-center gap-2">
+                  {!job.active ? (
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
+                  ) : failed ? (
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-overdue" strokeWidth={1.5} />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-paid" strokeWidth={1.5} />
+                  )}
+                  <div>
+                    <div className="font-medium text-white">{job.jobname}</div>
+                    <div className="font-mono text-[11px] text-steel">{job.schedule}</div>
                   </div>
-                  <div className="text-right text-steel">
-                    <div>
-                      {job.last_run_at ? formatDistanceToNow(job.last_run_at) : "never run"}
-                    </div>
-                    {job.last_status && (
-                      <div className={failed ? "text-overdue" : "text-paid"}>{job.last_status}</div>
-                    )}
+                </div>
+                <div className="text-right text-steel">
+                  <div>
+                    {job.last_run_at ? formatDistanceToNow(job.last_run_at) : "never run"}
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+                  {job.last_status && (
+                    <div className={failed ? "text-overdue" : "text-paid"}>{job.last_status}</div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </CollapsibleCard>
   );
 }
