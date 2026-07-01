@@ -20,6 +20,7 @@ import { VendorsPage } from "@/pages/Vendors";
 import { VendorDetailPage } from "@/pages/VendorDetail";
 import { HousePage } from "@/pages/House";
 import { PaymentsPage } from "@/pages/Payments";
+import { AdminPage } from "@/pages/Admin";
 import { RoleRedirect } from "@/auth/RoleRedirect";
 
 export const router = createBrowserRouter([
@@ -199,6 +200,17 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin", "accounting"]}>
             <PaymentsPage />
+          </ProtectedRoute>
+        ),
+      },
+      // Self-serve user management. Admin only — the admin_* RPCs it
+      // calls re-verify the caller's role server-side, so this route
+      // guard is UX, not the security boundary.
+      {
+        path: "admin",
+        element: (
+          <ProtectedRoute allow={["admin"]}>
+            <AdminPage />
           </ProtectedRoute>
         ),
       },

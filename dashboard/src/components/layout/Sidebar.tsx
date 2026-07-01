@@ -9,6 +9,7 @@ import {
   LogOut,
   Megaphone,
   Search,
+  ShieldCheck,
   Star,
   Store,
   UserCheck,
@@ -102,6 +103,8 @@ const WORKSPACE_SECTION: NavSection = {
     { to: "/talents", label: "Talent Ledger", icon: Users, allow: ["admin", "accounting"] },
     { to: "/house", label: "Frazier's House", icon: Home, allow: ["admin", "accounting"] },
     { to: "/payments", label: "Payments", icon: Wallet, allow: ["admin", "accounting"] },
+    // Self-serve user management — admin only.
+    { to: "/admin", label: "Admin", icon: ShieldCheck, allow: ["admin"] },
   ],
 };
 
