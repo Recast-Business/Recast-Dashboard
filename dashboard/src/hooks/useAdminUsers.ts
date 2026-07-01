@@ -16,7 +16,6 @@ export interface AdminUser {
   full_name: string | null;
   role: UserRole;
   view_campaign_financials: boolean;
-  requires_tax_info: boolean;
   created_at: string;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
@@ -67,7 +66,7 @@ export function useSetUserFlag() {
   return useAdminMutation(
     async (v: {
       userId: string;
-      flag: "view_campaign_financials" | "requires_tax_info";
+      flag: "view_campaign_financials";
       value: boolean;
     }) => {
       const { error } = await supabase.rpc("admin_set_user_flag", {

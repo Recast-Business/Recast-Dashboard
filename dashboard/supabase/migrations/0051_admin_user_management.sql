@@ -64,6 +64,9 @@ end $$;
 revoke all on function _admin_log(activity_kind, uuid, jsonb) from public, anon, authenticated;
 
 -- ── list users (profiles + auth metadata) ───────────────────────────
+-- Note: requires_tax_info lives on creators/vendors (1099 tracking
+-- subjects, migration 0039) — NOT on profiles (dashboard accounts).
+-- It was mistakenly included here on first pass; removed.
 create or replace function admin_list_users()
 returns table (
   id uuid,
@@ -71,7 +74,6 @@ returns table (
   full_name text,
   role user_role,
   view_campaign_financials boolean,
-  requires_tax_info boolean,
   created_at timestamptz,
   last_sign_in_at timestamptz,
   email_confirmed_at timestamptz,
@@ -83,7 +85,7 @@ begin
   return query
   select
     p.id, p.email, p.full_name, p.role,
-    p.view_campaign_financials, p.requires_tax_info, p.created_at,
+    p.view_campaign_financials, p.created_at,
     u.last_sign_in_at, u.email_confirmed_at, u.banned_until
   from profiles p
   join auth.users u on u.id = p.id
@@ -110,14 +112,16 @@ end $$;
 grant execute on function admin_set_user_role(uuid, user_role) to authenticated;
 
 -- ── toggle a boolean flag ───────────────────────────────────────────
+-- Only view_campaign_financials lives on profiles. requires_tax_info
+-- is a creators/vendors concept (1099 subjects), not a dashboard-
+-- account flag — dropped from here; manage it from Talent Ledger /
+-- Vendors instead.
 create or replace function admin_set_user_flag(p_user_id uuid, p_flag text, p_value boolean)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   perform _admin_require();
   if p_flag = 'view_campaign_financials' then
     update profiles set view_campaign_financials = p_value where id = p_user_id;
-  elsif p_flag = 'requires_tax_info' then
-    update profiles set requires_tax_info = p_value where id = p_user_id;
   else
     raise exception 'unknown flag: %', p_flag;
   end if;
