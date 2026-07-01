@@ -1,0 +1,84 @@
+name: Supabase Backup
+
+# Weekly pg_dump of the whole database, stored as a GitHub Actions
+# artifact. Free-tier Supabase has NO point-in-time recovery — if a
+# bad migration or delete lands, this is the only undo. Same
+# philosophy as the keepalive workflow: GitHub Actions so it runs
+# independent of Vercel/deploy state, costs nothing at this scale.
+#
+# Setup once — add ONE repo secret (Settings → Secrets and variables
+# → Actions):
+#   SUPABASE_DB_URL = the "Session pooler" connection string from
+#     Supabase Dashboard → Connect → Session pooler, with [YOUR-PASSWORD]
+#     replaced by the real database password. Looks like:
+#     postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#     (Use the Session pooler URI, not the direct connection — the
+#     direct host is IPv6-only on free tier and GitHub runners are IPv4.)
+#
+# Restore procedure (if the day ever comes):
+#   1. Download the artifact from the Actions run → unzip → gunzip
+#   2. psql "<connection-string>" -f recast-backup-YYYY-MM-DD.sql
+#      against a FRESH project, or selectively copy the tables you
+#      need. Do a dry read of the file first — it's plain SQL.
+#
+# Retention: 90 days of weekly snapshots (GitHub artifact maximum).
+
+on:
+  schedule:
+    # Sundays 03:00 UTC — quiet hours, after the week's data entry.
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install postgresql-client 17 (matches Supabase server major)
+        run: |
+          set -euo pipefail
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL secret not set. Add the Session pooler URI in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          STAMP=$(date -u +%F)
+          # Plain-SQL dump of the data schemas. --no-owner/--no-privileges
+          # so the file restores cleanly into any project. auth + storage
+          # schemas are Supabase-managed; public carries all app data.
+          # (auth.users is included so logins are recoverable too.)
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
+            --no-owner --no-privileges \
+            --schema=public --schema=auth \
+            --format=plain \
+            | gzip -9 > "recast-backup-${STAMP}.sql.gz"
+          ls -lh recast-backup-*.sql.gz
+          # Sanity floor: a real dump of this DB is far bigger than 10KB.
+          SIZE=$(stat -c%s recast-backup-${STAMP}.sql.gz)
+          if [ "$SIZE" -lt 10240 ]; then
+            echo "::error::Dump suspiciously small (${SIZE} bytes) — check the connection string / permissions."
+            exit 1
+          fi
+
+      - name: Upload artifact (90-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: recast-db-backup
+          path: recast-backup-*.sql.gz
+          retention-days: 90
+          if-no-files-found: error
