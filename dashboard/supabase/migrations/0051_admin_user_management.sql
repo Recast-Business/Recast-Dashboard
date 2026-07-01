@@ -26,6 +26,20 @@ alter type activity_kind add value if not exists 'user_created';
 alter type activity_kind add value if not exists 'user_deleted';
 alter type activity_kind add value if not exists 'user_updated';
 
+-- ── defensive drops ─────────────────────────────────────────────────
+-- CREATE OR REPLACE cannot rename a function's parameters (42P13).
+-- An earlier hand-run sketch of admin_set_user_role used p_new_role,
+-- which blocked this file's first apply. Dropping by signature makes
+-- the whole migration idempotent on re-run.
+drop function if exists admin_set_user_role(uuid, user_role);
+drop function if exists admin_set_user_flag(uuid, text, boolean);
+drop function if exists admin_set_user_email(uuid, text);
+drop function if exists admin_set_user_password(uuid, text);
+drop function if exists admin_set_user_active(uuid, boolean);
+drop function if exists admin_delete_user(uuid);
+drop function if exists admin_create_user(text, text, user_role, boolean, text);
+drop function if exists admin_list_users();
+
 -- ── internal: admin gate ────────────────────────────────────────────
 create or replace function _admin_require() returns void
 language plpgsql security definer set search_path = public as $$
