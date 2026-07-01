@@ -1,16 +1,26 @@
 import * as React from "react";
 import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Copy,
   KeyRound,
+  Lock,
   Mail,
   MoreHorizontal,
+  Pencil,
   Plus,
   RefreshCw,
+  Send,
   ShieldCheck,
   Trash2,
   UserCheck,
   Users,
   UserX,
   Wand2,
+  XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -49,23 +60,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EyebrowLabel, MetricStrip } from "@/components/recast";
+import { formatDistanceToNow } from "@/components/activity/formatDistanceToNow";
 import { useAuth } from "@/auth/AuthProvider";
 import { useConfirm } from "@/hooks/useConfirm";
 import {
   generateTempPassword,
   isDisabled,
+  useAdminActivity,
+  useAdminCronStatus,
   useAdminUsers,
+  useAdminVaultAccess,
   useCreateUser,
   useDeleteUser,
+  useEmailLoginDetails,
   useSetUserActive,
   useSetUserEmail,
   useSetUserFlag,
+  useSetUserFullName,
   useSetUserPassword,
   useSetUserRole,
   type AdminUser,
 } from "@/hooks/useAdminUsers";
 import { formatDate } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
+
+/** Copy-to-clipboard button used next to generated passwords. */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      title={`Copy ${label}`}
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        toast.success(`${label} copied`);
+      }}
+    >
+      <Copy className="h-4 w-4" />
+    </Button>
+  );
+}
 
 /**
  * /admin — self-serve user management (admin role only).
@@ -93,6 +128,7 @@ export function AdminPage() {
   const [addOpen, setAddOpen] = React.useState(false);
   const [emailTarget, setEmailTarget] = React.useState<AdminUser | null>(null);
   const [passwordTarget, setPasswordTarget] = React.useState<AdminUser | null>(null);
+  const [nameTarget, setNameTarget] = React.useState<AdminUser | null>(null);
 
   const setRole = useSetUserRole();
   const setFlag = useSetUserFlag();
@@ -321,6 +357,9 @@ export function AdminPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setNameTarget(u)}>
+                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit name
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setEmailTarget(u)}>
                             <Mail className="mr-2 h-3.5 w-3.5" /> Change email
                           </DropdownMenuItem>
@@ -360,12 +399,22 @@ export function AdminPage() {
         </div>
       )}
 
+      {/* ── Visibility: what's been quietly logging all along ────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <AdminActivityCard />
+        <VaultAccessCard />
+        <CronStatusCard />
+      </div>
+
       <AddUserDialog open={addOpen} onOpenChange={setAddOpen} />
       {emailTarget && (
         <ChangeEmailDialog user={emailTarget} onClose={() => setEmailTarget(null)} />
       )}
       {passwordTarget && (
         <ResetPasswordDialog user={passwordTarget} onClose={() => setPasswordTarget(null)} />
+      )}
+      {nameTarget && (
+        <EditNameDialog user={nameTarget} onClose={() => setNameTarget(null)} />
       )}
     </div>
   );
@@ -383,11 +432,16 @@ function AddUserDialog({
   onOpenChange: (o: boolean) => void;
 }) {
   const create = useCreateUser();
+  const emailDetails = useEmailLoginDetails();
   const [email, setEmail] = React.useState("");
   const [fullName, setFullName] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [role, setRole] = React.useState<UserRole>("operator");
   const [viewFin, setViewFin] = React.useState(false);
+  // Set once creation succeeds — flips the dialog into a success view
+  // showing the credentials with copy/email actions instead of just
+  // closing immediately.
+  const [created, setCreated] = React.useState<{ id: string; email: string; password: string } | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -396,27 +450,71 @@ function AddUserDialog({
     setPassword(generateTempPassword());
     setRole("operator");
     setViewFin(false);
+    setCreated(null);
   }, [open]);
 
   async function onCreate() {
     if (!email.trim().includes("@")) return toast.error("Valid email required.");
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     try {
-      await create.mutateAsync({
+      const id = await create.mutateAsync({
         email: email.trim().toLowerCase(),
         password,
         role,
         viewCampaignFinancials: role === "operator" ? viewFin : false,
         fullName: fullName.trim() || null,
       });
-      toast.success(
-        `${email.trim()} created — share the temp password with them now; it isn't stored anywhere.`,
-        { duration: 10000 },
-      );
-      onOpenChange(false);
+      setCreated({ id, email: email.trim().toLowerCase(), password });
     } catch (e) {
       toast.error(`Create failed: ${(e as Error).message}`);
     }
+  }
+
+  async function onEmailDetails() {
+    if (!created) return;
+    try {
+      await emailDetails.mutateAsync({ userId: created.id, password: created.password });
+      toast.success(`Login details emailed to ${created.email}`);
+    } catch (e) {
+      toast.error(
+        `Email send failed: ${(e as Error).message} — copy the password and share it another way instead.`,
+      );
+    }
+  }
+
+  if (created) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{created.email} created</DialogTitle>
+            <DialogDescription className="text-[12px]">
+              Copy the password now — it can't be retrieved later, only
+              reset. Emailing it requires Resend to be configured; if that
+              hasn't been set up yet, copy and share it directly instead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5 py-2">
+            <Label htmlFor="au-created-pass">Temp password</Label>
+            <div className="flex gap-2">
+              <Input id="au-created-pass" value={created.password} readOnly className="tabular" />
+              <CopyButton value={created.password} label="Password" />
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="outline"
+              onClick={onEmailDetails}
+              disabled={emailDetails.isPending}
+            >
+              <Send className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+              {emailDetails.isPending ? "Sending…" : "Email login details"}
+            </Button>
+            <Button onClick={() => onOpenChange(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -459,6 +557,7 @@ function AddUserDialog({
                 onChange={(e) => setPassword(e.target.value)}
                 className="tabular"
               />
+              <CopyButton value={password} label="Password" />
               <Button
                 type="button"
                 variant="outline"
@@ -569,20 +668,58 @@ function ChangeEmailDialog({ user, onClose }: { user: AdminUser; onClose: () => 
 
 function ResetPasswordDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
   const setPass = useSetUserPassword();
+  const emailDetails = useEmailLoginDetails();
   const [password, setPassword] = React.useState(generateTempPassword());
+  const [done, setDone] = React.useState(false);
 
   async function onSave() {
     if (password.length < 8) return toast.error("Password must be at least 8 characters.");
     try {
       await setPass.mutateAsync({ userId: user.id, password });
-      toast.success(
-        `Password reset for ${user.email} — share it with them now; it isn't stored anywhere.`,
-        { duration: 10000 },
-      );
-      onClose();
+      setDone(true);
     } catch (e) {
       toast.error(`Reset failed: ${(e as Error).message}`);
     }
+  }
+
+  async function onEmailDetails() {
+    try {
+      await emailDetails.mutateAsync({ userId: user.id, password });
+      toast.success(`Login details emailed to ${user.email}`);
+    } catch (e) {
+      toast.error(
+        `Email send failed: ${(e as Error).message} — copy the password and share it another way instead.`,
+      );
+    }
+  }
+
+  if (done) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Password reset for {user.email}</DialogTitle>
+            <DialogDescription className="text-[12px]">
+              Copy it now — it can't be retrieved later, only reset again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5 py-2">
+            <Label htmlFor="rp-done-pass">New password</Label>
+            <div className="flex gap-2">
+              <Input id="rp-done-pass" value={password} readOnly className="tabular" />
+              <CopyButton value={password} label="Password" />
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-between">
+            <Button variant="outline" onClick={onEmailDetails} disabled={emailDetails.isPending}>
+              <Send className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+              {emailDetails.isPending ? "Sending…" : "Email login details"}
+            </Button>
+            <Button onClick={onClose}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -605,6 +742,7 @@ function ResetPasswordDialog({ user, onClose }: { user: AdminUser; onClose: () =
               className="tabular"
               autoFocus
             />
+            <CopyButton value={password} label="Password" />
             <Button
               type="button"
               variant="outline"
@@ -626,5 +764,234 @@ function ResetPasswordDialog({ user, onClose }: { user: AdminUser; onClose: () =
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Edit name
+// ─────────────────────────────────────────────────────────────────────
+
+function EditNameDialog({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const setName = useSetUserFullName();
+  const [name, setNameValue] = React.useState(user.full_name ?? "");
+
+  async function onSave() {
+    try {
+      await setName.mutateAsync({ userId: user.id, fullName: name.trim() });
+      toast.success(`Name updated for ${user.email}`);
+      onClose();
+    } catch (e) {
+      toast.error(`Update failed: ${(e as Error).message}`);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit name</DialogTitle>
+          <DialogDescription className="text-[12px]">
+            Display name for <strong>{user.email}</strong>.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5 py-2">
+          <Label htmlFor="en-name">Full name</Label>
+          <Input
+            id="en-name"
+            value={name}
+            onChange={(e) => setNameValue(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={setName.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={onSave} disabled={setName.isPending}>
+            {setName.isPending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Recent admin activity
+// ─────────────────────────────────────────────────────────────────────
+
+function AdminActivityCard() {
+  const { data, isLoading, error } = useAdminActivity(50);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-steel" strokeWidth={1.5} />
+          <CardTitle className="text-[13px]">Recent admin activity</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="text-[12px] text-overdue">
+            Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
+          </p>
+        ) : isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : !data || data.length === 0 ? (
+          <p className="text-[12px] text-steel">No admin actions logged yet.</p>
+        ) : (
+          <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+            {data.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-start justify-between gap-3 border-b border-rule pb-1.5 text-[12px] last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <span className="font-medium text-white">{row.kind}</span>
+                  <span className="text-steel"> by {row.actor_email ?? "unknown"}</span>
+                </div>
+                <span className="shrink-0 text-steel" title={formatDate(row.created_at)}>
+                  {formatDistanceToNow(row.created_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Vault access log
+// ─────────────────────────────────────────────────────────────────────
+
+const VAULT_ACTION_ICON: Record<string, LucideIcon> = {
+  view: Lock,
+  create: CheckCircle2,
+  update: Pencil,
+  delete: XCircle,
+};
+
+function VaultAccessCard() {
+  const { data, isLoading, error } = useAdminVaultAccess(50);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Lock className="h-4 w-4 text-steel" strokeWidth={1.5} />
+          <CardTitle className="text-[13px]">Banking vault access</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="text-[12px] text-overdue">
+            Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
+          </p>
+        ) : isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : !data || data.length === 0 ? (
+          <p className="text-[12px] text-steel">No banking records accessed yet.</p>
+        ) : (
+          <ul className="max-h-72 space-y-1.5 overflow-y-auto">
+            {data.map((row) => {
+              const Icon = VAULT_ACTION_ICON[row.action] ?? Lock;
+              return (
+                <li
+                  key={row.id}
+                  className="flex items-start justify-between gap-3 border-b border-rule pb-1.5 text-[12px] last:border-b-0"
+                >
+                  <div className="flex min-w-0 items-start gap-1.5">
+                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
+                    <div className="min-w-0">
+                      <span className="font-medium text-white">{row.action}</span>
+                      <span className="text-steel">
+                        {" "}
+                        by {row.user_email ?? "unknown"}
+                        {row.user_role ? ` (${row.user_role})` : ""}
+                      </span>
+                      {row.fields && row.fields.length > 0 && (
+                        <div className="text-[11px] text-steel">
+                          {row.fields.join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-steel" title={formatDate(row.accessed_at)}>
+                    {formatDistanceToNow(row.accessed_at)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Scheduled jobs health
+// ─────────────────────────────────────────────────────────────────────
+
+function CronStatusCard() {
+  const { data, isLoading, error } = useAdminCronStatus();
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-steel" strokeWidth={1.5} />
+          <CardTitle className="text-[13px]">Scheduled jobs</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="text-[12px] text-overdue">
+            Failed to load: {(error as Error).message}. Migration 0053 may not be applied yet.
+          </p>
+        ) : isLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : !data || data.length === 0 ? (
+          <p className="text-[12px] text-steel">No scheduled jobs found.</p>
+        ) : (
+          <ul className="space-y-2">
+            {data.map((job) => {
+              const failed = job.last_status != null && job.last_status !== "succeeded";
+              return (
+                <li
+                  key={job.jobname}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-background/40 px-3 py-2 text-[12px]"
+                >
+                  <div className="flex items-center gap-2">
+                    {!job.active ? (
+                      <XCircle className="h-3.5 w-3.5 shrink-0 text-steel" strokeWidth={1.5} />
+                    ) : failed ? (
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-overdue" strokeWidth={1.5} />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-paid" strokeWidth={1.5} />
+                    )}
+                    <div>
+                      <div className="font-medium text-white">{job.jobname}</div>
+                      <div className="font-mono text-[11px] text-steel">{job.schedule}</div>
+                    </div>
+                  </div>
+                  <div className="text-right text-steel">
+                    <div>
+                      {job.last_run_at ? formatDistanceToNow(job.last_run_at) : "never run"}
+                    </div>
+                    {job.last_status && (
+                      <div className={failed ? "text-overdue" : "text-paid"}>{job.last_status}</div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }

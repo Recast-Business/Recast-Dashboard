@@ -31,6 +31,33 @@ export function isDisabled(u: AdminUser): boolean {
   return Number.isFinite(t.getTime()) && t > new Date();
 }
 
+export interface AdminActivityRow {
+  id: number;
+  created_at: string;
+  kind: string;
+  actor_email: string | null;
+  payload: Record<string, unknown> | null;
+}
+
+export interface AdminVaultAccessRow {
+  id: number;
+  accessed_at: string;
+  action: string;
+  user_email: string | null;
+  user_role: UserRole | null;
+  banking_id: string | null;
+  fields: string[] | null;
+}
+
+export interface AdminCronJobStatus {
+  jobname: string;
+  schedule: string;
+  active: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_message: string | null;
+}
+
 const KEY = ["admin", "users"] as const;
 
 export function useAdminUsers() {
@@ -119,15 +146,16 @@ export function useDeleteUser() {
 }
 
 export function useCreateUser() {
-  return useAdminMutation(
-    async (v: {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: {
       email: string;
       password: string;
       role: UserRole;
       viewCampaignFinancials: boolean;
       fullName: string | null;
     }) => {
-      const { error } = await supabase.rpc("admin_create_user", {
+      const { data, error } = await supabase.rpc("admin_create_user", {
         p_email: v.email,
         p_password: v.password,
         p_role: v.role,
@@ -135,8 +163,69 @@ export function useCreateUser() {
         p_full_name: v.fullName,
       });
       if (error) throw error;
+      return data as string; // new user's id — used to offer "email login details"
     },
-  );
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+export function useSetUserFullName() {
+  return useAdminMutation(async (v: { userId: string; fullName: string }) => {
+    const { error } = await supabase.rpc("admin_set_user_full_name", {
+      p_user_id: v.userId,
+      p_full_name: v.fullName,
+    });
+    if (error) throw error;
+  });
+}
+
+/** Best-effort, separate from create/reset so a Resend hiccup never
+ *  blocks the underlying credential change. Errors surface to the
+ *  caller (unlike the background notification triggers) since the
+ *  admin explicitly asked for this specific send. */
+export function useEmailLoginDetails() {
+  return useMutation({
+    mutationFn: async (v: { userId: string; password: string }) => {
+      const { error } = await supabase.rpc("admin_email_login_details", {
+        p_user_id: v.userId,
+        p_temp_password: v.password,
+      });
+      if (error) throw error;
+    },
+  });
+}
+
+export function useAdminActivity(limit = 50) {
+  return useQuery({
+    queryKey: ["admin", "activity", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_list_activity", { p_limit: limit });
+      if (error) throw error;
+      return (data ?? []) as AdminActivityRow[];
+    },
+  });
+}
+
+export function useAdminVaultAccess(limit = 50) {
+  return useQuery({
+    queryKey: ["admin", "vault-access", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_list_vault_access", { p_limit: limit });
+      if (error) throw error;
+      return (data ?? []) as AdminVaultAccessRow[];
+    },
+  });
+}
+
+export function useAdminCronStatus() {
+  return useQuery({
+    queryKey: ["admin", "cron-status"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_list_cron_status");
+      if (error) throw error;
+      return (data ?? []) as AdminCronJobStatus[];
+    },
+  });
 }
 
 /** Random 12-char temp password: unambiguous letters + digits. */
