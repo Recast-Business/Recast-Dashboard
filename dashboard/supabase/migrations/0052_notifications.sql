@@ -189,17 +189,25 @@ begin
 
   select array_agg(email) into v_recipients from profiles where role in ('admin', 'accounting');
 
-  perform _send_email(
-    v_recipients,
-    format('%s payment%s just went overdue', v_count, case when v_count = 1 then '' else 's' end),
-    format(
-      '<h2>Overdue payments</h2>' ||
-      '<table border="1" cellpadding="6" style="border-collapse:collapse">' ||
-      '<tr><th>Type</th><th>Who</th><th>Amount</th><th>Overdue by</th></tr>%s</table>' ||
-      '<p>Log a receipt on the Payments page to clear these.</p>',
-      v_rows_html
-    )
-  );
+  -- Notification delivery is best-effort — a Resend/Vault hiccup here
+  -- must not fail the cron job (it would just retry the same overdue
+  -- rows tomorrow anyway, harmlessly, given the bounded catch-up
+  -- window on _overdue_rows).
+  begin
+    perform _send_email(
+      v_recipients,
+      format('%s payment%s just went overdue', v_count, case when v_count = 1 then '' else 's' end),
+      format(
+        '<h2>Overdue payments</h2>' ||
+        '<table border="1" cellpadding="6" style="border-collapse:collapse">' ||
+        '<tr><th>Type</th><th>Who</th><th>Amount</th><th>Overdue by</th></tr>%s</table>' ||
+        '<p>Log a receipt on the Payments page to clear these.</p>',
+        v_rows_html
+      )
+    );
+  exception when others then
+    raise warning 'overdue-alert email failed: %', sqlerrm;
+  end;
 end $$;
 revoke all on function _check_overdue_and_notify() from public, anon, authenticated;
 
@@ -238,7 +246,11 @@ begin
     v_overdue_count, v_new_campaigns, v_new_creators
   );
 
-  perform _send_email(v_recipients, 'Recast weekly digest', v_html);
+  begin
+    perform _send_email(v_recipients, 'Recast weekly digest', v_html);
+  exception when others then
+    raise warning 'weekly-digest email failed: %', sqlerrm;
+  end;
 end $$;
 revoke all on function _weekly_digest_and_notify() from public, anon, authenticated;
 
@@ -260,16 +272,27 @@ begin
     select email into v_target_email from profiles where id = (new.payload->>'target_user_id')::uuid;
   end if;
 
-  perform _send_email(
-    v_recipients,
-    format('Admin action: %s', new.kind::text),
-    format(
-      '<p><strong>%s</strong> by %s</p><p>Target: %s</p><pre>%s</pre>',
-      new.kind::text, coalesce(v_actor_email, 'unknown'),
-      coalesce(v_target_email, coalesce(new.payload->>'email', 'n/a')),
-      new.payload::text
-    )
-  );
+  -- CRITICAL: this trigger fires inline, inside the SAME transaction
+  -- as the admin action that inserted this activity_log row (e.g.
+  -- admin_create_user, admin_set_user_role). If _send_email raises
+  -- (Resend not configured, Vault secret missing, network hiccup)
+  -- and we don't catch it here, the exception propagates up and
+  -- ROLLS BACK the entire admin action — a notification failure
+  -- would silently break user management. Swallow and log instead.
+  begin
+    perform _send_email(
+      v_recipients,
+      format('Admin action: %s', new.kind::text),
+      format(
+        '<p><strong>%s</strong> by %s</p><p>Target: %s</p><pre>%s</pre>',
+        new.kind::text, coalesce(v_actor_email, 'unknown'),
+        coalesce(v_target_email, coalesce(new.payload->>'email', 'n/a')),
+        new.payload::text
+      )
+    );
+  exception when others then
+    raise warning 'security-alert email failed: %', sqlerrm;
+  end;
   return new;
 end $$;
 
@@ -292,15 +315,23 @@ begin
     return new;
   end if;
 
-  perform _send_email(
-    v_recipients,
-    format('Vault %s: banking record modified', new.action),
-    format(
-      '<p><strong>%s</strong> on banking record %s</p><p>By: %s (%s)</p><p>Fields: %s</p>',
-      new.action, new.banking_id, coalesce(new.user_email, 'unknown'),
-      coalesce(new.user_role::text, 'n/a'), array_to_string(new.fields, ', ')
-    )
-  );
+  -- Same reasoning as _notify_security_event — this fires inline with
+  -- vault_get_banking / vault_upsert_banking / vault_delete_banking's
+  -- own transaction. A notification failure must never block banking
+  -- access.
+  begin
+    perform _send_email(
+      v_recipients,
+      format('Vault %s: banking record modified', new.action),
+      format(
+        '<p><strong>%s</strong> on banking record %s</p><p>By: %s (%s)</p><p>Fields: %s</p>',
+        new.action, new.banking_id, coalesce(new.user_email, 'unknown'),
+        coalesce(new.user_role::text, 'n/a'), array_to_string(new.fields, ', ')
+      )
+    );
+  exception when others then
+    raise warning 'vault-access email failed: %', sqlerrm;
+  end;
   return new;
 end $$;
 
