@@ -37,14 +37,13 @@ jobs:
       - name: Install postgresql-client 17 (matches Supabase server major)
         run: |
           set -euo pipefail
+          # PGDG's official setup script — non-interactive, handles the
+          # signing key itself. (A hand-rolled curl|gpg pipeline here
+          # previously died in CI: gpg tried to open /dev/tty, which
+          # runners don't have.)
           sudo apt-get -qq update
-          sudo apt-get -qq install -y curl ca-certificates gnupg
-          sudo install -d /usr/share/postgresql-common/pgdg
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
-            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
-          sudo apt-get -qq update
+          sudo apt-get -qq install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get -qq install -y postgresql-client-17
           /usr/lib/postgresql/17/bin/pg_dump --version
 

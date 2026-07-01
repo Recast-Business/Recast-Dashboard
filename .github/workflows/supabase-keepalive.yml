@@ -1,60 +1,46 @@
 name: Supabase Keepalive
 
-# Supabase free-tier pauses a project after ~7 days with no database
-# activity (auth/API hits don't count — it watches actual query
-# traffic). This workflow runs a tiny SELECT on the profiles table
-# twice a week so the project stays warm. Costs nothing on GitHub
-# Actions (under the 2k minutes/month free tier — this is seconds
-# of compute per run).
+# Supabase free-tier pauses a project after ~7 days without database
+# activity. This runs a real SQL query twice a week so the project
+# stays warm.
 #
-# Setup once: in the GitHub repo settings → Secrets and variables →
-# Actions, add:
-#   SUPABASE_URL       =  https://<project-ref>.supabase.co
-#   SUPABASE_ANON_KEY  =  the anon/public key (same one the frontend
-#                         uses — not the service_role key)
+# v2: pings via psql + the pooler connection string instead of the
+# REST API. The REST version never went green (secret/env mix-ups,
+# opaque 4xx). A direct SQL query has exactly one failure mode
+# (bad connection string), is unambiguous "database activity" to
+# the pause detector, and shares its secret with the backup
+# workflow — one secret to maintain:
 #
-# Both values are non-secret in the strictest sense (the anon key
-# ships in the client bundle and the URL is in the auth callback),
-# but GitHub Secrets keeps them out of workflow logs.
+#   SUPABASE_DB_URL = Session pooler URI from Supabase Dashboard →
+#     Connect → Session pooler, with [YOUR-PASSWORD] filled in.
+#     (Same secret the Supabase Backup workflow uses.)
+#
+# The old SUPABASE_URL / SUPABASE_ANON_KEY secrets are no longer
+# used by anything and can be deleted.
 
 on:
   schedule:
-    # Twice a week (Mon + Thu, 12:00 UTC) — well inside Supabase's
-    # 7-day pause window even if one run is delayed by GitHub's
-    # cron queue.
+    # Mon + Thu 12:00 UTC — two pings well inside the 7-day window.
     - cron: "0 12 * * 1,4"
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      - name: Ping Supabase (SELECT id FROM profiles LIMIT 1)
+      - name: Ping database (select count(*) from profiles)
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
-            echo "::error::SUPABASE_URL or SUPABASE_ANON_KEY secret not set in repo settings."
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL secret not set. Add the Session pooler URI (Supabase Dashboard → Connect → Session pooler) in repo Settings → Secrets and variables → Actions."
             exit 1
           fi
-          # -s = silent, no -f so curl returns 0 even on 4xx and we
-          # can log the actual status + body before deciding.
-          status=$(curl -s -o /tmp/resp.json -w '%{http_code}' \
-            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          echo "HTTP $status"
-          echo "Response body:"
-          head -c 500 /tmp/resp.json && echo
-          # 200 = success (rows returned, even an empty [] still counts
-          # as DB activity and keeps the project warm).
-          # 401/403 usually means the anon key is wrong or RLS blocks
-          # the role; 404 usually means the table name is wrong.
-          if [ "$status" != "200" ]; then
-            echo "::error::Keepalive ping failed (HTTP $status). Check the response body above + that the project isn't already paused + that the anon key matches the one in your frontend .env."
-            exit 1
-          fi
+          # psql ships preinstalled on the runner; a plain query works
+          # across server major versions (only pg_dump is version-picky).
+          psql "$SUPABASE_DB_URL" \
+            --no-psqlrc --tuples-only \
+            -c "select 'keepalive ok — ' || count(*) || ' profiles' from public.profiles;"
           echo "Keepalive OK — Supabase project pinged."
