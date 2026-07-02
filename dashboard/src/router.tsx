@@ -1,27 +1,40 @@
+import * as React from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { LoginPage } from "@/pages/Login";
 import { UnauthorizedPage } from "@/pages/Unauthorized";
-import { FinancePage } from "@/pages/Finance";
-import { OverviewPage } from "@/pages/Overview";
-import { CalculatorPage } from "@/pages/Calculator";
-import { CampaignsPage } from "@/pages/Campaigns";
-import { RosterPage } from "@/pages/Roster";
-import { TalentLedgerPage } from "@/pages/TalentLedger";
-import { TalentDetailPage } from "@/pages/TalentDetail";
-import { LeadsPage } from "@/pages/Leads";
-import { PotentialPage } from "@/pages/Potential";
-import { CreatorProfilePage } from "@/pages/CreatorProfile";
-import { ScoutPage } from "@/pages/Scout";
-import { BriefsPage } from "@/pages/Briefs";
-import { ActivityPage } from "@/pages/Activity";
-import { VendorsPage } from "@/pages/Vendors";
-import { VendorDetailPage } from "@/pages/VendorDetail";
-import { HousePage } from "@/pages/House";
-import { PaymentsPage } from "@/pages/Payments";
-import { AdminPage } from "@/pages/Admin";
 import { RoleRedirect } from "@/auth/RoleRedirect";
+
+// Round-2 performance (friction audit #16 + bundle-size warning):
+// every page below is code-split via React.lazy, so login no longer
+// downloads the entire app up front — each page's chunk loads on
+// first visit and is cached after. The Suspense boundary lives in
+// AppShell around the <Outlet/>, so all lazy children share one
+// fallback. Login/Unauthorized stay static: Login IS the entry
+// screen (lazy would slow first paint), Unauthorized is tiny.
+//
+// Pages use named exports, hence the .then(m => ({default: ...}))
+// dance — React.lazy only understands default exports.
+/* eslint-disable react-refresh/only-export-components */
+const OverviewPage = React.lazy(() => import("@/pages/Overview").then((m) => ({ default: m.OverviewPage })));
+const CalculatorPage = React.lazy(() => import("@/pages/Calculator").then((m) => ({ default: m.CalculatorPage })));
+const CampaignsPage = React.lazy(() => import("@/pages/Campaigns").then((m) => ({ default: m.CampaignsPage })));
+const FinancePage = React.lazy(() => import("@/pages/Finance").then((m) => ({ default: m.FinancePage })));
+const RosterPage = React.lazy(() => import("@/pages/Roster").then((m) => ({ default: m.RosterPage })));
+const TalentLedgerPage = React.lazy(() => import("@/pages/TalentLedger").then((m) => ({ default: m.TalentLedgerPage })));
+const TalentDetailPage = React.lazy(() => import("@/pages/TalentDetail").then((m) => ({ default: m.TalentDetailPage })));
+const LeadsPage = React.lazy(() => import("@/pages/Leads").then((m) => ({ default: m.LeadsPage })));
+const PotentialPage = React.lazy(() => import("@/pages/Potential").then((m) => ({ default: m.PotentialPage })));
+const CreatorProfilePage = React.lazy(() => import("@/pages/CreatorProfile").then((m) => ({ default: m.CreatorProfilePage })));
+const ScoutPage = React.lazy(() => import("@/pages/Scout").then((m) => ({ default: m.ScoutPage })));
+const BriefsPage = React.lazy(() => import("@/pages/Briefs").then((m) => ({ default: m.BriefsPage })));
+const ActivityPage = React.lazy(() => import("@/pages/Activity").then((m) => ({ default: m.ActivityPage })));
+const VendorsPage = React.lazy(() => import("@/pages/Vendors").then((m) => ({ default: m.VendorsPage })));
+const VendorDetailPage = React.lazy(() => import("@/pages/VendorDetail").then((m) => ({ default: m.VendorDetailPage })));
+const HousePage = React.lazy(() => import("@/pages/House").then((m) => ({ default: m.HousePage })));
+const PaymentsPage = React.lazy(() => import("@/pages/Payments").then((m) => ({ default: m.PaymentsPage })));
+const AdminPage = React.lazy(() => import("@/pages/Admin").then((m) => ({ default: m.AdminPage })));
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },

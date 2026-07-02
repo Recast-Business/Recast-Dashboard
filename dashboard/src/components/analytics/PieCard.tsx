@@ -1,87 +1,30 @@
 import * as React from "react";
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
-import type { PieBucket } from "@/lib/analytics/group";
-import { formatUSD } from "@/lib/utils";
+import type { PieCardProps } from "./PieCardChart";
 
-// Theme-aware-ish palette. Cycles through; works on light + dark backgrounds.
-const PALETTE = [
-  "#0ea5e9", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6",
-  "#14b8a6", "#ef4444", "#a855f7", "#84cc16", "#f97316",
-  "#06b6d4", "#eab308",
-];
+// Round-2 performance: thin lazy wrapper. The recharts-dependent
+// implementation lives in PieCardChart.tsx and is only fetched the
+// first time this actually renders — which, since every caller sits
+// inside AnalyticsPanel's `{open && ...}` branch (collapsed by
+// default), means most page visits never download recharts at all.
+// Same public API as before, so none of the 12 call sites needed to
+// change.
+const PieCardChart = React.lazy(() => import("./PieCardChart"));
 
-interface Props {
-  title: string;
-  description?: string;
-  data: PieBucket[];
-  /** When true, values render as $X,XXX in the tooltip + legend. Default true. */
-  asCurrency?: boolean;
-  height?: number;
-}
+const FALLBACK_HEIGHT = 240;
 
-export function PieCard({ title, description, data, asCurrency = true, height = 240 }: Props) {
-  const total = React.useMemo(() => data.reduce((s, b) => s + b.value, 0), [data]);
-  const fmt = (n: number) =>
-    asCurrency ? formatUSD(n, { decimals: 0 }) : new Intl.NumberFormat("en-US").format(n);
-
+export function PieCard(props: PieCardProps) {
   return (
-    <div className="rounded-lg border bg-card p-3">
-      <div className="mb-1 flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {data.length === 0 ? "—" : fmt(total)}
-        </span>
-      </div>
-      {description && <p className="mb-2 text-[11px] text-muted-foreground">{description}</p>}
-
-      {data.length === 0 ? (
-        <div className="flex h-[200px] items-center justify-center text-xs text-muted-foreground">
-          No data for the selected period.
+    <React.Suspense
+      fallback={
+        <div
+          className="flex items-center justify-center rounded-lg border bg-card p-3 text-xs text-muted-foreground"
+          style={{ height: (props.height ?? FALLBACK_HEIGHT) + 40 }}
+        >
+          Loading chart…
         </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={height}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={50}
-              outerRadius={80}
-              paddingAngle={2}
-              stroke="hsl(var(--background))"
-              strokeWidth={2}
-            >
-              {data.map((_, i) => (
-                <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                background: "hsl(var(--popover))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              formatter={(v: unknown) => fmt(typeof v === "number" ? v : Number(v) || 0)}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-              formatter={(value, _entry, i) => {
-                const v = data[i]?.value ?? 0;
-                const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-                return `${value} · ${pct}%`;
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      )}
-    </div>
+      }
+    >
+      <PieCardChart {...props} />
+    </React.Suspense>
   );
 }

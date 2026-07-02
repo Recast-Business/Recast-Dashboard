@@ -3,6 +3,8 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Loader2,
   Pencil,
@@ -439,6 +441,23 @@ export function CreatorTable({
     sortDir,
   ]);
 
+  // Round-2 performance (friction audit #1): Leads (512 rows) and
+  // Roster (65+) rendered every filtered row at once — no pagination,
+  // no virtualization. 512 <table> rows is the app's biggest scale
+  // cliff as leads grow. Simple page-window over the already-computed
+  // `filtered` array; sort/filter/search all still operate over the
+  // full set, only the DOM render is windowed.
+  const PAGE_SIZE = 50;
+  const [page, setPage] = React.useState(0);
+  React.useEffect(() => {
+    setPage(0);
+  }, [filtered]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = React.useMemo(
+    () => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [filtered, page],
+  );
+
   function toggleSort(field: SortField) {
     if (sortField !== field) {
       setSortField(field);
@@ -565,9 +584,19 @@ export function CreatorTable({
         )}
         <div className="text-xs text-muted-foreground tabular-nums">
           {rows ? (
-            <>
-              Showing <strong>{filtered.length}</strong> of {rows.length}
-            </>
+            filtered.length > PAGE_SIZE ? (
+              <>
+                Showing{" "}
+                <strong>
+                  {page * PAGE_SIZE + 1}–{Math.min(filtered.length, (page + 1) * PAGE_SIZE)}
+                </strong>{" "}
+                of {filtered.length} ({rows.length} total)
+              </>
+            ) : (
+              <>
+                Showing <strong>{filtered.length}</strong> of {rows.length}
+              </>
+            )
           ) : null}
         </div>
         {toolbarExtras && <div className="ml-auto">{toolbarExtras}</div>}
@@ -673,7 +702,7 @@ export function CreatorTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((c) => (
+                {paginated.map((c) => (
                   <TableRow key={c.id}>
                     {showCheckboxes && (
                       <TableCell className="w-8">
@@ -739,6 +768,33 @@ export function CreatorTable({
                 ))}
               </TableBody>
             </Table>
+            {pageCount > 1 && (
+              <div className="flex items-center justify-between border-t px-3 py-2">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Page <strong>{page + 1}</strong> of {pageCount}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                  >
+                    <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Prev
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                    disabled={page >= pageCount - 1}
+                  >
+                    Next <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">

@@ -11,11 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  exportHouseStatement,
-  type ExportFormat,
-  type ExportScope,
-} from "@/lib/export/houseStatement";
+// Round-2 performance: type-only import — the implementation (which
+// statically pulls the jsPDF engine) is dynamic-imported at click
+// time in onGenerate() so it lives in a lazy chunk, not the main
+// bundle every login pays for.
+import type { ExportFormat, ExportScope } from "@/lib/export/houseStatement";
 import type {
   HouseResident,
   HouseRentPayment,
@@ -76,8 +76,9 @@ export function HouseExportDialog({
     setFormat("pdf");
   }, [open]);
 
-  function onGenerate() {
+  async function onGenerate() {
     try {
+      const { exportHouseStatement } = await import("@/lib/export/houseStatement");
       exportHouseStatement({
         year,
         scope,

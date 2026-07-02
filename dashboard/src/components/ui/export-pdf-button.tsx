@@ -1,5 +1,6 @@
 import * as React from "react";
 import { FileText } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { exportRowsToPDF } from "@/lib/export/pdf";
 import type { CSVColumn } from "@/lib/export/csv";
@@ -36,13 +37,18 @@ export function ExportPDFButton<Row>({
 }: Props<Row>) {
   const [busy, setBusy] = React.useState(false);
 
-  function onClick() {
+  // Round-2 performance: exportRowsToPDF is now async — it dynamic-
+  // imports the jsPDF engine on first click instead of shipping it in
+  // the main bundle. `busy` covers the (one-time) chunk download too.
+  async function onClick() {
     if (busy || disabled) return;
     setBusy(true);
     try {
-      exportRowsToPDF({ filename, title, subtitle, rows, columns, orientation });
+      await exportRowsToPDF({ filename, title, subtitle, rows, columns, orientation });
+    } catch (e) {
+      toast.error(`PDF export failed: ${(e as Error).message}`);
     } finally {
-      setTimeout(() => setBusy(false), 200);
+      setBusy(false);
     }
   }
 

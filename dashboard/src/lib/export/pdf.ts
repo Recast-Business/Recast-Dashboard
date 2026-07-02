@@ -11,9 +11,14 @@
  *   });
  */
 
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import type { CSVColumn } from "./csv";
+
+// Round-2 performance (friction audit #16): jspdf + jspdf-autotable
+// are dynamic-imported inside the export function instead of at
+// module top-level. Statically they rode in the main bundle — every
+// login downloaded the whole PDF engine whether or not anyone ever
+// clicked Export. Now the engine only downloads on first click
+// (Vite splits it into its own lazy chunk automatically).
 
 interface ExportPDFArgs<Row> {
   filename: string;
@@ -27,7 +32,7 @@ interface ExportPDFArgs<Row> {
   footer?: string;
 }
 
-export function exportRowsToPDF<Row>({
+export async function exportRowsToPDF<Row>({
   filename,
   title,
   subtitle,
@@ -35,7 +40,12 @@ export function exportRowsToPDF<Row>({
   columns,
   orientation,
   footer = "Confidential · Recast internal",
-}: ExportPDFArgs<Row>): void {
+}: ExportPDFArgs<Row>): Promise<void> {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+
   const o: "portrait" | "landscape" =
     orientation ?? (columns.length >= 8 ? "landscape" : "portrait");
 
