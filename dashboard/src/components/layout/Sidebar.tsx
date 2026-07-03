@@ -1,5 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
+  Bell,
+  BellRing,
   Calculator,
   ChevronDown,
   DollarSign,
@@ -25,6 +27,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/recast";
 import { useNavCounts } from "@/hooks/useNavCounts";
+import {
+  isPushSupported,
+  usePushNotifications,
+  usePushSubscriptionStatus,
+} from "@/hooks/usePushNotifications";
 
 /**
  * Phase L → Round 3 → R5 Sweep 8 sidebar IA.
@@ -277,6 +284,7 @@ export function Sidebar() {
           </div>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-steel" />
         </button>
+        <NotificationsToggle />
         <Button
           variant="ghost"
           size="sm"
@@ -287,5 +295,37 @@ export function Sidebar() {
         </Button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Round 4 (Max): browser push on/off, per-device (a subscription is
+ * tied to this browser's push endpoint — enabling it on a laptop
+ * doesn't turn it on for a phone too). Hidden entirely on browsers
+ * without Web Push support instead of showing a toggle that'd just
+ * error on click.
+ */
+function NotificationsToggle() {
+  const { data: subscribed, isLoading } = usePushSubscriptionStatus();
+  const { subscribe, unsubscribe, busy } = usePushNotifications();
+
+  if (!isPushSupported()) return null;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 w-full justify-start text-steel"
+      disabled={busy || isLoading}
+      onClick={() => (subscribed ? unsubscribe() : subscribe())}
+      title={subscribed ? "Turn off push notifications for this browser" : "Turn on push notifications for this browser"}
+    >
+      {subscribed ? (
+        <BellRing className="mr-2 h-3.5 w-3.5 text-electric" />
+      ) : (
+        <Bell className="mr-2 h-3.5 w-3.5" />
+      )}
+      {subscribed ? "Notifications on" : "Enable notifications"}
+    </Button>
   );
 }
