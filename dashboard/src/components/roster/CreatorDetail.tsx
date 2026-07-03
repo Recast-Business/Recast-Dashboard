@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatUSD } from "@/lib/utils";
+import { NewTaskButton } from "@/components/tasks/NewTaskButton";
 import type { UserRole } from "@/types/database";
 
 const PLATFORM_ORDER = [
@@ -168,6 +169,12 @@ export function CreatorDetailBody({ creatorId, role, showFullLink = true }: Deta
             · {data.outreach_status}
           </span>
         )}
+        {/* Round 3: quick-add a task linked to this creator — shows in
+            both the roster detail dialog and /creators/:id. */}
+        <NewTaskButton
+          entity={{ type: "creator", id: creatorId, label: data.name }}
+          className="ml-auto"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">

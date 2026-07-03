@@ -15,6 +15,7 @@ import { useViewCampaignFinancials } from "@/auth/useRole";
 import { CampaignDialog } from "@/components/campaigns/CampaignDialog";
 import { CampaignCreatorDialog } from "@/components/campaigns/CampaignCreatorDialog";
 import { CampaignCreatorRow } from "@/components/campaigns/CampaignCreatorRow";
+import { NewTaskButton } from "@/components/tasks/NewTaskButton";
 import type { CampaignStatusV2, CampaignV2 } from "@/types/finance";
 import { cn, formatUSD } from "@/lib/utils";
 
@@ -177,6 +178,16 @@ export function CampaignCard({ campaign, year, canEdit, defaultExpanded = false 
               <Button size="sm" variant="outline" onClick={() => setEditingCampaign(true)}>
                 <Pencil className="mr-1 h-3 w-3" /> Edit campaign
               </Button>
+              {/* Round 3: quick-add a task linked to this campaign
+                  ("chase FanDuel about March" gets created while
+                  looking at the card, and links back here). */}
+              <NewTaskButton
+                entity={{
+                  type: "campaign",
+                  id: campaign.id,
+                  label: `${campaign.brand} · ${campaign.name}`,
+                }}
+              />
               <Button
                 size="sm"
                 variant="outline"

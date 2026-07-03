@@ -28,6 +28,7 @@ import { VendorDialog } from "@/components/finance/VendorDialog";
 import { VendorInvoiceDialog } from "@/components/finance/VendorInvoiceDialog";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useSharedYear } from "@/hooks/useSharedYear";
+import { NewTaskButton } from "@/components/tasks/NewTaskButton";
 import type { VendorInvoice, VendorPayment } from "@/types/finance";
 import { cn, formatUSD, formatDate } from "@/lib/utils";
 
@@ -240,6 +241,8 @@ export function VendorDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Round 3: quick-add a task linked to this vendor. */}
+          <NewTaskButton entity={{ type: "vendor", id: vendor.id, label: vendor.name }} />
           <Button
             variant="outline"
             size="sm"

@@ -7,8 +7,10 @@ import {
   ArrowUpRight,
   Calendar,
   ChevronDown,
+  ChevronRight,
   CircleDot,
   Clock,
+  ListTodo,
   Search,
   TrendingUp,
   X,
@@ -31,7 +33,9 @@ import {
 } from "@/components/recast";
 import { useFinanceOverview, type MonthlyFlow } from "@/hooks/useFinanceOverview";
 import { useSharedYear } from "@/hooks/useSharedYear";
-import { cn, formatUSD, formatUSDCompact } from "@/lib/utils";
+import { isOverdue, taskEntityLink, useTasks } from "@/hooks/useTasks";
+import { useAuth } from "@/auth/AuthProvider";
+import { cn, formatUSD, formatUSDCompact, formatDate } from "@/lib/utils";
 
 /**
  * Phase L (C1.2a): Overview matched to the Claude Design mockup.
@@ -204,6 +208,10 @@ export function OverviewPage() {
           </>
         )}
       </div>
+
+      {/* ── 4b. My open tasks — Round 3. Compact strip so the day
+          starts with what's due, not what's remembered. ──────────── */}
+      <MyTasksStrip />
 
       {/* ── 5. Cash flow chart ─────────────────────────────────────── */}
       <Card className="p-tile-md">
@@ -1008,5 +1016,89 @@ function YearSelector({
         ))}
       </select>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// My tasks strip — Round 3
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Up to four of the signed-in user's open tasks, worst-due first.
+ * Renders nothing when the plate is clean (or the tasks table isn't
+ * migrated yet) — Overview shouldn't grow an empty box.
+ */
+function MyTasksStrip() {
+  const { user } = useAuth();
+  const { data: tasks } = useTasks();
+
+  const mine = React.useMemo(() => {
+    const open = (tasks ?? []).filter(
+      (t) => t.status === "open" && t.assignee_id === user?.id,
+    );
+    // Overdue first, then nearest due date, then newest.
+    return open
+      .sort((a, b) => {
+        const ao = isOverdue(a) ? 0 : 1;
+        const bo = isOverdue(b) ? 0 : 1;
+        if (ao !== bo) return ao - bo;
+        const ad = a.due_date ?? "9999-12-31";
+        const bd = b.due_date ?? "9999-12-31";
+        return ad.localeCompare(bd);
+      })
+      .slice(0, 4);
+  }, [tasks, user?.id]);
+
+  if (mine.length === 0) return null;
+
+  return (
+    <Card className="p-tile-md">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ListTodo className="h-4 w-4 text-steel" strokeWidth={1.5} />
+          <EyebrowLabel>My tasks</EyebrowLabel>
+        </div>
+        <Link
+          to="/tasks"
+          className="inline-flex items-center gap-0.5 text-[11px] text-steel hover:text-white"
+        >
+          All tasks <ChevronRight className="h-3 w-3" strokeWidth={1.5} />
+        </Link>
+      </div>
+      <ul className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+        {mine.map((t) => {
+          const overdue = isOverdue(t);
+          const link = taskEntityLink(t);
+          return (
+            <li key={t.id} className="flex items-baseline justify-between gap-3 text-[13px]">
+              <span className="min-w-0 truncate font-medium text-white">
+                {t.title}
+                {t.entity_label && link ? (
+                  <>
+                    {" "}
+                    <Link to={link} className="text-steel hover:text-electric hover:underline">
+                      · {t.entity_label}
+                    </Link>
+                  </>
+                ) : t.entity_label ? (
+                  <span className="text-steel"> · {t.entity_label}</span>
+                ) : null}
+              </span>
+              {t.due_date ? (
+                <span
+                  className={cn(
+                    "shrink-0 text-[11px]",
+                    overdue ? "font-semibold text-overdue" : "text-steel",
+                  )}
+                >
+                  {overdue ? "overdue · " : ""}
+                  {formatDate(t.due_date)}
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }

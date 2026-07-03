@@ -18,6 +18,7 @@ import { EyebrowLabel, MetricStrip, MoneyCell, Sparkline } from "@/components/re
 import { useCreators } from "@/hooks/useCreators";
 import { useCreatorPerformance } from "@/hooks/useCreatorPerformance";
 import { useSharedYear } from "@/hooks/useSharedYear";
+import { NewTaskButton } from "@/components/tasks/NewTaskButton";
 import { CreatorProfileDialog } from "@/components/roster/CreatorProfileDialog";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn, formatUSD } from "@/lib/utils";
@@ -114,6 +115,10 @@ export function TalentDetailPage() {
             ) : null}
           </div>
           <div className="flex items-center gap-2">
+            {/* Round 3: quick-add a task linked to this creator. */}
+            {c ? (
+              <NewTaskButton entity={{ type: "creator", id: c.id, label: c.name }} />
+            ) : null}
             <ViewSwitch mode={mode} onMode={setMode} year={year} onYear={setYear} />
             {canEdit ? (
               <Button

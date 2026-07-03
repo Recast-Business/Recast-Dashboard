@@ -35,6 +35,7 @@ const VendorDetailPage = React.lazy(() => import("@/pages/VendorDetail").then((m
 const HousePage = React.lazy(() => import("@/pages/House").then((m) => ({ default: m.HousePage })));
 const PaymentsPage = React.lazy(() => import("@/pages/Payments").then((m) => ({ default: m.PaymentsPage })));
 const AdminPage = React.lazy(() => import("@/pages/Admin").then((m) => ({ default: m.AdminPage })));
+const TasksPage = React.lazy(() => import("@/pages/Tasks").then((m) => ({ default: m.TasksPage })));
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -224,6 +225,17 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allow={["admin"]}>
             <AdminPage />
+          </ProtectedRoute>
+        ),
+      },
+      // Round 3: shared team task board — every role. It's a
+      // coordination surface, not a finance one, so partner keeps
+      // access even though the rest of Workspace is hidden for them.
+      {
+        path: "tasks",
+        element: (
+          <ProtectedRoute allow={["admin", "partner", "accounting", "operator"]}>
+            <TasksPage />
           </ProtectedRoute>
         ),
       },

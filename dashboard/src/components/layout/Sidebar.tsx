@@ -6,6 +6,7 @@ import {
   FileText,
   Home,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Megaphone,
   Search,
@@ -75,7 +76,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   allow: UserRole[];
-  badge?: "roster" | "leads" | "potential";
+  badge?: "roster" | "leads" | "potential" | "tasks";
   /** When true, operators only see this item if their profile flag
    *  view_campaign_financials = true. Bruno=true, Harry=false. Admin
    *  + accounting are unaffected. */
@@ -91,6 +92,9 @@ interface NavSection {
 const WORKSPACE_SECTION: NavSection = {
   header: "Workspace",
   items: [
+    // Round 3: shared team task board — every role (it's coordination,
+    // not finance; badge = YOUR open task count).
+    { to: "/tasks", label: "Tasks", icon: ListTodo, allow: ["admin", "partner", "accounting", "operator"], badge: "tasks" },
     { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "accounting"] },
     // Workspace is admin + accounting only. R5 partner-read-only on
     // /finance + /vendors + /house was rolled back — partners are
