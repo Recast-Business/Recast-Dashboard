@@ -28,6 +28,14 @@ insert into task_assignees (task_id, user_id, added_by)
 select id, assignee_id, created_by from tasks where assignee_id is not null
 on conflict do nothing;
 
+-- The 0054 tasks_update policy and the 0055 trg_task_assigned trigger
+-- both reference assignee_id directly — Postgres refuses to drop the
+-- column while they still depend on it. Drop them BEFORE the column,
+-- then recreate tasks_update (below) without assignee_id.
+drop policy if exists tasks_update on tasks;
+drop trigger if exists trg_task_assigned on tasks;
+drop function if exists _notify_task_assigned();
+
 drop index if exists tasks_assignee_status_idx;
 alter table tasks drop column if exists assignee_id;
 
@@ -71,7 +79,7 @@ create policy task_assignees_write on task_assignees
 
 -- tasks_update: the assignee-based branch now checks task_assignees
 -- (and assign_everyone — anyone on a team-wide task can edit it).
-drop policy if exists tasks_update on tasks;
+-- (old policy already dropped above, before the column drop)
 create policy tasks_update on tasks
   for update using (
     auth.uid() = created_by
@@ -101,9 +109,7 @@ $$;
 grant execute on function my_open_task_count() to authenticated;
 
 -- ── notifications: replace assignee_id-based trigger ────────────────
-
-drop trigger if exists trg_task_assigned on tasks;
-drop function if exists _notify_task_assigned();
+-- (old trigger + function already dropped above, before the column drop)
 
 -- Fires per new row in task_assignees — one email per newly added
 -- assignee, whether the task was just created with 3 people on it or
