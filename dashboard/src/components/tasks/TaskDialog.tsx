@@ -138,11 +138,24 @@ function TaskPanelBody({
 
   const [title, setTitle] = React.useState(task.title);
   const [notes, setNotes] = React.useState(task.notes ?? "");
+  const titleRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setTitle(task.title);
     setNotes(task.notes ?? "");
   }, [task.id, task.title, task.notes]);
+
+  // A freshly-created task starts with the placeholder title "New
+  // task" styled to look like a plain heading — nothing signals it's
+  // an editable field. Auto-select it on open so the first keystroke
+  // just replaces it; no click needed, no confusion.
+  React.useEffect(() => {
+    if (isNew) {
+      titleRef.current?.focus();
+      titleRef.current?.select();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, task.id]);
 
   function commitTitle() {
     const trimmed = title.trim();
@@ -248,13 +261,14 @@ function TaskPanelBody({
       {/* Body */}
       <div className="flex-1 space-y-[18px] overflow-y-auto px-5 py-5">
         <input
+          ref={titleRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={commitTitle}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
-          className="w-full border-none bg-transparent text-[18px] font-semibold tracking-[-0.01em] text-white outline-none placeholder:text-steel"
+          className="-mx-1.5 w-[calc(100%+12px)] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[18px] font-semibold tracking-[-0.01em] text-white outline-none transition-colors duration-base ease-out placeholder:text-steel hover:border-rule focus:border-electric/40 focus:bg-white/[0.03]"
           placeholder="Task title"
         />
 
