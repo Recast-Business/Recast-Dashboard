@@ -1,5 +1,8 @@
+import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/auth/AuthProvider";
 
 /**
  * Round 3: shared team task list (migration 0054).
@@ -17,12 +20,22 @@ import { supabase } from "@/lib/supabase";
 
 export type TaskStatus = "open" | "done";
 export type TaskEntityType = "campaign" | "creator" | "vendor";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+
+/** Sort weight — urgent first. */
+export const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
 
 export interface Task {
   id: string;
   title: string;
   notes: string | null;
   status: TaskStatus;
+  priority: TaskPriority;
   assignee_id: string | null;
   due_date: string | null;
   entity_type: TaskEntityType | null;
@@ -32,6 +45,14 @@ export interface Task {
   created_at: string;
   completed_at: string | null;
   updated_at: string;
+}
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author_id: string | null;
+  body: string;
+  created_at: string;
 }
 
 export interface TeamMember {
@@ -112,6 +133,7 @@ function useTaskMutation<TVars>(fn: (vars: TVars) => Promise<void>) {
 export interface CreateTaskInput {
   title: string;
   notes: string | null;
+  priority: TaskPriority;
   assignee_id: string | null;
   due_date: string | null;
   entity_type: TaskEntityType | null;
@@ -138,7 +160,7 @@ export function useUpdateTask() {
     async (v: {
       id: string;
       patch: Partial<
-        Pick<Task, "title" | "notes" | "assignee_id" | "due_date" | "status">
+        Pick<Task, "title" | "notes" | "assignee_id" | "due_date" | "status" | "priority">
       >;
     }) => {
       const patch: Record<string, unknown> = {
@@ -159,4 +181,107 @@ export function useDeleteTask() {
     const { error } = await supabase.from("tasks").delete().eq("id", v.id);
     if (error) throw error;
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Comments (Tasks v2 — migration 0055)
+// ─────────────────────────────────────────────────────────────────────
+
+export function useTaskComments(taskId: string | null) {
+  return useQuery({
+    queryKey: ["task-comments", taskId],
+    enabled: !!taskId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("task_comments")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as TaskComment[];
+    },
+  });
+}
+
+export function useAddTaskComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { taskId: string; body: string }) => {
+      const { data: session } = await supabase.auth.getSession();
+      const uid = session.session?.user.id;
+      if (!uid) throw new Error("Not signed in");
+      const { error } = await supabase.from("task_comments").insert({
+        task_id: v.taskId,
+        author_id: uid,
+        body: v.body.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ["task-comments", v.taskId] });
+      qc.invalidateQueries({ queryKey: ["task-comment-counts"] });
+    },
+  });
+}
+
+/** task_id → comment count, for the board rows' 💬 n indicator.
+ *  One column-only fetch, grouped client-side — fine at team scale.
+ *  Errors (e.g. 0055 not applied yet) degrade to zero counts. */
+export function useTaskCommentCounts() {
+  return useQuery({
+    queryKey: ["task-comment-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("task_comments").select("task_id");
+      if (error) return {} as Record<string, number>;
+      const map: Record<string, number> = {};
+      for (const r of (data ?? []) as { task_id: string }[]) {
+        map[r.task_id] = (map[r.task_id] ?? 0) + 1;
+      }
+      return map;
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Realtime (Tasks v2) — live board + "assigned to you" toast
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Mounted once in AppShell. Any change to the tasks table anywhere on
+ * the team refreshes the board + sidebar badge for everyone with the
+ * app open; a brand-new task assigned to YOU by someone else also
+ * pops a toast. (Reassignment-to-you toasts are skipped — realtime
+ * UPDATE payloads only carry the row's PK in `old`, so we can't tell
+ * a reassignment from an unrelated edit. The assignment email from
+ * migration 0055 covers that path.)
+ */
+export function useTasksRealtime() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+
+  React.useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("tasks-board")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        (payload) => {
+          qc.invalidateQueries({ queryKey: ["tasks"] });
+          qc.invalidateQueries({ queryKey: ["nav-counts"] });
+          if (payload.eventType === "INSERT") {
+            const row = payload.new as Task;
+            if (row.assignee_id === user.id && row.created_by !== user.id) {
+              toast.info(`New task assigned to you: ${row.title}`, {
+                duration: 8000,
+              });
+            }
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc, user]);
 }

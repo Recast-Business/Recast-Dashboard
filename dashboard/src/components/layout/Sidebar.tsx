@@ -92,9 +92,6 @@ interface NavSection {
 const WORKSPACE_SECTION: NavSection = {
   header: "Workspace",
   items: [
-    // Round 3: shared team task board — every role (it's coordination,
-    // not finance; badge = YOUR open task count).
-    { to: "/tasks", label: "Tasks", icon: ListTodo, allow: ["admin", "partner", "accounting", "operator"], badge: "tasks" },
     { to: "/overview", label: "Overview", icon: LayoutDashboard, allow: ["admin", "accounting"] },
     // Workspace is admin + accounting only. R5 partner-read-only on
     // /finance + /vendors + /house was rolled back — partners are
@@ -115,6 +112,9 @@ const WORKSPACE_SECTION: NavSection = {
 const PIPELINE_SECTION: NavSection = {
   header: "Pipeline",
   items: [
+    // Tasks v2 (Max): moved from Workspace → top of Pipeline. Every
+    // role sees + uses it; badge = YOUR open task count.
+    { to: "/tasks", label: "Tasks", icon: ListTodo, allow: ["admin", "partner", "accounting", "operator"], badge: "tasks" },
     { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner", "operator"] },
     { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"], badge: "leads" },
     { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"], badge: "potential" },

@@ -3,75 +3,162 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
+  Flag,
   Link2,
   ListTodo,
-  MoreHorizontal,
-  Pencil,
+  MessageSquare,
   Plus,
-  Trash2,
+  Search,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { PageHeader, MetricStrip, type MetricTile } from "@/components/recast";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PageHeader, MetricStrip, Avatar, type MetricTile } from "@/components/recast";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { useAuth } from "@/auth/AuthProvider";
-import { useConfirm } from "@/hooks/useConfirm";
 import { useSessionState } from "@/hooks/useSessionState";
 import {
+  PRIORITY_ORDER,
   isOverdue,
   memberName,
   taskEntityLink,
-  useDeleteTask,
+  useTaskCommentCounts,
   useTasks,
   useTeamMembers,
   useUpdateTask,
   type Task,
+  type TaskPriority,
 } from "@/hooks/useTasks";
 import { cn, formatDate } from "@/lib/utils";
 
 /**
- * /tasks — shared team task board (Round 3).
+ * /tasks — the team task board, v2 (Pipeline section, every role).
  *
- * One list for the whole team: everyone sees everything (5-person
- * team — coordination beats secrecy), writes are RLS-enforced
- * (assignee/creator/admin can edit+complete, creator/admin can
- * delete). Filters default to "mine + open" so the page opens on
- * *your* plate; flip to Everyone for the team view.
+ * Layout follows the grouped-by-due pattern the big task managers
+ * (Asana/Todoist/Linear) converge on: Overdue → Today → This week →
+ * Later → No due date, with priority flags, assignee avatars, and a
+ * per-task comment thread. Data is realtime — anyone's change
+ * refreshes every open board, and a new task assigned to you pops a
+ * toast (plus an email via the 0055 trigger once Resend is live).
  */
 
-type WhoFilter = "mine" | "everyone";
 type StatusFilter = "open" | "done" | "all";
+
+const PRIORITY_META: Record<TaskPriority, { label: string; cls: string }> = {
+  urgent: { label: "Urgent", cls: "text-overdue" },
+  high: { label: "High", cls: "text-partial" },
+  medium: { label: "Medium", cls: "text-electric" },
+  low: { label: "Low", cls: "text-steel" },
+};
+
+type Bucket = "overdue" | "today" | "week" | "later" | "none";
+
+const BUCKET_ORDER: Bucket[] = ["overdue", "today", "week", "later", "none"];
+const BUCKET_LABEL: Record<Bucket, string> = {
+  overdue: "Overdue",
+  today: "Due today",
+  week: "This week",
+  later: "Later",
+  none: "No due date",
+};
+
+function toYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dueBucket(t: Task): Bucket {
+  if (!t.due_date) return "none";
+  const today = toYMD(new Date());
+  if (t.due_date < today) return "overdue";
+  if (t.due_date === today) return "today";
+  const weekEnd = new Date();
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  if (t.due_date <= toYMD(weekEnd)) return "week";
+  return "later";
+}
+
+/** Priority first (urgent → low), then due date, then newest. */
+function taskCompare(a: Task, b: Task): number {
+  const p = PRIORITY_ORDER[a.priority ?? "medium"] - PRIORITY_ORDER[b.priority ?? "medium"];
+  if (p !== 0) return p;
+  const ad = a.due_date ?? "9999-12-31";
+  const bd = b.due_date ?? "9999-12-31";
+  if (ad !== bd) return ad.localeCompare(bd);
+  return b.created_at.localeCompare(a.created_at);
+}
+
+const ASSIGNEE_ME = "__me__";
+const ASSIGNEE_ALL = "__all__";
+const ASSIGNEE_NONE = "__none__";
 
 export function TasksPage() {
   const { user } = useAuth();
   const { data: tasks, isLoading, error } = useTasks();
   const { data: members } = useTeamMembers();
+  const { data: commentCounts } = useTaskCommentCounts();
   const update = useUpdateTask();
-  const del = useDeleteTask();
-  const confirm = useConfirm();
 
-  const [who, setWho] = useSessionState<WhoFilter>("recast.tasks.who", "mine");
+  const [assignee, setAssignee] = useSessionState<string>("recast.tasks.assignee", ASSIGNEE_ME);
   const [status, setStatus] = useSessionState<StatusFilter>("recast.tasks.status", "open");
+  const [search, setSearch] = useSessionState<string>("recast.tasks.search", "");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Task | null>(null);
 
   const all = React.useMemo(() => tasks ?? [], [tasks]);
 
   const filtered = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
     return all.filter((t) => {
-      if (who === "mine" && t.assignee_id !== user?.id) return false;
+      if (assignee === ASSIGNEE_ME && t.assignee_id !== user?.id) return false;
+      if (assignee === ASSIGNEE_NONE && t.assignee_id !== null) return false;
+      if (
+        assignee !== ASSIGNEE_ME &&
+        assignee !== ASSIGNEE_ALL &&
+        assignee !== ASSIGNEE_NONE &&
+        t.assignee_id !== assignee
+      )
+        return false;
       if (status !== "all" && t.status !== status) return false;
+      if (q) {
+        const hay = [t.title, t.notes ?? "", t.entity_label ?? ""].join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
-  }, [all, who, status, user?.id]);
+  }, [all, assignee, status, search, user?.id]);
+
+  // Open tasks group into due buckets; done/all render flat.
+  const buckets = React.useMemo(() => {
+    if (status !== "open") return null;
+    const map = new Map<Bucket, Task[]>();
+    for (const t of filtered) {
+      const b = dueBucket(t);
+      map.set(b, [...(map.get(b) ?? []), t]);
+    }
+    for (const list of map.values()) list.sort(taskCompare);
+    return map;
+  }, [filtered, status]);
+
+  const flat = React.useMemo(() => {
+    if (status === "open") return null;
+    return [...filtered].sort((a, b) => {
+      const ac = a.completed_at ?? a.created_at;
+      const bc = b.completed_at ?? b.created_at;
+      return bc.localeCompare(ac);
+    });
+  }, [filtered, status]);
 
   const kpis = React.useMemo<MetricTile[]>(() => {
     const myOpen = all.filter((t) => t.status === "open" && t.assignee_id === user?.id);
@@ -85,23 +172,24 @@ export function TasksPage() {
       {
         label: "My open",
         value: String(myOpen.length),
-        sub: myOpen.filter(isOverdue).length > 0
-          ? `${myOpen.filter(isOverdue).length} overdue`
-          : "all on schedule",
+        sub:
+          myOpen.filter(isOverdue).length > 0
+            ? `${myOpen.filter(isOverdue).length} overdue`
+            : "all on schedule",
         icon: ListTodo,
         tone: myOpen.filter(isOverdue).length > 0 ? "partial" : "default",
         onClick: () => {
-          setWho("mine");
+          setAssignee(ASSIGNEE_ME);
           setStatus("open");
         },
       },
       {
         label: "Team open",
         value: String(teamOpen.length),
-        sub: `${new Set(teamOpen.map((t) => t.assignee_id).values()).size} people`,
+        sub: `${new Set(teamOpen.map((t) => t.assignee_id)).size} people`,
         icon: Users,
         onClick: () => {
-          setWho("everyone");
+          setAssignee(ASSIGNEE_ALL);
           setStatus("open");
         },
       },
@@ -112,7 +200,7 @@ export function TasksPage() {
         icon: AlertTriangle,
         tone: overdue.length > 0 ? "overdue" : "default",
         onClick: () => {
-          setWho("everyone");
+          setAssignee(ASSIGNEE_ALL);
           setStatus("open");
         },
       },
@@ -123,12 +211,12 @@ export function TasksPage() {
         icon: CheckCircle2,
         tone: doneThisWeek.length > 0 ? "paid" : "default",
         onClick: () => {
-          setWho("everyone");
+          setAssignee(ASSIGNEE_ALL);
           setStatus("done");
         },
       },
     ];
-  }, [all, user?.id, setWho, setStatus]);
+  }, [all, user?.id, setAssignee, setStatus]);
 
   async function onToggle(t: Task) {
     try {
@@ -141,33 +229,18 @@ export function TasksPage() {
     }
   }
 
-  async function onDelete(t: Task) {
-    const ok = await confirm({
-      title: "Delete this task?",
-      description: `"${t.title}" — cannot be undone. (Completing it keeps the history instead.)`,
-      confirmLabel: "Delete",
-      variant: "destructive",
-    });
-    if (!ok) return;
-    try {
-      await del.mutateAsync({ id: t.id });
-      toast.success("Task deleted");
-    } catch (e) {
-      toast.error(`Delete failed: ${(e as Error).message}`);
-    }
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumb="Workspace · Tasks"
+        breadcrumb="Pipeline · Tasks"
         eyebrow="Team task board"
         title="Tasks"
         description={
           <>
-            Shared follow-ups for the whole team — assign, set a due date,
-            and link tasks to campaigns, vendors, or creators. Everyone
-            sees the same board.
+            One board for the whole team — priorities, due dates, comment
+            threads, and links back to the campaign, vendor, or creator a
+            task belongs to. Assignees are emailed when work lands on
+            their plate.
           </>
         }
         actions={
@@ -180,21 +253,32 @@ export function TasksPage() {
 
       <MetricStrip tiles={kpis} />
 
-      {/* Filter chips — mirror the Campaigns-page idiom. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
-          {(
-            [
-              { value: "mine", label: "Mine" },
-              { value: "everyone", label: "Everyone" },
-            ] as { value: WhoFilter; label: string }[]
-          ).map((f) => (
-            <FilterChip key={f.value} active={who === f.value} onClick={() => setWho(f.value)}>
-              {f.label}
-            </FilterChip>
-          ))}
+      {/* ── Toolbar: search + assignee + status ──────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-steel" strokeWidth={1.5} />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tasks…"
+            className="h-8 w-56 pl-8 text-[12.5px]"
+          />
         </div>
-        <div className="h-4 w-px bg-rule" />
+        <Select value={assignee} onValueChange={setAssignee}>
+          <SelectTrigger className="h-8 w-[170px] text-[12px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ASSIGNEE_ME}>My tasks</SelectItem>
+            <SelectItem value={ASSIGNEE_ALL}>Everyone</SelectItem>
+            <SelectItem value={ASSIGNEE_NONE}>Unassigned</SelectItem>
+            {(members ?? []).map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.full_name?.trim() || m.email.split("@")[0]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-1">
           {(
             [
@@ -208,12 +292,16 @@ export function TasksPage() {
             </FilterChip>
           ))}
         </div>
+        <span className="ml-auto text-[11px] text-steel tabular-nums">
+          {filtered.length} task{filtered.length === 1 ? "" : "s"}
+        </span>
       </div>
 
+      {/* ── Board ────────────────────────────────────────────────────── */}
       {error ? (
         <div className="rounded-md border border-overdue/40 bg-overdue/10 p-4 text-[13px] text-overdue">
           Failed to load tasks: {(error as Error).message}. If the table
-          doesn't exist yet, migration 0054 hasn't been applied.
+          doesn't exist yet, migrations 0054/0055 haven't been applied.
         </div>
       ) : isLoading ? (
         <div className="space-y-2">
@@ -222,100 +310,178 @@ export function TasksPage() {
           <Skeleton className="h-12 w-full" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-md border border-dashed bg-card/40 px-4 py-10 text-center text-[13px] text-steel">
-          {who === "mine" && status === "open"
-            ? "Nothing on your plate — add a task or check the team view."
-            : "No tasks match the current filters."}
+        <div className="rounded-md border border-dashed bg-card/40 px-4 py-12 text-center">
+          <ListTodo className="mx-auto h-6 w-6 text-steel" strokeWidth={1.5} />
+          <p className="mt-2 text-[13px] text-steel">
+            {assignee === ASSIGNEE_ME && status === "open" && !search
+              ? "Nothing on your plate — add a task or check the team view."
+              : "No tasks match the current filters."}
+          </p>
         </div>
-      ) : (
-        <ul className="divide-y divide-rule rounded-lg border bg-card">
-          {filtered.map((t) => {
-            const overdue = isOverdue(t);
-            const link = taskEntityLink(t);
+      ) : buckets ? (
+        <div className="space-y-5">
+          {BUCKET_ORDER.map((b) => {
+            const list = buckets.get(b);
+            if (!list || list.length === 0) return null;
             return (
-              <li key={t.id} className={cn("flex items-start gap-3 px-3 py-2.5", t.status === "done" && "opacity-55")}>
-                <input
-                  type="checkbox"
-                  checked={t.status === "done"}
-                  onChange={() => onToggle(t)}
-                  aria-label={t.status === "done" ? "Reopen task" : "Complete task"}
-                  className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[var(--electric)]"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={cn(
-                        "text-[13.5px] font-medium text-white",
-                        t.status === "done" && "line-through",
-                      )}
-                    >
-                      {t.title}
-                    </span>
-                    {t.entity_label ? (
-                      link ? (
-                        <Link
-                          to={link}
-                          className="inline-flex items-center gap-1 rounded-full border border-rule bg-background/40 px-2 py-0.5 text-[11px] text-steel hover:border-electric/40 hover:text-electric"
-                          title={`Open ${t.entity_label}`}
-                        >
-                          <Link2 className="h-3 w-3" strokeWidth={1.5} />
-                          {t.entity_label}
-                        </Link>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-background/40 px-2 py-0.5 text-[11px] text-steel">
-                          <Link2 className="h-3 w-3" strokeWidth={1.5} />
-                          {t.entity_label}
-                        </span>
-                      )
-                    ) : null}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-steel">
-                    <span>{memberName(members, t.assignee_id)}</span>
-                    {t.due_date ? (
-                      <span className={cn(overdue && "font-semibold text-overdue")}>
-                        Due {formatDate(t.due_date)}
-                        {overdue ? " · overdue" : ""}
-                      </span>
-                    ) : null}
-                    {t.notes ? (
-                      <span className="truncate text-steel/80" title={t.notes}>
-                        {t.notes}
-                      </span>
-                    ) : null}
-                  </div>
+              <section key={b}>
+                <div className="mb-1.5 flex items-center gap-2 px-0.5">
+                  <span
+                    className={cn(
+                      "text-[10.5px] font-semibold uppercase tracking-[0.1em]",
+                      b === "overdue" ? "text-overdue" : "text-steel",
+                    )}
+                  >
+                    {BUCKET_LABEL[b]}
+                  </span>
+                  <span className="text-[10.5px] text-steel tabular-nums">{list.length}</span>
+                  <div className="h-px flex-1 bg-rule" />
                 </div>
-                {/* Menu shows for everyone; RLS is the enforcement —
-                    an operator editing someone else's task gets the
-                    server's rejection surfaced as a toast. */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setEditing(t)}>
-                      <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-overdue focus:text-overdue"
-                      onClick={() => onDelete(t)}
-                    >
-                      <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </li>
+                <TaskList
+                  tasks={list}
+                  members={members}
+                  commentCounts={commentCounts}
+                  onToggle={onToggle}
+                  onEdit={setEditing}
+                />
+              </section>
             );
           })}
-        </ul>
-      )}
+        </div>
+      ) : flat ? (
+        <TaskList
+          tasks={flat}
+          members={members}
+          commentCounts={commentCounts}
+          onToggle={onToggle}
+          onEdit={setEditing}
+        />
+      ) : null}
 
       {dialogOpen && <TaskDialog open onOpenChange={setDialogOpen} />}
       {editing && (
         <TaskDialog open onOpenChange={(o) => !o && setEditing(null)} task={editing} />
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Row list
+// ─────────────────────────────────────────────────────────────────────
+
+function TaskList({
+  tasks,
+  members,
+  commentCounts,
+  onToggle,
+  onEdit,
+}: {
+  tasks: Task[];
+  members: ReturnType<typeof useTeamMembers>["data"];
+  commentCounts: Record<string, number> | undefined;
+  onToggle: (t: Task) => void;
+  onEdit: (t: Task) => void;
+}) {
+  return (
+    <ul className="divide-y divide-rule rounded-lg border bg-card">
+      {tasks.map((t) => {
+        const overdue = isOverdue(t);
+        const link = taskEntityLink(t);
+        const pri = PRIORITY_META[t.priority ?? "medium"];
+        const comments = commentCounts?.[t.id] ?? 0;
+        const assigneeName = memberName(members, t.assignee_id);
+        return (
+          <li
+            key={t.id}
+            onClick={() => onEdit(t)}
+            className={cn(
+              "group flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors duration-base ease-out hover:bg-white/[0.03]",
+              t.status === "done" && "opacity-55",
+            )}
+            title="Open task"
+          >
+            <input
+              type="checkbox"
+              checked={t.status === "done"}
+              onChange={() => onToggle(t)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={t.status === "done" ? "Reopen task" : "Complete task"}
+              className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--electric)]"
+            />
+            <Flag
+              className={cn("h-3.5 w-3.5 shrink-0", pri.cls)}
+              strokeWidth={2}
+              aria-label={`${pri.label} priority`}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span
+                  className={cn(
+                    "text-[13.5px] font-medium text-white",
+                    t.status === "done" && "line-through",
+                  )}
+                >
+                  {t.title}
+                </span>
+                {t.entity_label ? (
+                  link ? (
+                    <Link
+                      to={link}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded-full border border-rule bg-background/40 px-2 py-0.5 text-[11px] text-steel hover:border-electric/40 hover:text-electric"
+                      title={`Open ${t.entity_label}`}
+                    >
+                      <Link2 className="h-3 w-3" strokeWidth={1.5} />
+                      {t.entity_label}
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-background/40 px-2 py-0.5 text-[11px] text-steel">
+                      <Link2 className="h-3 w-3" strokeWidth={1.5} />
+                      {t.entity_label}
+                    </span>
+                  )
+                ) : null}
+                {comments > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] text-steel">
+                    <MessageSquare className="h-3 w-3" strokeWidth={1.5} />
+                    {comments}
+                  </span>
+                ) : null}
+              </div>
+              {t.notes ? (
+                <p className="mt-0.5 truncate text-[11.5px] text-steel" title={t.notes}>
+                  {t.notes}
+                </p>
+              ) : null}
+            </div>
+            {t.due_date ? (
+              <span
+                className={cn(
+                  "shrink-0 text-[11.5px] tabular-nums",
+                  overdue ? "font-semibold text-overdue" : "text-steel",
+                )}
+              >
+                {formatDate(t.due_date)}
+              </span>
+            ) : null}
+            <div
+              className="flex shrink-0 items-center gap-1.5"
+              title={t.assignee_id ? `Assigned to ${assigneeName}` : "Unassigned"}
+            >
+              {t.assignee_id ? (
+                <>
+                  <Avatar name={assigneeName} size="xs" />
+                  <span className="hidden text-[11.5px] text-steel sm:inline">{assigneeName}</span>
+                </>
+              ) : (
+                <span className="text-[11.5px] italic text-steel/70">Unassigned</span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

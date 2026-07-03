@@ -1,8 +1,12 @@
 import * as React from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { useTasksRealtime } from "@/hooks/useTasks";
 
 export function AppShell() {
+  // Tasks v2: live board updates + "assigned to you" toasts,
+  // active on every page while signed in.
+  useTasksRealtime();
   return (
     <div className="flex h-screen bg-muted/20">
       <Sidebar />
