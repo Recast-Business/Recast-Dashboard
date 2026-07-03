@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronRight,
   Flag,
   Link2,
   ListTodo,
@@ -29,6 +30,7 @@ import { useSessionState } from "@/hooks/useSessionState";
 import {
   PRIORITY_ORDER,
   isOverdue,
+  isTaskAssignedTo,
   memberName,
   taskEntityLink,
   useTaskCommentCounts,
@@ -45,10 +47,11 @@ import { cn, formatDate } from "@/lib/utils";
  *
  * Layout follows the grouped-by-due pattern the big task managers
  * (Asana/Todoist/Linear) converge on: Overdue → Today → This week →
- * Later → No due date, with priority flags, assignee avatars, and a
- * per-task comment thread. Data is realtime — anyone's change
- * refreshes every open board, and a new task assigned to you pops a
- * toast (plus an email via the 0055 trigger once Resend is live).
+ * Later → No due date, with priority flags, multi-person assignees
+ * (or a whole-team assignment), and a per-task comment thread. Data
+ * is realtime — anyone's change refreshes every open board, and a
+ * new assignment to you pops a toast (plus an email once Resend is
+ * live).
  */
 
 type StatusFilter = "open" | "done" | "all";
@@ -113,6 +116,7 @@ export function TasksPage() {
   const [assignee, setAssignee] = useSessionState<string>("recast.tasks.assignee", ASSIGNEE_ME);
   const [status, setStatus] = useSessionState<StatusFilter>("recast.tasks.status", "open");
   const [search, setSearch] = useSessionState<string>("recast.tasks.search", "");
+  const [collapsed, setCollapsed] = React.useState<Partial<Record<Bucket, boolean>>>({});
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Task | null>(null);
 
@@ -121,13 +125,14 @@ export function TasksPage() {
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return all.filter((t) => {
-      if (assignee === ASSIGNEE_ME && t.assignee_id !== user?.id) return false;
-      if (assignee === ASSIGNEE_NONE && t.assignee_id !== null) return false;
+      if (assignee === ASSIGNEE_ME && !isTaskAssignedTo(t, user?.id)) return false;
+      if (assignee === ASSIGNEE_NONE && (t.assign_everyone || t.assignee_ids.length > 0)) return false;
       if (
         assignee !== ASSIGNEE_ME &&
         assignee !== ASSIGNEE_ALL &&
         assignee !== ASSIGNEE_NONE &&
-        t.assignee_id !== assignee
+        !t.assign_everyone &&
+        !t.assignee_ids.includes(assignee)
       )
         return false;
       if (status !== "all" && t.status !== status) return false;
@@ -161,9 +166,10 @@ export function TasksPage() {
   }, [filtered, status]);
 
   const kpis = React.useMemo<MetricTile[]>(() => {
-    const myOpen = all.filter((t) => t.status === "open" && t.assignee_id === user?.id);
+    const myOpen = all.filter((t) => t.status === "open" && isTaskAssignedTo(t, user?.id));
     const teamOpen = all.filter((t) => t.status === "open");
     const overdue = teamOpen.filter(isOverdue);
+    const peopleCount = new Set(teamOpen.flatMap((t) => (t.assign_everyone ? [] : t.assignee_ids))).size;
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const doneThisWeek = all.filter(
       (t) => t.status === "done" && t.completed_at && new Date(t.completed_at).getTime() >= weekAgo,
@@ -186,7 +192,7 @@ export function TasksPage() {
       {
         label: "Team open",
         value: String(teamOpen.length),
-        sub: `${new Set(teamOpen.map((t) => t.assignee_id)).size} people`,
+        sub: `${peopleCount} ${peopleCount === 1 ? "person" : "people"}`,
         icon: Users,
         onClick: () => {
           setAssignee(ASSIGNEE_ALL);
@@ -202,6 +208,7 @@ export function TasksPage() {
         onClick: () => {
           setAssignee(ASSIGNEE_ALL);
           setStatus("open");
+          setCollapsed({ today: true, week: true, later: true, none: true });
         },
       },
       {
@@ -239,8 +246,9 @@ export function TasksPage() {
           <>
             One board for the whole team — priorities, due dates, comment
             threads, and links back to the campaign, vendor, or creator a
-            task belongs to. Assignees are emailed when work lands on
-            their plate.
+            task belongs to. Assign a task to one person, several, or the
+            whole team — assignees are emailed when work lands on their
+            plate.
           </>
         }
         actions={
@@ -301,7 +309,7 @@ export function TasksPage() {
       {error ? (
         <div className="rounded-md border border-overdue/40 bg-overdue/10 p-4 text-[13px] text-overdue">
           Failed to load tasks: {(error as Error).message}. If the table
-          doesn't exist yet, migrations 0054/0055 haven't been applied.
+          doesn't exist yet, migrations 0054–0056 haven't been applied.
         </div>
       ) : isLoading ? (
         <div className="space-y-2">
@@ -323,9 +331,21 @@ export function TasksPage() {
           {BUCKET_ORDER.map((b) => {
             const list = buckets.get(b);
             if (!list || list.length === 0) return null;
+            const isCollapsed = collapsed[b];
             return (
               <section key={b}>
-                <div className="mb-1.5 flex items-center gap-2 px-0.5">
+                <button
+                  type="button"
+                  onClick={() => setCollapsed((c) => ({ ...c, [b]: !c[b] }))}
+                  className="mb-1.5 flex w-full items-center gap-2 px-0.5 text-left"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-3 w-3 shrink-0 text-steel transition-transform duration-base ease-out",
+                      !isCollapsed && "rotate-90",
+                    )}
+                    strokeWidth={2}
+                  />
                   <span
                     className={cn(
                       "text-[10.5px] font-semibold uppercase tracking-[0.1em]",
@@ -334,16 +354,20 @@ export function TasksPage() {
                   >
                     {BUCKET_LABEL[b]}
                   </span>
-                  <span className="text-[10.5px] text-steel tabular-nums">{list.length}</span>
+                  <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] text-steel tabular-nums">
+                    {list.length}
+                  </span>
                   <div className="h-px flex-1 bg-rule" />
-                </div>
-                <TaskList
-                  tasks={list}
-                  members={members}
-                  commentCounts={commentCounts}
-                  onToggle={onToggle}
-                  onEdit={setEditing}
-                />
+                </button>
+                {!isCollapsed && (
+                  <TaskList
+                    tasks={list}
+                    members={members}
+                    commentCounts={commentCounts}
+                    onToggle={onToggle}
+                    onEdit={setEditing}
+                  />
+                )}
               </section>
             );
           })}
@@ -390,7 +414,6 @@ function TaskList({
         const link = taskEntityLink(t);
         const pri = PRIORITY_META[t.priority ?? "medium"];
         const comments = commentCounts?.[t.id] ?? 0;
-        const assigneeName = memberName(members, t.assignee_id);
         return (
           <li
             key={t.id}
@@ -465,23 +488,63 @@ function TaskList({
                 {formatDate(t.due_date)}
               </span>
             ) : null}
-            <div
-              className="flex shrink-0 items-center gap-1.5"
-              title={t.assignee_id ? `Assigned to ${assigneeName}` : "Unassigned"}
-            >
-              {t.assignee_id ? (
-                <>
-                  <Avatar name={assigneeName} size="xs" />
-                  <span className="hidden text-[11.5px] text-steel sm:inline">{assigneeName}</span>
-                </>
-              ) : (
-                <span className="text-[11.5px] italic text-steel/70">Unassigned</span>
-              )}
-            </div>
+            <AssigneeCluster task={t} members={members} />
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/** Everyone → a single team pill. Otherwise up to 3 stacked avatars
+ *  + a "+N" overflow chip. Empty + not-everyone → dashed "Unassigned". */
+function AssigneeCluster({
+  task,
+  members,
+}: {
+  task: Task;
+  members: ReturnType<typeof useTeamMembers>["data"];
+}) {
+  if (task.assign_everyone) {
+    return (
+      <div className="flex shrink-0 items-center gap-1.5" title="Assigned to everyone">
+        <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white/[0.08] text-steel">
+          <Users className="h-3 w-3" strokeWidth={2} />
+        </span>
+        <span className="hidden text-[11.5px] text-steel sm:inline">Everyone</span>
+      </div>
+    );
+  }
+
+  if (task.assignee_ids.length === 0) {
+    return (
+      <div className="flex shrink-0 items-center gap-1.5" title="Unassigned">
+        <span className="h-[22px] w-[22px] rounded-full border border-dashed border-rule" />
+        <span className="text-[11.5px] italic text-steel/70">Unassigned</span>
+      </div>
+    );
+  }
+
+  const names = task.assignee_ids.map((id) => memberName(members, id));
+  const shown = task.assignee_ids.slice(0, 3);
+  const overflow = task.assignee_ids.length - shown.length;
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5" title={`Assigned to ${names.join(", ")}`}>
+      <div className="flex -space-x-1.5">
+        {shown.map((id) => (
+          <Avatar key={id} name={memberName(members, id)} size="xs" className="ring-2 ring-card" />
+        ))}
+        {overflow > 0 ? (
+          <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white/[0.08] text-[9px] font-semibold text-steel ring-2 ring-card">
+            +{overflow}
+          </span>
+        ) : null}
+      </div>
+      {task.assignee_ids.length === 1 ? (
+        <span className="hidden text-[11.5px] text-steel sm:inline">{names[0]}</span>
+      ) : null}
+    </div>
   );
 }
 

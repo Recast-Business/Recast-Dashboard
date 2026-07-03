@@ -5,12 +5,20 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/auth/AuthProvider";
 
 /**
- * Round 3: shared team task list (migration 0054).
+ * Round 3 → Round 4: shared team task list (migrations 0054/0055/0056).
  *
  * Visibility is deliberately team-wide — every role reads all tasks
  * (it's a shared board, not private todos). RLS enforces the write
- * rules server-side: edit/complete = assignee, creator, or admin;
- * delete = creator or admin.
+ * rules server-side: edit/complete = an assignee (or anyone, if the
+ * task is assigned to everyone), creator, or admin; delete = creator
+ * or admin.
+ *
+ * Round 4: a task can be assigned to MULTIPLE people (task_assignees
+ * join table) or to the whole team at once (assign_everyone flag).
+ * useTasks() merges assignee ids onto each Task client-side so every
+ * consumer (Overview's strip, the board, the KPI tiles) can keep
+ * reading `task.assignee_ids` / `task.assign_everyone` directly
+ * instead of re-deriving it per screen.
  *
  * Assignee/creator names are resolved client-side from
  * useTeamMembers() (a SECURITY DEFINER RPC) instead of joining
@@ -36,7 +44,11 @@ export interface Task {
   notes: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  assignee_id: string | null;
+  /** Individually-assigned teammates. Ignored (should be empty) when
+   *  assign_everyone is true — team-wide tasks don't need per-row
+   *  join entries that'd go stale as the roster changes. */
+  assignee_ids: string[];
+  assign_everyone: boolean;
   due_date: string | null;
   entity_type: TaskEntityType | null;
   entity_id: string | null;
@@ -59,6 +71,13 @@ export interface TeamMember {
   id: string;
   email: string;
   full_name: string | null;
+}
+
+/** Is this task on the given user's plate — individually or as part
+ *  of a team-wide assignment? */
+export function isTaskAssignedTo(t: Task, userId: string | null | undefined): boolean {
+  if (!userId) return false;
+  return t.assign_everyone || t.assignee_ids.includes(userId);
 }
 
 /** Where a linked entity's page lives, per type. */
@@ -86,14 +105,30 @@ export function useTasks() {
   return useQuery({
     queryKey: KEY,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .order("status", { ascending: true }) // open before done
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Task[];
+      const [tasksRes, assigneesRes] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("*")
+          .order("status", { ascending: true }) // open before done
+          .order("due_date", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: false }),
+        supabase.from("task_assignees").select("task_id, user_id"),
+      ]);
+      if (tasksRes.error) throw tasksRes.error;
+
+      const byTask = new Map<string, string[]>();
+      if (!assigneesRes.error) {
+        for (const r of (assigneesRes.data ?? []) as { task_id: string; user_id: string }[]) {
+          const list = byTask.get(r.task_id) ?? [];
+          list.push(r.user_id);
+          byTask.set(r.task_id, list);
+        }
+      }
+
+      return (tasksRes.data ?? []).map((t) => ({
+        ...t,
+        assignee_ids: byTask.get(t.id) ?? [],
+      })) as Task[];
     },
   });
 }
@@ -134,24 +169,46 @@ export interface CreateTaskInput {
   title: string;
   notes: string | null;
   priority: TaskPriority;
-  assignee_id: string | null;
+  /** Ignored when assign_everyone is true. */
+  assignee_ids: string[];
+  assign_everyone: boolean;
   due_date: string | null;
   entity_type: TaskEntityType | null;
   entity_id: string | null;
   entity_label: string | null;
 }
 
+/** Returns the merged Task (row + assignee_ids) so callers can open
+ *  the detail panel on it immediately without a refetch round trip
+ *  — used for the "+ New task" quick-create flow. */
 export function useCreateTask() {
-  return useTaskMutation(async (input: CreateTaskInput) => {
-    const { data: session } = await supabase.auth.getSession();
-    const uid = session.session?.user.id;
-    if (!uid) throw new Error("Not signed in");
-    const { error } = await supabase.from("tasks").insert({
-      ...input,
-      title: input.title.trim(),
-      created_by: uid,
-    });
-    if (error) throw error;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateTaskInput): Promise<Task> => {
+      const { data: session } = await supabase.auth.getSession();
+      const uid = session.session?.user.id;
+      if (!uid) throw new Error("Not signed in");
+      const { title, assignee_ids, ...rest } = input;
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({ ...rest, title: title.trim(), created_by: uid })
+        .select("*")
+        .single();
+      if (error) throw error;
+
+      if (!input.assign_everyone && assignee_ids.length > 0) {
+        const { error: assignErr } = await supabase.from("task_assignees").insert(
+          assignee_ids.map((user_id) => ({ task_id: data.id, user_id, added_by: uid })),
+        );
+        if (assignErr) throw assignErr;
+      }
+
+      return { ...data, assignee_ids: input.assign_everyone ? [] : assignee_ids } as Task;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["nav-counts"] });
+    },
   });
 }
 
@@ -160,7 +217,7 @@ export function useUpdateTask() {
     async (v: {
       id: string;
       patch: Partial<
-        Pick<Task, "title" | "notes" | "assignee_id" | "due_date" | "status" | "priority">
+        Pick<Task, "title" | "notes" | "due_date" | "status" | "priority" | "assign_everyone">
       >;
     }) => {
       const patch: Record<string, unknown> = {
@@ -174,6 +231,31 @@ export function useUpdateTask() {
       if (error) throw error;
     },
   );
+}
+
+/** Replace a task's individual assignee set in one call (delete-then-
+ *  insert — task_assignees rows are cheap and there's no ordering to
+ *  preserve). Turning assign_everyone on separately (via
+ *  useUpdateTask) makes these rows moot; leave them or clear them,
+ *  either is fine since isTaskAssignedTo() checks assign_everyone
+ *  first. */
+export function useSetTaskAssignees() {
+  return useTaskMutation(async (v: { taskId: string; userIds: string[] }) => {
+    const { data: session } = await supabase.auth.getSession();
+    const uid = session.session?.user.id;
+    if (!uid) throw new Error("Not signed in");
+    const { error: delErr } = await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", v.taskId);
+    if (delErr) throw delErr;
+    if (v.userIds.length > 0) {
+      const { error: insErr } = await supabase
+        .from("task_assignees")
+        .insert(v.userIds.map((user_id) => ({ task_id: v.taskId, user_id, added_by: uid })));
+      if (insErr) throw insErr;
+    }
+  });
 }
 
 export function useDeleteTask() {
@@ -247,13 +329,15 @@ export function useTaskCommentCounts() {
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * Mounted once in AppShell. Any change to the tasks table anywhere on
- * the team refreshes the board + sidebar badge for everyone with the
- * app open; a brand-new task assigned to YOU by someone else also
- * pops a toast. (Reassignment-to-you toasts are skipped — realtime
- * UPDATE payloads only carry the row's PK in `old`, so we can't tell
- * a reassignment from an unrelated edit. The assignment email from
- * migration 0055 covers that path.)
+ * Mounted once in AppShell. Any change to tasks or task_assignees
+ * anywhere on the team refreshes the board + sidebar badge for
+ * everyone with the app open; a brand-new individual assignment to
+ * YOU by someone else also pops a toast (task_assignees INSERT
+ * payloads carry the full new row, including who added it, unlike
+ * UPDATE payloads which only carry the PK — that's why the toast
+ * lives here and not on a tasks UPDATE OF assign_everyone, which
+ * we can't attribute the same way; the email trigger covers that
+ * team-wide-assignment path instead).
  */
 export function useTasksRealtime() {
   const qc = useQueryClient();
@@ -266,17 +350,29 @@ export function useTasksRealtime() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["tasks"] });
+          qc.invalidateQueries({ queryKey: ["nav-counts"] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "task_assignees" },
         (payload) => {
           qc.invalidateQueries({ queryKey: ["tasks"] });
           qc.invalidateQueries({ queryKey: ["nav-counts"] });
-          if (payload.eventType === "INSERT") {
-            const row = payload.new as Task;
-            if (row.assignee_id === user.id && row.created_by !== user.id) {
-              toast.info(`New task assigned to you: ${row.title}`, {
-                duration: 8000,
-              });
-            }
+          const row = payload.new as { user_id: string; added_by: string | null; task_id: string };
+          if (row.user_id === user.id && row.added_by !== user.id) {
+            toast.info("A task was assigned to you", { duration: 8000 });
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "task_assignees" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["tasks"] });
+          qc.invalidateQueries({ queryKey: ["nav-counts"] });
         },
       )
       .subscribe();

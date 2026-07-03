@@ -7,11 +7,13 @@ import { useAuth } from "@/auth/AuthProvider";
  *
  * Creator counts (Roster/Leads/Potential) come from one cheap
  * two-boolean-column query. Round 3 adds `tasks` — the CURRENT
- * USER's open task count (head-only count query, no rows fetched).
- * Cache lives 60s so the sidebar stays responsive across route
- * changes without re-fetching; task mutations invalidate
- * ["nav-counts"] directly so the badge updates immediately on
- * complete/create.
+ * USER's open task count. Round 4: tasks can have multiple
+ * assignees or be team-wide, so this now calls the
+ * my_open_task_count() RPC (0056) instead of a direct
+ * .eq("assignee_id", ...) count. Cache lives 60s so the sidebar
+ * stays responsive across route changes without re-fetching; task
+ * mutations invalidate ["nav-counts"] directly so the badge updates
+ * immediately on complete/create/reassign.
  */
 
 export interface NavCounts {
@@ -29,18 +31,13 @@ export function useNavCounts() {
     queryFn: async () => {
       const [creatorsRes, tasksRes] = await Promise.all([
         supabase.from("creators").select("signed, starred"),
-        user
-          ? supabase
-              .from("tasks")
-              .select("id", { count: "exact", head: true })
-              .eq("assignee_id", user.id)
-              .eq("status", "open")
-          : Promise.resolve({ count: 0, error: null }),
+        user ? supabase.rpc("my_open_task_count") : Promise.resolve({ data: 0, error: null }),
       ]);
       if (creatorsRes.error) throw creatorsRes.error;
-      // Tasks table may predate migration 0054 on an environment —
-      // a missing-relation error shouldn't nuke the other badges.
-      const tasks = tasksRes.error ? 0 : tasksRes.count ?? 0;
+      // Tasks table/RPC may predate migration 0054/0056 on an
+      // environment — a missing-relation/function error shouldn't
+      // nuke the other badges.
+      const tasks = tasksRes.error ? 0 : (tasksRes.data as number) ?? 0;
 
       const rows = (creatorsRes.data ?? []) as { signed: boolean | null; starred: boolean | null }[];
       let roster = 0;

@@ -1,24 +1,17 @@
 import * as React from "react";
-import { Flag, Link2, Send, Trash2 } from "lucide-react";
+import { Check, Flag, Link2, Send, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Avatar } from "@/components/recast";
 import { formatDistanceToNow } from "@/components/activity/formatDistanceToNow";
@@ -29,6 +22,7 @@ import {
   useAddTaskComment,
   useCreateTask,
   useDeleteTask,
+  useSetTaskAssignees,
   useTaskComments,
   useTeamMembers,
   useUpdateTask,
@@ -55,91 +49,142 @@ interface Props {
   entity?: TaskEntityRef | null;
 }
 
-const UNASSIGNED = "__unassigned__";
-
-const PRIORITIES: { value: TaskPriority; label: string; chip: string }[] = [
-  { value: "low", label: "Low", chip: "border-rule text-steel" },
-  { value: "medium", label: "Medium", chip: "border-electric/40 text-electric" },
-  { value: "high", label: "High", chip: "border-partial/50 text-partial" },
-  { value: "urgent", label: "Urgent", chip: "border-overdue/50 text-overdue" },
+const PRIORITIES: { value: TaskPriority; label: string; cls: string }[] = [
+  { value: "low", label: "Low", cls: "text-steel" },
+  { value: "medium", label: "Medium", cls: "text-electric" },
+  { value: "high", label: "High", cls: "text-partial" },
+  { value: "urgent", label: "Urgent", cls: "text-overdue" },
 ];
 
+/**
+ * Task Detail Panel — Round 4 redesign (per the "Creator Management
+ * Task Board" design handoff). Right-side slide-over instead of a
+ * centered modal, Attio-style: open a task without leaving the
+ * board, every field writes through immediately (no Save button).
+ *
+ * Create-mode creates the row on open (defaults: "New task", medium
+ * priority, assigned to you) and edits it live from there — matches
+ * the handoff's "+ New Task inserts + opens the panel" behavior.
+ */
 export function TaskDialog({ open, onOpenChange, task = null, entity = null }: Props) {
   const { user } = useAuth();
-  const { data: members } = useTeamMembers();
   const create = useCreateTask();
+  const [createdTask, setCreatedTask] = React.useState<Task | null>(null);
+  const creatingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!open) {
+      setCreatedTask(null);
+      creatingRef.current = false;
+      return;
+    }
+    if (task || createdTask || creatingRef.current || !user) return;
+    creatingRef.current = true;
+    create.mutate(
+      {
+        title: "New task",
+        notes: null,
+        priority: "medium",
+        assignee_ids: [user.id],
+        assign_everyone: false,
+        due_date: null,
+        entity_type: entity?.type ?? null,
+        entity_id: entity?.id ?? null,
+        entity_label: entity?.label ?? null,
+      },
+      {
+        onSuccess: (t) => setCreatedTask(t),
+        onError: (e) => {
+          toast.error(`Couldn't create task: ${(e as Error).message}`);
+          onOpenChange(false);
+        },
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, task, user?.id]);
+
+  const activeTask = task ?? createdTask;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="flex flex-col p-0">
+        {activeTask ? (
+          <TaskPanelBody task={activeTask} isNew={!task} onClose={() => onOpenChange(false)} />
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-[12.5px] text-steel">
+            Creating task…
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function TaskPanelBody({
+  task,
+  isNew,
+  onClose,
+}: {
+  task: Task;
+  isNew: boolean;
+  onClose: () => void;
+}) {
+  const { user } = useAuth();
+  const { data: members } = useTeamMembers();
   const update = useUpdateTask();
+  const setAssignees = useSetTaskAssignees();
   const del = useDeleteTask();
   const confirm = useConfirm();
 
-  const [title, setTitle] = React.useState("");
-  const [notes, setNotes] = React.useState("");
-  const [assigneeId, setAssigneeId] = React.useState<string>(UNASSIGNED);
-  const [dueDate, setDueDate] = React.useState<string | null>(null);
-  const [priority, setPriority] = React.useState<TaskPriority>("medium");
+  const [title, setTitle] = React.useState(task.title);
+  const [notes, setNotes] = React.useState(task.notes ?? "");
 
   React.useEffect(() => {
-    if (!open) return;
-    if (task) {
+    setTitle(task.title);
+    setNotes(task.notes ?? "");
+  }, [task.id, task.title, task.notes]);
+
+  function commitTitle() {
+    const trimmed = title.trim();
+    if (!trimmed) {
       setTitle(task.title);
-      setNotes(task.notes ?? "");
-      setAssigneeId(task.assignee_id ?? UNASSIGNED);
-      setDueDate(task.due_date);
-      setPriority(task.priority ?? "medium");
-    } else {
-      setTitle("");
-      setNotes("");
-      // New tasks default to "assign to me" — the most common case
-      // is jotting your own follow-up; reassigning is one click.
-      setAssigneeId(user?.id ?? UNASSIGNED);
-      setDueDate(null);
-      setPriority("medium");
+      return;
     }
-  }, [open, task, user?.id]);
+    if (trimmed === task.title) return;
+    update.mutate({ id: task.id, patch: { title: trimmed } });
+  }
 
-  const linkedLabel = task?.entity_label ?? entity?.label ?? null;
+  function commitNotes() {
+    const trimmed = notes.trim() || null;
+    if (trimmed === (task.notes ?? null)) return;
+    update.mutate({ id: task.id, patch: { notes: trimmed } });
+  }
 
-  async function onSave() {
-    if (!title.trim()) return toast.error("Task needs a title.");
-    const assignee = assigneeId === UNASSIGNED ? null : assigneeId;
-    try {
-      if (task) {
-        await update.mutateAsync({
-          id: task.id,
-          patch: {
-            title: title.trim(),
-            notes: notes.trim() || null,
-            assignee_id: assignee,
-            due_date: dueDate,
-            priority,
-          },
-        });
-        toast.success("Task updated");
-      } else {
-        await create.mutateAsync({
-          title: title.trim(),
-          notes: notes.trim() || null,
-          priority,
-          assignee_id: assignee,
-          due_date: dueDate,
-          entity_type: entity?.type ?? null,
-          entity_id: entity?.id ?? null,
-          entity_label: entity?.label ?? null,
-        });
-        toast.success(
-          assignee && assignee !== user?.id
-            ? `Task assigned to ${memberName(members, assignee)}`
-            : "Task added",
-        );
-      }
-      onOpenChange(false);
-    } catch (e) {
-      toast.error(`Save failed: ${(e as Error).message}`);
-    }
+  function setPriority(priority: TaskPriority) {
+    if (priority === task.priority) return;
+    update.mutate({ id: task.id, patch: { priority } });
+  }
+
+  function setDueDate(due_date: string | null) {
+    update.mutate({ id: task.id, patch: { due_date } });
+  }
+
+  function toggleDone() {
+    update.mutate({ id: task.id, patch: { status: task.status === "done" ? "open" : "done" } });
+  }
+
+  function toggleEveryone() {
+    update.mutate({ id: task.id, patch: { assign_everyone: !task.assign_everyone } });
+  }
+
+  function toggleAssignee(userId: string) {
+    const next = task.assignee_ids.includes(userId)
+      ? task.assignee_ids.filter((id) => id !== userId)
+      : [...task.assignee_ids, userId];
+    setAssignees.mutate({ taskId: task.id, userIds: next });
   }
 
   async function onDelete() {
-    if (!task) return;
     const ok = await confirm({
       title: "Delete this task?",
       description: `"${task.title}" — cannot be undone. (Completing it keeps the history instead.)`,
@@ -150,140 +195,233 @@ export function TaskDialog({ open, onOpenChange, task = null, entity = null }: P
     try {
       await del.mutateAsync({ id: task.id });
       toast.success("Task deleted");
-      onOpenChange(false);
+      onClose();
     } catch (e) {
       toast.error(`Delete failed: ${(e as Error).message}`);
     }
   }
 
-  const busy = create.isPending || update.isPending || del.isPending;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{task ? "Edit task" : "New task"}</DialogTitle>
-          <DialogDescription className="text-[12px]">
-            Visible to the whole team. The assignee gets an email when a
-            task lands on their plate.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <SheetTitle className="sr-only">{isNew ? "New task" : task.title}</SheetTitle>
+      <SheetDescription className="sr-only">
+        Edit priority, assignees, due date, notes, and comments. Changes save automatically.
+      </SheetDescription>
 
-        <div className="grid gap-3 py-2">
-          {linkedLabel ? (
-            <div className="flex items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1.5 text-[12px] text-steel">
-              <Link2 className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-              Linked to <span className="font-medium text-white">{linkedLabel}</span>
-            </div>
-          ) : null}
+      {/* Header */}
+      <SheetHeader className="border-b border-rule">
+        {task.entity_label ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-background/40 px-2 py-0.5 text-[11px] text-steel">
+            <Link2 className="h-3 w-3" strokeWidth={1.5} />
+            {task.entity_label}
+          </span>
+        ) : (
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-steel">
+            Task
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleDone}
+            className={cn(
+              "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-semibold transition-colors duration-base ease-out",
+              task.status === "done"
+                ? "border-electric/40 bg-electric/10 text-electric"
+                : "border-rule bg-card text-steel hover:bg-white/[0.04] hover:text-white",
+            )}
+          >
+            <Check className="h-3 w-3" strokeWidth={2.5} />
+            {task.status === "done" ? "Reopen" : "Mark done"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-steel transition-colors duration-base ease-out hover:bg-white/[0.06] hover:text-white"
+            title="Close"
+          >
+            <X className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+      </SheetHeader>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="tk-title">Title *</Label>
-            <Input
-              id="tk-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !busy) onSave();
-              }}
-            />
+      {/* Body */}
+      <div className="flex-1 space-y-[18px] overflow-y-auto px-5 py-5">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          className="w-full border-none bg-transparent text-[18px] font-semibold tracking-[-0.01em] text-white outline-none placeholder:text-steel"
+          placeholder="Task title"
+        />
+
+        <div className="grid gap-1.5">
+          <Label className="text-[10px] uppercase tracking-[0.12em] text-steel">Priority</Label>
+          <div className="grid grid-cols-4 gap-1.5">
+            {PRIORITIES.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setPriority(p.value)}
+                className={cn(
+                  "inline-flex h-8 items-center justify-center gap-1.5 rounded-md border text-[11px] font-semibold transition-colors duration-base ease-out",
+                  task.priority === p.value
+                    ? "border-electric bg-electric/[0.12] text-white"
+                    : "border-rule bg-card text-steel hover:bg-white/[0.04]",
+                )}
+              >
+                <Flag className={cn("h-3 w-3", p.cls)} strokeWidth={2} />
+                {p.label}
+              </button>
+            ))}
           </div>
-
-          <div className="grid gap-1.5">
-            <Label>Priority</Label>
-            <div className="flex items-center gap-1.5">
-              {PRIORITIES.map((p) => (
-                <button
-                  key={p.value}
-                  type="button"
-                  onClick={() => setPriority(p.value)}
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] transition-colors duration-base ease-out",
-                    priority === p.value
-                      ? cn("bg-white/[0.04]", p.chip)
-                      : "border-rule bg-card text-steel hover:bg-white/[0.04]",
-                  )}
-                >
-                  <Flag className="h-3 w-3" strokeWidth={2} />
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Assignee</Label>
-              <Select value={assigneeId} onValueChange={setAssigneeId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                  {(members ?? []).map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.full_name?.trim() || m.email}
-                      {m.id === user?.id ? " (you)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="tk-due">Due date</Label>
-              <DatePicker id="tk-due" value={dueDate} onChange={setDueDate} />
-            </div>
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label htmlFor="tk-notes">Notes</Label>
-            <textarea
-              id="tk-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-          </div>
-
-          {task ? <CommentThread taskId={task.id} /> : null}
         </div>
 
-        <DialogFooter className={task ? "sm:justify-between" : undefined}>
-          {task ? (
-            <Button
-              variant="outline"
-              onClick={onDelete}
-              disabled={busy}
-              className="text-overdue hover:text-overdue"
+        <div className="grid gap-1.5">
+          <Label className="text-[10px] uppercase tracking-[0.12em] text-steel">Assignees</Label>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={toggleEveryone}
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-medium transition-colors duration-base ease-out",
+                task.assign_everyone
+                  ? "border-electric bg-electric/[0.12] text-white"
+                  : "border-rule bg-card text-steel hover:bg-white/[0.04] hover:text-white",
+              )}
             >
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
-              Delete
-            </Button>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button onClick={onSave} disabled={busy}>
-              {busy ? "Saving…" : task ? "Save" : "Add task"}
-            </Button>
+              <Users className="h-3 w-3" strokeWidth={2} />
+              Everyone
+            </button>
+            {(members ?? []).map((m) => {
+              const active = !task.assign_everyone && task.assignee_ids.includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  disabled={task.assign_everyone}
+                  onClick={() => toggleAssignee(m.id)}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-medium transition-colors duration-base ease-out",
+                    task.assign_everyone
+                      ? "cursor-not-allowed border-rule bg-card text-steel/40"
+                      : active
+                        ? "border-electric bg-electric/[0.12] text-white"
+                        : "border-rule bg-card text-steel hover:bg-white/[0.04] hover:text-white",
+                  )}
+                >
+                  <Avatar name={memberName(members, m.id)} size="xs" />
+                  {memberName(members, m.id)}
+                  {m.id === user?.id ? " (you)" : ""}
+                </button>
+              );
+            })}
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {!task.assign_everyone && task.assignee_ids.length === 0 ? (
+            <p className="text-[11px] italic text-steel/70">Unassigned</p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="tk-due" className="text-[10px] uppercase tracking-[0.12em] text-steel">
+            Due date
+          </Label>
+          <DatePicker id="tk-due" value={task.due_date} onChange={setDueDate} />
+        </div>
+
+        <div className="grid gap-1.5">
+          <Label htmlFor="tk-notes" className="text-[10px] uppercase tracking-[0.12em] text-steel">
+            Notes
+          </Label>
+          <textarea
+            id="tk-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={commitNotes}
+            rows={3}
+            className="min-h-[88px] w-full resize-y rounded-md border bg-card px-3 py-2 text-[13px] leading-[1.5] text-white/90"
+          />
+        </div>
+
+        <CommentThread taskId={task.id} />
+      </div>
+
+      {/* Footer — comment composer is the primary action; delete is
+          tucked in small beside it so it's reachable but not loud. */}
+      <SheetFooter className="flex-col items-stretch gap-2 border-t border-rule">
+        <CommentComposer taskId={task.id} />
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={del.isPending}
+          className="inline-flex w-fit items-center gap-1 text-[11px] text-steel transition-colors duration-base ease-out hover:text-overdue"
+        >
+          <Trash2 className="h-3 w-3" strokeWidth={1.5} />
+          Delete task
+        </button>
+      </SheetFooter>
+    </>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Comment thread — Tasks v2. Assignee + creator get an email per
-// comment (0055 trigger), minus the author.
+// Comment thread — Assignees + creator get an email per comment
+// (or the whole team, if assign_everyone), minus the author.
 // ─────────────────────────────────────────────────────────────────────
 
 function CommentThread({ taskId }: { taskId: string }) {
   const { data: comments, isLoading } = useTaskComments(taskId);
   const { data: members } = useTeamMembers();
+
+  return (
+    <div className="grid gap-2 border-t border-rule pt-4">
+      <Label className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] text-steel">
+        Comments
+        {comments && comments.length > 0 ? (
+          <span className="text-[11px] font-normal normal-case tracking-normal text-steel">
+            · {comments.length}
+          </span>
+        ) : null}
+      </Label>
+
+      {isLoading ? (
+        <p className="text-[12px] text-steel">Loading…</p>
+      ) : comments && comments.length > 0 ? (
+        <ul className="space-y-3">
+          {comments.map((c) => {
+            const name = memberName(members, c.author_id);
+            return (
+              <li key={c.id} className="flex items-start gap-2">
+                <Avatar name={name} size="sm" className="mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[12px] font-semibold text-white">{name}</span>
+                    <span className="text-[11px] tabular-nums text-steel">
+                      {formatDistanceToNow(c.created_at)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-[1.5] text-[#D1D5DB]">
+                    {c.body}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-[12px] text-[#4B5563]">No comments yet.</p>
+      )}
+    </div>
+  );
+}
+
+/** Comment composer, pinned in the panel footer (outside the
+ *  scrollable body) so it's always reachable regardless of thread
+ *  length. */
+function CommentComposer({ taskId }: { taskId: string }) {
   const add = useAddTaskComment();
   const [body, setBody] = React.useState("");
 
@@ -298,62 +436,28 @@ function CommentThread({ taskId }: { taskId: string }) {
   }
 
   return (
-    <div className="grid gap-2 border-t border-rule pt-3">
-      <Label>
-        Comments
-        {comments && comments.length > 0 ? (
-          <span className="ml-1.5 text-[11px] font-normal text-steel">
-            {comments.length}
-          </span>
-        ) : null}
-      </Label>
-
-      {isLoading ? (
-        <p className="text-[12px] text-steel">Loading…</p>
-      ) : comments && comments.length > 0 ? (
-        <ul className="max-h-48 space-y-2.5 overflow-y-auto pr-1">
-          {comments.map((c) => {
-            const name = memberName(members, c.author_id);
-            return (
-              <li key={c.id} className="flex items-start gap-2">
-                <Avatar name={name} size="xs" className="mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[11px] text-steel">
-                    <span className="font-semibold text-white">{name}</span>{" "}
-                    · {formatDistanceToNow(c.created_at)}
-                  </div>
-                  <p className="whitespace-pre-wrap text-[13px] text-white/90">
-                    {c.body}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="text-[12px] text-steel">No comments yet.</p>
-      )}
-
-      <div className="flex items-center gap-2">
-        <Input
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Write a comment…"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !add.isPending) onAdd();
-          }}
-        />
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          onClick={onAdd}
-          disabled={add.isPending || !body.trim()}
-          title="Send comment"
-        >
-          <Send className="h-4 w-4" strokeWidth={1.5} />
-        </Button>
-      </div>
+    <div className="flex items-center gap-2 pt-1">
+      <Input
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Add a comment…"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !add.isPending) onAdd();
+        }}
+        className="h-[34px]"
+      />
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        onClick={onAdd}
+        disabled={add.isPending || !body.trim()}
+        title="Send comment"
+        className="h-[34px] w-[34px]"
+      >
+        <Send className="h-4 w-4" strokeWidth={1.5} />
+      </Button>
     </div>
   );
 }
+

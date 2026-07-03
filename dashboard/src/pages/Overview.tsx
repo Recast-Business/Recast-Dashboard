@@ -33,7 +33,7 @@ import {
 } from "@/components/recast";
 import { useFinanceOverview, type MonthlyFlow } from "@/hooks/useFinanceOverview";
 import { useSharedYear } from "@/hooks/useSharedYear";
-import { isOverdue, taskEntityLink, useTasks } from "@/hooks/useTasks";
+import { isOverdue, isTaskAssignedTo, taskEntityLink, useTasks } from "@/hooks/useTasks";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn, formatUSD, formatUSDCompact, formatDate } from "@/lib/utils";
 
@@ -1034,7 +1034,7 @@ function MyTasksStrip() {
 
   const mine = React.useMemo(() => {
     const open = (tasks ?? []).filter(
-      (t) => t.status === "open" && t.assignee_id === user?.id,
+      (t) => t.status === "open" && isTaskAssignedTo(t, user?.id),
     );
     // Overdue first, then nearest due date, then newest.
     return open
