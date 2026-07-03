@@ -320,9 +320,6 @@ function TaskPanelBody({
               );
             })}
           </div>
-          {!task.assign_everyone && task.assignee_ids.length === 0 ? (
-            <p className="text-[11px] italic text-steel/70">Unassigned</p>
-          ) : null}
         </div>
 
         <div className="grid gap-1.5">
