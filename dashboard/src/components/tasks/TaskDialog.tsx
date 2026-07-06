@@ -24,6 +24,7 @@ import {
   useDeleteTask,
   useSetTaskAssignees,
   useTaskComments,
+  useTasks,
   useTeamMembers,
   useUpdateTask,
   type Task,
@@ -69,6 +70,7 @@ const PRIORITIES: { value: TaskPriority; label: string; cls: string }[] = [
 export function TaskDialog({ open, onOpenChange, task = null, entity = null }: Props) {
   const { user } = useAuth();
   const create = useCreateTask();
+  const { data: tasks } = useTasks();
   const [createdTask, setCreatedTask] = React.useState<Task | null>(null);
   const creatingRef = React.useRef(false);
 
@@ -103,7 +105,15 @@ export function TaskDialog({ open, onOpenChange, task = null, entity = null }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task, user?.id]);
 
-  const activeTask = task ?? createdTask;
+  const snapshot = task ?? createdTask;
+  // Every field write (priority, assignees, due date, status) goes
+  // through a mutation that invalidates the ["tasks"] query — but
+  // `task`/`createdTask` are one-time snapshots that never pick that
+  // up. Prefer the live row from the shared cache so clicks actually
+  // show a result; fall back to the snapshot only for the brief gap
+  // before the first fetch lands (or if this task isn't in the
+  // cached list for some reason).
+  const activeTask = (snapshot && tasks?.find((t) => t.id === snapshot.id)) ?? snapshot;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -138,24 +148,11 @@ function TaskPanelBody({
 
   const [title, setTitle] = React.useState(task.title);
   const [notes, setNotes] = React.useState(task.notes ?? "");
-  const titleRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setTitle(task.title);
     setNotes(task.notes ?? "");
   }, [task.id, task.title, task.notes]);
-
-  // A freshly-created task starts with the placeholder title "New
-  // task" styled to look like a plain heading — nothing signals it's
-  // an editable field. Auto-select it on open so the first keystroke
-  // just replaces it; no click needed, no confusion.
-  React.useEffect(() => {
-    if (isNew) {
-      titleRef.current?.focus();
-      titleRef.current?.select();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNew, task.id]);
 
   function commitTitle() {
     const trimmed = title.trim();
@@ -260,8 +257,10 @@ function TaskPanelBody({
 
       {/* Body */}
       <div className="flex-1 space-y-[18px] overflow-y-auto px-5 py-5">
+        <p className="-mb-2 text-[11px] text-steel">
+          Every change here saves automatically — just close the panel when you're done.
+        </p>
         <input
-          ref={titleRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={commitTitle}
