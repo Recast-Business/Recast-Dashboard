@@ -18,6 +18,22 @@ name: Supabase Keepalive
 # The old SUPABASE_URL / SUPABASE_ANON_KEY secrets are no longer
 # used by anything and can be deleted.
 
+# KNOWN TRAP - the schedule can stop silently:
+# GitHub ties a cron schedule to the account that last committed to
+# this file. If that account loses access (removed from the org) or
+# the repo is transferred, the schedule quietly stops firing while
+# the workflow still shows as "active". This happened in July 2026
+# after the ownership handover: no scheduled run fired for over a
+# week and GitHub sent no warning, because nothing FAILED - the runs
+# simply never started.
+#
+# How to spot it: in the Actions tab, check the trigger of recent
+# runs. Only ever seeing "workflow_dispatch" means the schedule is
+# dead. A green manual run is NOT proof the schedule works.
+#
+# How to fix it: commit any change to this file from an account that
+# currently has write access. That re-registers the cron.
+
 on:
   schedule:
     # Mon + Thu 12:00 UTC — two pings well inside the 7-day window.
