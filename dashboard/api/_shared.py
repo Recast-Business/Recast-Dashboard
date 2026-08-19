@@ -3,8 +3,32 @@ import json, os, re, tempfile
 
 # ── Google Sheets Connection ──────────────────────────────────────────────────
 
-SPREADSHEET_ID = "14KV1CnAl7jnYBTjm9THiI4CS8WFNMnfz3ti10e2aI_k"
-SHEET_GID = 1375114138
+# The roster spreadsheet. Configurable via environment variables so the sheet
+# can be swapped without a code change or a redeploy, which matters because
+# this repository is private on a Vercel plan that cannot deploy private
+# organisation repos, so shipping a code change is a manual chore.
+#
+#   ROSTER_SPREADSHEET_ID  the long id from the sheet URL, between /d/ and /edit
+#   ROSTER_SHEET_GID       the gid=... number identifying the tab within it
+#
+# Whichever sheet is used must be shared with the service account in
+# GOOGLE_CREDENTIALS_JSON (its client_email), or reads fail with a permission
+# error. The defaults below are the original sheet, kept so nothing breaks if
+# the variables are unset.
+SPREADSHEET_ID = os.environ.get("ROSTER_SPREADSHEET_ID", "").strip() or "14KV1CnAl7jnYBTjm9THiI4CS8WFNMnfz3ti10e2aI_k"
+
+def _sheet_gid() -> int:
+    """Tab id within the spreadsheet. 0 means 'just use the first tab'."""
+    raw = os.environ.get("ROSTER_SHEET_GID", "").strip()
+    if not raw:
+        return 1375114138
+    try:
+        return int(raw)
+    except ValueError:
+        print(f"[GSheets] ROSTER_SHEET_GID is not a number: {raw!r}; falling back to the first tab")
+        return 0
+
+SHEET_GID = _sheet_gid()
 
 _gspread_sheet = None
 
