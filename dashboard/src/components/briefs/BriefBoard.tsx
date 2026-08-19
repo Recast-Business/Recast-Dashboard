@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowRight,
@@ -119,7 +120,12 @@ export function BriefBoard() {
       {
         label: "Lost",
         value: String(lost.length),
-        sub: rows.length === 0 ? "—" : `${rows.length - lost.length} live`,
+        // Was `${rows.length - lost.length} live`, which counted the briefs
+        // that are NOT lost and displayed the number under the "Lost" card.
+        sub:
+          rows.length === 0
+            ? "—"
+            : `${Math.round((lost.length / rows.length) * 100)}% of all briefs`,
         icon: AlertTriangle,
         tone: lost.length > 0 ? "overdue" : "default",
       },
@@ -282,14 +288,32 @@ function BriefCard({
               <DropdownMenuItem onSelect={onEdit}>
                 <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
               </DropdownMenuItem>
-              {canPromote ? (
+              {/* Previously this item was hidden entirely when it could not be
+                  used, so a brief with no brand simply had no Promote option
+                  and nothing explained why. It is now shown disabled with the
+                  reason, so the fix is discoverable. */}
+              {brief.linked_campaign_id ? null : (
                 <DropdownMenuItem
-                  onSelect={() => promote.mutate({ brief })}
-                  disabled={promote.isPending}
+                  onSelect={(e) => {
+                    if (!canPromote) {
+                      e.preventDefault();
+                      return;
+                    }
+                    promote.mutate({ brief });
+                  }}
+                  disabled={!canPromote || promote.isPending}
+                  title={
+                    canPromote
+                      ? undefined
+                      : "Add a brand to this brief first. Campaigns are grouped by brand."
+                  }
                 >
-                  <Rocket className="mr-2 h-3.5 w-3.5" /> Promote to campaign
+                  <Rocket className="mr-2 h-3.5 w-3.5" />
+                  {canPromote
+                    ? "Promote to campaign"
+                    : "Promote (add a brand first)"}
                 </DropdownMenuItem>
-              ) : null}
+              )}
               <DropdownMenuItem
                 onSelect={onDelete}
                 className="text-destructive focus:text-destructive"
@@ -339,6 +363,27 @@ function BriefCard({
         >
           View campaign <ArrowRight className="h-3 w-3" />
         </Link>
+      )}
+      {/* A won deal with no campaign behind it earns nothing and is tracked
+          nowhere. That is easy to miss, because nothing on the board used to
+          say so — a $100k brief sat in Exclusive unpromoted and unnoticed.
+          Flag it on the card, with the action attached. */}
+      {currentStage === "exclusive" && !brief.linked_campaign_id && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+          <span>Not tracked yet, no campaign.</span>
+          {canPromote ? (
+            <button
+              type="button"
+              onClick={() => promote.mutate({ brief })}
+              disabled={promote.isPending}
+              className="font-medium underline underline-offset-2 hover:no-underline disabled:opacity-60"
+            >
+              {promote.isPending ? "Promoting…" : "Promote now"}
+            </button>
+          ) : (
+            <span className="opacity-80">Add a brand to promote.</span>
+          )}
+        </div>
       )}
       <div className="mt-3">
         {canEdit ? (
@@ -412,6 +457,13 @@ function BriefDialog({ brief, open: controlledOpen, onOpenChange }: DialogProps 
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // `required` on the input is satisfied by a string of spaces, which then
+    // trims to "" and puts an unnamed card on the shared board. Check the
+    // trimmed value, and say so rather than failing quietly.
+    if (!title.trim()) {
+      toast.error("Give the brief a title.");
+      return;
+    }
     const payload: BriefInput = {
       title: title.trim(),
       brand: brandName.trim() || null,
@@ -421,10 +473,17 @@ function BriefDialog({ brief, open: controlledOpen, onOpenChange }: DialogProps 
       geo: splitTags(geo),
       notes: notes.trim() || null,
     };
-    if (isEdit && brief) {
-      await update.mutateAsync({ id: brief.id, ...payload });
-    } else {
-      await create.mutateAsync(payload);
+    try {
+      if (isEdit && brief) {
+        await update.mutateAsync({ id: brief.id, ...payload });
+      } else {
+        await create.mutateAsync(payload);
+      }
+    } catch {
+      // The mutation hook toasts and `mutation.error` renders in the form
+      // below. Catching here only stops an unhandled rejection and keeps the
+      // dialog open so the typed values are not thrown away.
+      return;
     }
     setOpen(false);
   }
@@ -442,8 +501,9 @@ function BriefDialog({ brief, open: controlledOpen, onOpenChange }: DialogProps 
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit brief" : "New brief"}</DialogTitle>
           <DialogDescription>
-            Moving a brief to <strong>Exclusive</strong> automatically creates a
-            campaign.
+            Briefs do not become campaigns on their own. When a deal is locked
+            in, open the brief&apos;s three-dot menu and pick{" "}
+            <strong>Promote to campaign</strong>.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">

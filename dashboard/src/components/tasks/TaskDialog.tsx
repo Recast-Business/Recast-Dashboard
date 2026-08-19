@@ -58,6 +58,38 @@ const PRIORITIES: { value: TaskPriority; label: string; cls: string }[] = [
 ];
 
 /**
+ * A task the panel created on open, which the user then closed without
+ * changing anything, is litter: it lands on the shared board titled
+ * "New task" and counts toward everyone's open-task badge. Two such rows
+ * had already accumulated in production before this was added.
+ *
+ * Rather than abandon the create-on-open behaviour from the design handoff,
+ * an untouched task is discarded on close. "Untouched" is deliberately
+ * strict: every field must still hold exactly what create-on-open set, so
+ * any real edit keeps the row. The entity is compared against the one this
+ * panel supplied, not required to be absent, because a task opened from a
+ * campaign or creator did not get that link from the user either.
+ */
+function isUntouchedDraft(
+  t: Task,
+  userId: string | undefined,
+  entityId: string | null,
+): boolean {
+  const assignees = t.assignee_ids ?? [];
+  return (
+    t.title.trim() === "New task" &&
+    !t.notes?.trim() &&
+    !t.due_date &&
+    t.priority === "medium" &&
+    !t.assign_everyone &&
+    t.status !== "done" &&
+    (t.entity_id ?? null) === entityId &&
+    assignees.length <= 1 &&
+    (assignees.length === 0 || assignees[0] === userId)
+  );
+}
+
+/**
  * Task Detail Panel — Round 4 redesign (per the "Creator Management
  * Task Board" design handoff). Right-side slide-over instead of a
  * centered modal, Attio-style: open a task without leaving the
@@ -70,6 +102,7 @@ const PRIORITIES: { value: TaskPriority; label: string; cls: string }[] = [
 export function TaskDialog({ open, onOpenChange, task = null, entity = null }: Props) {
   const { user } = useAuth();
   const create = useCreateTask();
+  const del = useDeleteTask();
   const { data: tasks } = useTasks();
   const [createdTask, setCreatedTask] = React.useState<Task | null>(null);
   const creatingRef = React.useRef(false);
@@ -115,11 +148,23 @@ export function TaskDialog({ open, onOpenChange, task = null, entity = null }: P
   // cached list for some reason).
   const activeTask = (snapshot && tasks?.find((t) => t.id === snapshot.id)) ?? snapshot;
 
+  // Close handler: drop a created-but-never-edited task instead of leaving
+  // it on the board. Only ever touches a row this panel created itself.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && createdTask && !task) {
+      const live = tasks?.find((t) => t.id === createdTask.id) ?? createdTask;
+      if (isUntouchedDraft(live, user?.id, entity?.id ?? null)) {
+        del.mutate({ id: live.id });
+      }
+    }
+    onOpenChange(next);
+  };
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="flex flex-col p-0">
         {activeTask ? (
-          <TaskPanelBody task={activeTask} isNew={!task} onClose={() => onOpenChange(false)} />
+          <TaskPanelBody task={activeTask} isNew={!task} onClose={() => handleOpenChange(false)} />
         ) : (
           <div className="flex flex-1 items-center justify-center text-[12.5px] text-steel">
             Creating task…
