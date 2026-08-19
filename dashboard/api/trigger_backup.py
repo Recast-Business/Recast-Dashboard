@@ -40,10 +40,15 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 
+from api._shared import heartbeat
+
 WORKFLOW_FILE = "supabase-backup.yml"
 DEFAULT_REPO = "Recast-Business/Recast-Dashboard"
 DEFAULT_REF = "main"
 TIMEOUT_SECONDS = 20
+
+# The monitor that alerts if this job stops running. See _shared.heartbeat.
+HEARTBEAT_ENV = "HEALTHCHECK_URL_BACKUP"
 
 
 def _json(handler, status, payload):
@@ -66,6 +71,7 @@ class handler(BaseHTTPRequestHandler):
         token = (os.environ.get("GITHUB_BACKUP_TOKEN") or "").strip()
         if not token:
             print("trigger_backup: GITHUB_BACKUP_TOKEN is not set")
+            heartbeat(HEARTBEAT_ENV, "fail", "GITHUB_BACKUP_TOKEN is not set")
             _json(self, 500, {
                 "ok": False,
                 "error": "GITHUB_BACKUP_TOKEN is not set",
@@ -95,6 +101,7 @@ class handler(BaseHTTPRequestHandler):
             with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
                 # GitHub returns 204 No Content when the dispatch is accepted.
                 print(f"trigger_backup: dispatched {WORKFLOW_FILE} on {repo} (HTTP {response.status})")
+                heartbeat(HEARTBEAT_ENV, "ok", f"Dispatched {WORKFLOW_FILE} on {repo}")
                 _json(self, 200, {"ok": True, "dispatched": WORKFLOW_FILE, "repo": repo})
         except urllib.error.HTTPError as e:
             body = e.read(300).decode("utf-8", "replace")
@@ -104,7 +111,9 @@ class handler(BaseHTTPRequestHandler):
             elif e.code == 404:
                 hint = f"Workflow {WORKFLOW_FILE} not found on {repo}, or the token cannot see the repository."
             print(f"trigger_backup FAILED: HTTP {e.code} :: {body}")
+            heartbeat(HEARTBEAT_ENV, "fail", f"HTTP {e.code} :: {body}" + (f" -- {hint}" if hint else ""))
             _json(self, 502, {"ok": False, "upstreamStatus": e.code, "body": body, "hint": hint})
         except Exception as e:
             print(f"trigger_backup ERROR: {e}")
+            heartbeat(HEARTBEAT_ENV, "fail", f"Dispatch failed: {e}")
             _json(self, 502, {"ok": False, "error": str(e)})

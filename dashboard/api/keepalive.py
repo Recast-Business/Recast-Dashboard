@@ -45,11 +45,16 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 
+from api._shared import heartbeat
+
 # Read one row from a table that certainly exists. Row-level security hides
 # the rows from the anon key, so a healthy response is 200 with an empty
 # list. The request still counts as database activity, which is the point.
 TABLE = "profiles"
 TIMEOUT_SECONDS = 20
+
+# The monitor that alerts if this job stops running. See _shared.heartbeat.
+HEARTBEAT_ENV = "HEALTHCHECK_URL_KEEPALIVE"
 
 
 def _json(handler, status, payload):
@@ -82,15 +87,17 @@ class handler(BaseHTTPRequestHandler):
         ]
         if missing:
             print(f"keepalive: missing env var(s): {', '.join(missing)}")
+            heartbeat(HEARTBEAT_ENV, "fail", f"Missing env var(s): {', '.join(missing)}")
             _json(self, 500, {"ok": False, "error": f"Missing env var(s): {', '.join(missing)}"})
             return
 
         # 2. Normalise to the origin. A pasted value carrying a trailing
         #    slash, a path, or stray whitespace otherwise produces an opaque
         #    PGRST125 "Invalid path specified in request URL".
-        match = re.match(r"https?://[A-Za-z0-9.-]+", raw_url)
+        match = re.match(r"https?://[A-Za-z0-9.-]+(?::\d+)?", raw_url)
         if not match:
             print(f"keepalive: VITE_SUPABASE_URL is not a URL: {raw_url}")
+            heartbeat(HEARTBEAT_ENV, "fail", f"VITE_SUPABASE_URL is not a URL: {raw_url}")
             _json(self, 500, {"ok": False, "error": "VITE_SUPABASE_URL is not a valid URL"})
             return
         origin = match.group(0)
@@ -105,10 +112,12 @@ class handler(BaseHTTPRequestHandler):
             with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
                 response.read(300)
                 print(f"keepalive OK: HTTP {response.status} from {origin}")
+                heartbeat(HEARTBEAT_ENV, "ok", f"HTTP {response.status} from {origin}")
                 _json(self, 200, {"ok": True, "pinged": origin})
         except urllib.error.HTTPError as e:
             body = e.read(300).decode("utf-8", "replace")
             print(f"keepalive FAILED: HTTP {e.code} from {origin} :: {body}")
+            heartbeat(HEARTBEAT_ENV, "fail", f"HTTP {e.code} from {origin} :: {body}")
             _json(self, 502, {"ok": False, "upstreamStatus": e.code, "body": body})
         except Exception as e:
             # A DNS failure against a *.supabase.co host almost always means
@@ -120,4 +129,5 @@ class handler(BaseHTTPRequestHandler):
                 hint = ("Host does not resolve. The Supabase project is most likely "
                         "paused; restore it from the Supabase dashboard.")
             print(f"keepalive ERROR reaching {origin}: {message}" + (f" -- {hint}" if hint else ""))
+            heartbeat(HEARTBEAT_ENV, "fail", f"Cannot reach {origin}: {message}" + (f" -- {hint}" if hint else ""))
             _json(self, 502, {"ok": False, "target": origin, "error": message, "hint": hint})

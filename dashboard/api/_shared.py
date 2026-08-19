@@ -359,3 +359,64 @@ def require_auth(handler, required_roles=None):
             return None
 
     return {"id": user["id"], "email": user.get("email"), "role": role}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Dead-man's-switch heartbeat for the scheduled functions.
+#
+# WHY A HEARTBEAT AND NOT A HEALTH CHECK
+#     The Supabase projects have paused twice, and on both occasions
+#     everything looked fine. The GitHub Actions cron meant to prevent it
+#     reported itself "active" and simply never ran. Nothing failed, so
+#     nothing alerted. A monitor living inside the same cron cannot catch
+#     that: if the cron stops firing the monitor stops with it, and silence
+#     is indistinguishable from health.
+#
+#     So it is inverted. The job reports IN to an external service on every
+#     run, and that service alerts when a report does not arrive. Silence
+#     becomes the alarm instead of the failure mode.
+#
+# CONFIGURATION
+#     Each scheduled function reads its own ping URL, so the two jobs alert
+#     separately and it is obvious which one stopped:
+#
+#         HEALTHCHECK_URL_KEEPALIVE   for /api/keepalive
+#         HEALTHCHECK_URL_BACKUP      for /api/trigger_backup
+#
+#     Unset means this is a no-op, so nothing here can break a deployment
+#     that has not been configured yet.
+# ─────────────────────────────────────────────────────────────────────────
+
+HEARTBEAT_TIMEOUT_SECONDS = 5
+
+
+def heartbeat(env_var: str, outcome: str, detail: str = "") -> None:
+    """Report the outcome of a scheduled run to the external monitor.
+
+    ``outcome`` is "ok" to reset the timer, or "fail" to alert immediately
+    rather than waiting for the grace period to lapse, which matters when
+    the database is already down.
+
+    This never raises. A monitoring outage is not a job failure, and the
+    monitoring must not be able to take down the thing it monitors.
+    """
+    import urllib.error
+    import urllib.request
+
+    base = (os.environ.get(env_var) or "").strip().rstrip("/")
+    if not base:
+        return
+
+    url = base if outcome == "ok" else f"{base}/fail"
+    try:
+        request = urllib.request.Request(
+            url,
+            data=detail[:1000].encode("utf-8", "replace"),
+            headers={"User-Agent": "recast-dashboard-heartbeat"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=HEARTBEAT_TIMEOUT_SECONDS) as response:
+            if response.status >= 400:
+                print(f"heartbeat: monitor returned HTTP {response.status}")
+    except Exception as e:  # noqa: BLE001 - deliberately swallowed, see docstring
+        print(f"heartbeat: could not reach the monitor: {e}")
