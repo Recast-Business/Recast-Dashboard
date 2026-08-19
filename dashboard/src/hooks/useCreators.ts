@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { apiFetch } from "@/lib/apiFetch";
-import { syncCreatorField } from "@/lib/sheetSync";
 
 export type CreatorFilter = "all" | "signed" | "unsigned" | "starred";
 
@@ -79,38 +77,17 @@ export function useBulkDeleteCreators() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      // Grab names first so we can also remove from the Google Sheet.
-      const { data: rows } = await supabase
-        .from("creators")
-        .select("name")
-        .in("id", ids);
-      const names = (rows ?? []).map((r) => r.name).filter(Boolean);
-
       const { error } = await supabase
         .from("creators")
         .delete()
         .in("id", ids);
       if (error) throw error;
 
-      // Mirror to Google Sheet — remove each deleted creator from the sheet.
-      // Errors here are logged but don't fail the Supabase delete.
-      for (const name of names) {
-        try {
-          await apiFetch("/api/remove_duplicates", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name }),
-          });
-        } catch (e) {
-          console.warn(`[sheet-sync] failed to remove ${name} from sheet:`, e);
-        }
-      }
-
       return ids.length;
     },
     onSuccess: (count) => {
       toast.success(
-        `Deleted ${count} lead${count === 1 ? "" : "s"} (dashboard + sheet)`,
+        `Deleted ${count} creator${count === 1 ? "" : "s"}`,
       );
       qc.invalidateQueries({ queryKey: ["creators"] });
     },
@@ -127,16 +104,6 @@ export function useBulkSetOutreachStatus() {
         .update({ outreach_status: args.status })
         .in("id", args.ids);
       if (error) throw error;
-
-      // Mirror to Google Sheet — fetch names for the updated rows and push one
-      // per creator. Errors here don't fail the primary mutation.
-      const { data: rows } = await supabase
-        .from("creators")
-        .select("name")
-        .in("id", args.ids);
-      for (const r of rows ?? []) {
-        syncCreatorField(r.name, "outreach_status", args.status);
-      }
 
       return args.ids.length;
     },
@@ -333,47 +300,6 @@ export function useCreateCreator() {
         .single();
       if (error) throw error;
 
-      // Mirror to Google Sheet — append a row via /api/export_to_roster
-      // (picks the primary platform), then backfill any secondary handle /
-      // socials via /api/update_creator. Errors here don't fail the insert.
-      const primaryPlatform = twitchHandle ? "twitch" : kickHandle ? "kick" : "";
-      const primaryHandle = twitchHandle ?? kickHandle ?? "";
-      try {
-        if (primaryHandle) {
-          await apiFetch("/api/export_to_roster", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              creators: [
-                {
-                  name: args.name,
-                  platform: primaryPlatform,
-                  handle: primaryHandle,
-                  ccv: 0,
-                  country: args.country ?? "",
-                  content: args.category ?? "",
-                  twitter: args.socials?.twitter ?? "",
-                  instagram: args.socials?.instagram ?? "",
-                  language: "",
-                },
-              ],
-            }),
-          });
-        }
-        // Fill in secondary platform + misc fields the append missed.
-        if (twitchHandle && kickHandle) {
-          const secondary = primaryPlatform === "twitch" ? "kick_handle" : "twitch_handle";
-          const value = primaryPlatform === "twitch" ? kickHandle : twitchHandle;
-          syncCreatorField(args.name, secondary as any, value);
-        }
-        if (args.country)
-          syncCreatorField(args.name, "country", args.country);
-        if (args.category)
-          syncCreatorField(args.name, "content_type", args.category);
-      } catch (e) {
-        console.warn("[sheet-sync] create creator push failed:", e);
-      }
-
       return { id: data.id, signed: args.signed, name: args.name };
     },
     onSuccess: (r) => {
@@ -396,88 +322,6 @@ export function useUpdateTwitch30dCCV() {
         })
         .eq("id", args.id);
       if (error) throw error;
-      if (args.name) syncCreatorField(args.name, "twitch_30d_ccv", args.ccv);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["creators"] });
-    },
-  });
-}
-
-interface SheetRoster {
-  ok: boolean;
-  data: {
-    name: string;
-    twitchHandle?: string;
-    kickHandle?: string;
-    twitch30dCCV?: number | null;
-    kick30dCCV?: number | null;
-  }[];
-}
-
-export function useBackfillCCVFromSheet() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (): Promise<{
-      matched: number;
-      updated: number;
-      missed: number;
-      total: number;
-    }> => {
-      const res = await apiFetch("/api/roster");
-      if (!res.ok) throw new Error(`/api/roster returned ${res.status}`);
-      const sheet = (await res.json()) as SheetRoster;
-      if (!sheet?.ok) throw new Error("Sheet read failed");
-
-      const { data: creators, error } = await supabase
-        .from("creators")
-        .select("id, name, twitch_handle, kick_handle");
-      if (error) throw error;
-
-      const byTwitch = new Map<string, string>();
-      const byKick = new Map<string, string>();
-      const byName = new Map<string, string>();
-      for (const c of creators ?? []) {
-        if (c.twitch_handle)
-          byTwitch.set(c.twitch_handle.toLowerCase(), c.id);
-        if (c.kick_handle) byKick.set(c.kick_handle.toLowerCase(), c.id);
-        if (c.name) byName.set(c.name.trim().toLowerCase(), c.id);
-      }
-
-      let matched = 0;
-      let updated = 0;
-      let missed = 0;
-
-      for (const row of sheet.data) {
-        const tw = row.twitch30dCCV;
-        const kk = row.kick30dCCV;
-        if (tw == null && kk == null) continue;
-
-        let id: string | undefined;
-        if (row.twitchHandle) id = byTwitch.get(row.twitchHandle.toLowerCase());
-        if (!id && row.kickHandle) id = byKick.get(row.kickHandle.toLowerCase());
-        if (!id && row.name) id = byName.get(row.name.trim().toLowerCase());
-
-        if (!id) {
-          missed++;
-          continue;
-        }
-        matched++;
-
-        const patch: Record<string, unknown> = {
-          ccv_fetched_at: new Date().toISOString(),
-        };
-        if (tw != null && Number.isFinite(tw)) patch.twitch_30d_ccv = Math.round(tw);
-        if (kk != null && Number.isFinite(kk)) patch.kick_30d_ccv = Math.round(kk);
-
-        const { error: ue } = await supabase
-          .from("creators")
-          .update(patch)
-          .eq("id", id);
-        if (!ue) updated++;
-      }
-
-      return { matched, updated, missed, total: sheet.data.length };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["creators"] });
@@ -552,7 +396,6 @@ export function useFetchAllTwitchCCV() {
             failed++;
           } else {
             updated++;
-            if (c.name) syncCreatorField(c.name, "twitch_30d_ccv", ccv);
           }
         } catch {
           failed++;
@@ -586,7 +429,6 @@ export function useFetchTwitch30dCCV() {
         .eq("id", args.id);
       if (error) throw error;
       if (args.name && ccv != null) {
-        syncCreatorField(args.name, "twitch_30d_ccv", ccv);
       }
       return ccv as number | null;
     },
@@ -608,7 +450,6 @@ export function useUpdateKick30dCCV() {
         })
         .eq("id", args.id);
       if (error) throw error;
-      if (args.name) syncCreatorField(args.name, "kick_30d_ccv", args.ccv);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["creators"] });

@@ -377,7 +377,7 @@ export function TalentLedgerPage() {
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border bg-card p-8 text-center text-[13px] text-steel">
           {rows.length === 0
-            ? "No signed creators yet. Sign someone from /leads first, then their profile lands here."
+            ? "No signed creators yet. Sign someone from the Roster first, then their profile lands here."
             : "No matches for the current filter."}
         </div>
       ) : (

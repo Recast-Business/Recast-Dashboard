@@ -23,9 +23,6 @@ export const NAV_ACCESS: Record<string, UserRole[]> = {
   campaigns: ["admin", "partner", "accounting", "operator"],
   finance: ["admin", "accounting"],                       // operator excluded
   roster: ["admin", "partner", "accounting", "operator"],
-  leads: ["admin", "partner", "operator"],
-  scout: ["admin", "partner", "operator"],
-  potential: ["admin", "partner", "operator"],
   briefs: ["admin", "partner", "operator"],
   activity: ["admin", "accounting"],                      // operator excluded
 };

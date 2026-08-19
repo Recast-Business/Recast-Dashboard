@@ -18,8 +18,6 @@ import { useAuth } from "@/auth/AuthProvider";
 
 export interface NavCounts {
   roster: number;
-  leads: number;
-  potential: number;
   tasks: number;
 }
 
@@ -30,7 +28,7 @@ export function useNavCounts() {
     staleTime: 60_000,
     queryFn: async () => {
       const [creatorsRes, tasksRes] = await Promise.all([
-        supabase.from("creators").select("signed, starred"),
+        supabase.from("creators").select("signed"),
         user ? supabase.rpc("my_open_task_count") : Promise.resolve({ data: 0, error: null }),
       ]);
       if (creatorsRes.error) throw creatorsRes.error;
@@ -39,16 +37,12 @@ export function useNavCounts() {
       // nuke the other badges.
       const tasks = tasksRes.error ? 0 : (tasksRes.data as number) ?? 0;
 
-      const rows = (creatorsRes.data ?? []) as { signed: boolean | null; starred: boolean | null }[];
+      const rows = (creatorsRes.data ?? []) as { signed: boolean | null }[];
       let roster = 0;
-      let leads = 0;
-      let potential = 0;
       for (const r of rows) {
         if (r.signed) roster++;
-        else leads++;
-        if (r.starred) potential++;
       }
-      return { roster, leads, potential, tasks };
+      return { roster, tasks };
     },
   });
 }

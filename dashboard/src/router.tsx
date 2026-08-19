@@ -24,10 +24,7 @@ const FinancePage = React.lazy(() => import("@/pages/Finance").then((m) => ({ de
 const RosterPage = React.lazy(() => import("@/pages/Roster").then((m) => ({ default: m.RosterPage })));
 const TalentLedgerPage = React.lazy(() => import("@/pages/TalentLedger").then((m) => ({ default: m.TalentLedgerPage })));
 const TalentDetailPage = React.lazy(() => import("@/pages/TalentDetail").then((m) => ({ default: m.TalentDetailPage })));
-const LeadsPage = React.lazy(() => import("@/pages/Leads").then((m) => ({ default: m.LeadsPage })));
-const PotentialPage = React.lazy(() => import("@/pages/Potential").then((m) => ({ default: m.PotentialPage })));
 const CreatorProfilePage = React.lazy(() => import("@/pages/CreatorProfile").then((m) => ({ default: m.CreatorProfilePage })));
-const ScoutPage = React.lazy(() => import("@/pages/Scout").then((m) => ({ default: m.ScoutPage })));
 const BriefsPage = React.lazy(() => import("@/pages/Briefs").then((m) => ({ default: m.BriefsPage })));
 const ActivityPage = React.lazy(() => import("@/pages/Activity").then((m) => ({ default: m.ActivityPage })));
 const VendorsPage = React.lazy(() => import("@/pages/Vendors").then((m) => ({ default: m.VendorsPage })));
@@ -127,34 +124,10 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "leads",
-        element: (
-          <ProtectedRoute allow={["admin", "partner", "operator"]}>
-            <LeadsPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "potential",
-        element: (
-          <ProtectedRoute allow={["admin", "partner", "operator"]}>
-            <PotentialPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
         path: "creators/:id",
         element: (
           <ProtectedRoute allow={["admin", "partner", "accounting", "operator"]}>
             <CreatorProfilePage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "scout",
-        element: (
-          <ProtectedRoute allow={["admin", "partner", "operator"]}>
-            <ScoutPage />
           </ProtectedRoute>
         ),
       },
