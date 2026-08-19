@@ -1,3 +1,14 @@
+# =============================================================================
+# SUPERSEDED (August 2026) - this workflow is NOT the active keepalive.
+#
+#   The live keepalive is a Vercel Cron job: see dashboard/api/keepalive.py
+#   and the "crons" block in dashboard/vercel.json. It runs daily and belongs
+#   to the Vercel project rather than to a GitHub user account.
+#
+#   This file is kept because the KNOWN TRAP note below documents a real
+#   failure mode, and a revived schedule would only add a harmless extra
+#   ping. It has not fired on schedule since 16 July 2026. Do not rely on it.
+# =============================================================================
 name: Supabase Keepalive
 
 # Supabase free-tier pauses a project after ~7 days without database

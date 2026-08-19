@@ -11,12 +11,9 @@ import {
   ListTodo,
   LogOut,
   Megaphone,
-  Search,
   ShieldCheck,
-  Star,
   Store,
   UserCheck,
-  UserSearch,
   Users,
   Wallet,
 } from "lucide-react";
@@ -123,9 +120,15 @@ const PIPELINE_SECTION: NavSection = {
     // role sees + uses it; badge = YOUR open task count.
     { to: "/tasks", label: "Tasks", icon: ListTodo, allow: ["admin", "partner", "accounting", "operator"], badge: "tasks" },
     { to: "/briefs", label: "Brief Builder", icon: FileText, allow: ["admin", "partner", "operator"] },
-    { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"], badge: "leads" },
-    { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"], badge: "potential" },
-    { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
+    // Leads, Potential and Scout removed from the sidebar August 2026 (Max):
+    // Pipeline is now Tasks / Brief Builder / Roster / Campaigns only.
+    // Hidden rather than deleted, so this is a one-line restore. Their
+    // routes, pages and the Python scout functions (api/scout.py,
+    // api/scrape_socials.py, api/ccv30.py) all still exist and still work if
+    // reached directly; say the word and they can be torn out properly.
+    // { to: "/leads", label: "Leads", icon: UserSearch, allow: ["admin", "partner", "operator"], badge: "leads" },
+    // { to: "/potential", label: "Potential", icon: Star, allow: ["admin", "partner", "operator"], badge: "potential" },
+    // { to: "/scout", label: "Scout", icon: Search, allow: ["admin", "partner", "operator"] },
     // Round 3 follow-up (Gustavo + Harry split): Roster is the
     // OPERATIONAL lens on signed creators — handles, CCV,
     // sign/unsign, tier. All roles see it. Talent Ledger (Workspace)

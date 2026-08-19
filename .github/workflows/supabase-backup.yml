@@ -1,3 +1,17 @@
+# =============================================================================
+# STILL IN USE - but its SCHEDULE is not.
+#
+#   This workflow still does the actual backup and is the only thing that
+#   produces a restorable dump. What cannot be trusted is the `cron:` below:
+#   it has not fired since 12 July 2026, leaving the product database with no
+#   backups for over five weeks before this was caught.
+#
+#   It is now triggered daily by Vercel Cron instead, which calls
+#   dashboard/api/trigger_backup.py, which dispatches this workflow via the
+#   GitHub API. Manual dispatch has always worked; only the schedule was
+#   broken. The cron line is left in place in case GitHub's scheduler ever
+#   recovers, in which case it simply produces one extra backup.
+# =============================================================================
 name: Supabase Backup
 
 # Weekly pg_dump of the whole database, stored as a GitHub Actions
