@@ -59,23 +59,32 @@ on:
     - cron: "0 3 * * 0"
   workflow_dispatch:
 
+env:
+  # Must match the Supabase server major version (currently 17). pg_dump
+  # refuses to dump from a server newer than itself.
+  PG_IMAGE: postgres:17-alpine
+
 jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Install postgresql-client 17 (matches Supabase server major)
+      # pg_dump comes from the official Postgres image rather than from apt.
+      #
+      # The apt route installed postgresql-client-17 from the PGDG repository
+      # on every single run, which meant every run depended on three package
+      # mirrors being reachable and fast. On 19 August 2026 the Azure Ubuntu
+      # mirror stopped responding, apt sat through its retry timeouts, and the
+      # job burned all 15 minutes of its budget without ever reaching pg_dump.
+      # A backup that only works when three mirrors cooperate is not a backup.
+      #
+      # Pulling a pinned image is one fetch from one registry, it takes
+      # seconds, and it gives the exact pg_dump major version every time.
+      - name: Fetch pg_dump 17
         run: |
           set -euo pipefail
-          # PGDG's official setup script — non-interactive, handles the
-          # signing key itself. (A hand-rolled curl|gpg pipeline here
-          # previously died in CI: gpg tried to open /dev/tty, which
-          # runners don't have.)
-          sudo apt-get -qq update
-          sudo apt-get -qq install -y postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get -qq install -y postgresql-client-17
-          /usr/lib/postgresql/17/bin/pg_dump --version
+          docker pull -q "$PG_IMAGE"
+          docker run --rm "$PG_IMAGE" pg_dump --version
 
       - name: Dump database
         env:
@@ -100,10 +109,16 @@ jobs:
           # so the file restores cleanly into any project. auth + storage
           # schemas are Supabase-managed; public carries all app data.
           # (auth.users is included so logins are recoverable too.)
-          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
-            --no-owner --no-privileges \
-            --schema=public --schema=auth \
-            --format=plain \
+          # -e forwards the value from this shell's environment rather than
+          # placing it on the docker command line, keeping the password out
+          # of the process list. Single quotes stop the outer shell expanding
+          # it; the container's shell does that instead.
+          export SUPABASE_DB_URL
+          docker run --rm -e SUPABASE_DB_URL "$PG_IMAGE" \
+            sh -c 'pg_dump "$SUPABASE_DB_URL" \
+              --no-owner --no-privileges \
+              --schema=public --schema=auth \
+              --format=plain' \
             | gzip -9 > "recast-backup-${STAMP}.sql.gz"
           ls -lh recast-backup-*.sql.gz
           # Sanity floor: a real dump of this DB is far bigger than 10KB.
@@ -120,3 +135,52 @@ jobs:
           path: recast-backup-*.sql.gz
           retention-days: 90
           if-no-files-found: error
+
+      # ───────────────────────────────────────────────────────────────────
+      # Report the real outcome to the external monitor.
+      #
+      # The dispatcher (api/trigger_backup.py) only knows whether GitHub
+      # ACCEPTED the request. It has no idea whether the dump succeeded, so
+      # it must not be the thing that reports health: on 19 August 2026 the
+      # dispatch was accepted and the backup then died, which under that
+      # arrangement would have looked entirely healthy.
+      #
+      # Ownership of the "ok" signal therefore sits here, at the only point
+      # that knows a restorable file actually exists. Three cases are then
+      # covered: the dump fails and this reports it, the workflow never runs
+      # at all and the monitor's own grace period catches the silence, and
+      # the dispatch itself fails and the dispatcher reports that.
+      #
+      # Optional. With no HEALTHCHECK_URL_BACKUP secret these steps are
+      # skipped and the backup is unaffected.
+      # ───────────────────────────────────────────────────────────────────
+      # The `secrets` context is not available in a step-level `if:`, so the
+      # "is it configured" test is a shell check inside the step instead.
+      - name: Report success to the monitor
+        if: success()
+        env:
+          HC_URL: ${{ secrets.HEALTHCHECK_URL_BACKUP }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HC_URL:-}" ]; then
+            echo "HEALTHCHECK_URL_BACKUP is not set, skipping the heartbeat."
+            exit 0
+          fi
+          curl -fsS -m 10 --retry 3 \
+            --data-raw "Backup uploaded: $(ls recast-backup-*.sql.gz)" \
+            "${HC_URL%/}" > /dev/null
+
+      - name: Report failure to the monitor
+        if: failure()
+        env:
+          HC_URL: ${{ secrets.HEALTHCHECK_URL_BACKUP }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HC_URL:-}" ]; then
+            echo "HEALTHCHECK_URL_BACKUP is not set, skipping the heartbeat."
+            exit 0
+          fi
+          curl -fsS -m 10 --retry 3 \
+            --data-raw "Backup FAILED. See ${RUN_URL}" \
+            "${HC_URL%/}/fail" > /dev/null

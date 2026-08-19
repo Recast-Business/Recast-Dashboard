@@ -47,7 +47,8 @@ DEFAULT_REPO = "Recast-Business/Recast-Dashboard"
 DEFAULT_REF = "main"
 TIMEOUT_SECONDS = 20
 
-# The monitor that alerts if this job stops running. See _shared.heartbeat.
+# The backup monitor. Only failures are reported from here; the workflow
+# owns the success signal, because only it knows a dump actually exists.
 HEARTBEAT_ENV = "HEALTHCHECK_URL_BACKUP"
 
 
@@ -100,8 +101,15 @@ class handler(BaseHTTPRequestHandler):
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
                 # GitHub returns 204 No Content when the dispatch is accepted.
+                # Deliberately does NOT report "ok" to the monitor. All this
+                # proves is that GitHub accepted the request; the backup has
+                # not started, let alone succeeded. On 19 August 2026 a run
+                # was accepted here and then died without producing a dump,
+                # which an "ok" at this point would have reported as healthy.
+                # The workflow sends the "ok" itself, once a restorable file
+                # exists. If the workflow never runs, no ping arrives at all
+                # and the monitor's grace period catches the silence.
                 print(f"trigger_backup: dispatched {WORKFLOW_FILE} on {repo} (HTTP {response.status})")
-                heartbeat(HEARTBEAT_ENV, "ok", f"Dispatched {WORKFLOW_FILE} on {repo}")
                 _json(self, 200, {"ok": True, "dispatched": WORKFLOW_FILE, "repo": repo})
         except urllib.error.HTTPError as e:
             body = e.read(300).decode("utf-8", "replace")
