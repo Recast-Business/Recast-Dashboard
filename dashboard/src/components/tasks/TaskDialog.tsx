@@ -160,11 +160,27 @@ export function TaskDialog({ open, onOpenChange, task = null, entity = null }: P
     onOpenChange(next);
   };
 
+  // Screen-reader label for the panel. Radix requires a title and a
+  // description on every Sheet/Dialog content and logs a console error pair
+  // when either is missing. These used to live inside TaskPanelBody, which
+  // does not render while a new task row is still being created, so every
+  // click of "New task" mounted the panel with neither and logged the pair.
+  // They belong on the content itself, where they are present in every state.
+  const srTitle = activeTask
+    ? task
+      ? activeTask.title
+      : "New task"
+    : "Creating task";
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="flex flex-col p-0">
+        <SheetTitle className="sr-only">{srTitle}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Edit priority, assignees, due date, notes, and comments. Changes save automatically.
+        </SheetDescription>
         {activeTask ? (
-          <TaskPanelBody task={activeTask} isNew={!task} onClose={() => handleOpenChange(false)} />
+          <TaskPanelBody task={activeTask} onClose={() => handleOpenChange(false)} />
         ) : (
           <div className="flex flex-1 items-center justify-center text-[12.5px] text-steel">
             Creating task…
@@ -177,11 +193,9 @@ export function TaskDialog({ open, onOpenChange, task = null, entity = null }: P
 
 function TaskPanelBody({
   task,
-  isNew,
   onClose,
 }: {
   task: Task;
-  isNew: boolean;
   onClose: () => void;
 }) {
   const { user } = useAuth();
@@ -258,11 +272,6 @@ function TaskPanelBody({
 
   return (
     <>
-      <SheetTitle className="sr-only">{isNew ? "New task" : task.title}</SheetTitle>
-      <SheetDescription className="sr-only">
-        Edit priority, assignees, due date, notes, and comments. Changes save automatically.
-      </SheetDescription>
-
       {/* Header */}
       <SheetHeader className="border-b border-rule">
         {task.entity_label ? (
